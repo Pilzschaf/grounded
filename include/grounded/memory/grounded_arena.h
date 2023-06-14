@@ -216,9 +216,9 @@ GROUNDED_FUNCTION_INLINE void arenaPopTo(MemoryArena* arena, u8* newHead) {
     }
 }
 
-GROUNDED_FUNCTION_INLINE void* _arenaBootstrapPushSize(MemoryArena arena, u64 structSize, u64 offsetToArena, u64 alignment) {
+GROUNDED_FUNCTION_INLINE void* _arenaBootstrapPushSize(MemoryArena arena, u64 structSize, u64 offsetToArena, u64 alignment, u64 line, String8 filename) {
     ASSERT((offsetToArena & (ALIGNMENT_OF(MemoryArena)-1)) == 0);
-    void* result = _arenaPushSize(&arena, structSize, alignment, true, __LINE__, STR8_LITERAL(__FILE__));
+    void* result = _arenaPushSize(&arena, structSize, alignment, true, line, filename);
     *(MemoryArena*)((u8*)result + offsetToArena) = arena;
     return result;
 }

@@ -3,6 +3,7 @@
 #include <grounded/logger/grounded_logger.h>
 
 #include <stdio.h>
+#include <inttypes.h>
 
 GROUNDED_FUNCTION void* fixedSizeArenaGrow(MemoryArena* arena, u64* size, u64 alignment) {
     ASSERT(false);

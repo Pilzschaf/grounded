@@ -1,4 +1,4 @@
-#include "grounded_logger.h"
+#include <grounded/logger/grounded_logger.h>
 
 #include <stdio.h>
 

@@ -25,4 +25,36 @@ GROUNDED_FUNCTION GroundedLogFunction* threadContextGetLogFunction();
 
 GROUNDED_FUNCTION void threadContextClear();
 
+
+/////////
+// Fences
+// All fences prevent compiler and cpu instruction reordering across the fence
+// volatile disables register caching and rereads every time - When memory barriers are used volatile has no additional effect. 
+// volatile DOES NOT imply ANY memory ordering constraints and is of fairly limited use in multithreaded code
+
+// Full fence ensures no reads and writes can pass this fence
+// This type of fence is quite costly and should only be used whilte testing.
+// Nearly always there are cheaper options available
+GROUNDED_FUNCTION_INLINE void groundedFullFence() {
+    _mm_mfence();
+}
+
+// Write Release - when writing a shared value. Makes sure all reads and writes before it happen before it.
+GROUNDED_FUNCTION_INLINE void groundedWriteReleaseFence() {
+    _mm_sfence();
+}
+
+// Read Acquire - when reading a shared value. Says that all reads and writes after it must be executed after it
+GROUNDED_FUNCTION_INLINE void groundedReadAcquireFence() {
+    _mm_lfence();
+}
+
+// Pause tries to use special CPU instructions for more efficient busy looping. Should be used in hot busy loops.
+GROUNDED_FUNCTION_INLINE void groundedPause() {
+    _mm_pause();
+}
+
+// Yield can yield execution to another thread
+GROUNDED_FUNCTION_INLINE void groundedYield();
+
 #endif // GROUNDED_THREADING_H
