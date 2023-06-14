@@ -386,11 +386,17 @@ GROUNDED_FUNCTION u64 groundedGetCounter() {
 }
 
 
+// ************
+// OpenGL stuff
+GROUNDED_FUNCTION void groundedWindowGlSwapBuffers(GroundedWindow* window) {
+    HDC hDC = GetDC(window->hWnd);
+    SwapBuffers(hDC);
+    ReleaseDC(window->hWnd, hDC);
+}
 
 
 
-
-// *************
+// ************
 // Vulkan stuff
 #ifdef GROUNDED_VULKAN_SUPPORT
 typedef VkFlags VkWin32SurfaceCreateFlagsKHR;

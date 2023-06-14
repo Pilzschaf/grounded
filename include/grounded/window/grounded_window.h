@@ -218,16 +218,20 @@ GROUNDED_FUNCTION_INLINE u32 groundedGetUnicodeCodepointForKeycode(u8 keycode) {
 }
 
 
-
-
-
+// ********************
+// OpenGL related stuff
+GROUNDED_FUNCTION bool groundedCreateOpenGLContext(GroundedWindow* window, u32 flags, GroundedWindow* windowContextToShareResources);
+GROUNDED_FUNCTION void groundedMakeOpenGLContextCurrent(GroundedWindow* window);
+GROUNDED_FUNCTION void groundedWindowGlSwapBuffers(GroundedWindow* window);
 
 
 // ********************
 // Vulkan related stuff
-
+#ifdef GROUNDED_VULKAN_SUPPORT
 #include <volk/volk.h>
 GROUNDED_FUNCTION const char** groundedWindowGetVulkanInstanceExtensions(u32* count);
 GROUNDED_FUNCTION VkSurfaceKHR groundedWindowGetVulkanSurface(GroundedWindow* window, VkInstance instance);
+#endif // GROUNDED_VULKAN_SUPPORT
+
 
 #endif //GROUNDED_WINDOW_H

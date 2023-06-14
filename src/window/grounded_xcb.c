@@ -7,6 +7,8 @@
 #include <poll.h>
 #include <stdlib.h> // For free (required for releasing memory from xcb)
 
+#include <EGL/egl.h>
+
 // Just some defines for x cursors
 #include <X11/cursorfont.h>
 //#include <xcb/xcb_icccm.h>
@@ -21,6 +23,10 @@ typedef struct GroundedXcbWindow {
     xcb_window_t window;
     u32 width;
     u32 height;
+
+    // OpenGL
+    EGLSurface eglSurface;
+    EGLContext eglContext;
 } GroundedXcbWindow;
 #define MAX_XCB_WINDOWS 64
 GroundedXcbWindow xcbWindowSlots[MAX_XCB_WINDOWS];
@@ -711,6 +717,73 @@ static void xcbFetchKeyboardState(GroundedKeyboardState* keyboard) {
 }
 
 
+//*************
+// OpenGL stuff
+EGLDisplay eglDisplay;
+
+GROUNDED_FUNCTION bool xcbCreateOpenGLContext(GroundedXcbWindow* window, u32 flags, GroundedXcbWindow* windowContextToShareResources) {
+    
+    //display = eglGetDisplay((NativeDisplayType) xcbConnection);
+    //TODO: eglGetPlatformDisplay
+    eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    if(eglDisplay == EGL_NO_DISPLAY) {
+        GROUNDED_LOG_ERROR("Error obtaining EGL display");
+        return false;
+    }
+    int eglVersionMajor = 0;
+    int eglVersionMinor = 0;
+    if(!eglInitialize(eglDisplay, &eglVersionMajor, &eglVersionMinor)) {
+        GROUNDED_LOG_ERROR("Error initializing EGL display");
+        eglTerminate(eglDisplay);
+        return false;
+    }
+    //GROUNDED_LOG_INFO("Using EGL version ", eglVersionMajor, ".", eglVersionMinor);
+    
+    // OPENGL_ES available instead of EGL_OPENGL_API
+    if(!eglBindAPI(EGL_OPENGL_API)) {
+        GROUNDED_LOG_ERROR("Error binding OpenGL API");
+        return false;
+    }
+    
+    // if config is 0 the total number of configs is returned
+    EGLConfig config;
+    int numConfigs = 0;
+    int attribList[] = {EGL_RED_SIZE, 1, EGL_GREEN_SIZE, 1, EGL_BLUE_SIZE, 1, EGL_NONE};
+    if(!eglChooseConfig(eglDisplay, attribList, &config, 1, &numConfigs) || numConfigs <= 0) {
+        GROUNDED_LOG_ERROR("Error choosing OpenGL config");
+        return false;
+    }
+    
+    window->eglContext = eglCreateContext(eglDisplay, config, EGL_NO_CONTEXT, 0);
+    if(window->eglContext == EGL_NO_CONTEXT) {
+        GROUNDED_LOG_ERROR("Error creating EGL Context");
+        return false;
+    }
+    
+    window->eglSurface = eglCreateWindowSurface(eglDisplay, config, window->window, 0);
+    if(window->eglSurface == EGL_NO_SURFACE) {
+        GROUNDED_LOG_ERROR("Error creating surface");
+        return false;
+    }
+    
+    return true;
+}
+
+GROUNDED_FUNCTION void xcbOpenGLMakeCurrent(GroundedXcbWindow* window) {
+    if(!eglMakeCurrent(eglDisplay, window->eglSurface, window->eglSurface, window->eglContext)) {
+        //GROUNDED_LOG_ERROR("Error: ", eglGetError());
+        GROUNDED_LOG_ERROR("Error making OpenGL context current");
+        //return false;
+    }
+}
+
+GROUNDED_FUNCTION void xcbWindowGlSwapBuffers(GroundedXcbWindow* window) {
+    eglSwapBuffers(eglDisplay, window->eglSurface);
+}
+
+
+//*************
+// Vulkan stuff
 #ifdef GROUNDED_VULKAN_SUPPORT
 typedef VkFlags VkXcbSurfaceCreateFlagsKHR;
 typedef struct VkXcbSurfaceCreateInfoKHR {

@@ -229,6 +229,52 @@ GROUNDED_FUNCTION void groundedFetchMouseState(GroundedWindow* window, MouseStat
     }
 }
 
+
+// ************
+// OpenGL stuff
+GROUNDED_FUNCTION bool groundedCreateOpenGLContext(GroundedWindow* window, u32 flags, GroundedWindow* windowContextToShareResources) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            return waylandCreateOpenGLContext(window, flags, windowContextToShareResources);
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            return xcbCreateOpenGLContext(window, flags, windowContextToShareResources);
+        }break;
+        default:break;
+    }
+    return false;
+}
+
+GROUNDED_FUNCTION void groundedMakeOpenGLContextCurrent(GroundedWindow* window) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            waylandOpenGLMakeCurrent(window);
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            xcbOpenGLMakeCurrent(window);
+        }break;
+        default:break;
+    }
+}
+
+GROUNDED_FUNCTION void groundedWindowGlSwapBuffers(GroundedWindow* window) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            waylandWindowGlSwapBuffers(window);
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            xcbWindowGlSwapBuffers(window);
+        }break;
+        default:break;
+    }
+}
+
+
+// ************
+// Vulkan stuff
 #ifdef GROUNDED_VULKAN_SUPPORT
 GROUNDED_FUNCTION const char** groundedWindowGetVulkanInstanceExtensions(u32* count) {
     static const char* waylandInstanceExtensions[] = {

@@ -5,6 +5,8 @@
 // Required for key mapping
 #include <linux/input.h>
 
+#include <EGL/egl.h>
+
 struct wl_interface {
 	const char *name;
 	int version;
@@ -26,6 +28,11 @@ typedef struct GroundedWaylandWindow {
     struct xdg_toplevel* xdgToplevel;
     u32 width;
     u32 height;
+
+    // OpenGL
+    EGLSurface eglSurface;
+    EGLContext eglContext;
+    struct wl_egl_window* eglWindow;
 } GroundedWaylandWindow;
 #define MAX_XCB_WINDOWS 64
 GroundedWaylandWindow waylandWindowSlots[MAX_XCB_WINDOWS];
@@ -38,6 +45,16 @@ GroundedWaylandWindow waylandWindowSlots[MAX_XCB_WINDOWS];
 // wayland function pointers
 #define X(N, R, P) static grounded_wayland_##N * N = 0;
 #include "grounded_wayland_functions.h"
+#undef X
+
+// wayland-egl function types
+#define X(N, R, P) typedef R grounded_wayland_##N P;
+#include "grounded_wayland_egl_functions.h"
+#undef X
+
+// wayland-egl function pointers
+#define X(N, R, P) static grounded_wayland_##N * N = 0;
+#include "grounded_wayland_egl_functions.h"
 #undef X
 
 #if 1
@@ -512,7 +529,7 @@ static bool initWayland() {
     if(!error) {
         waylandDisplay = wl_display_connect(0);
         if(!waylandDisplay) {
-            error = "Could not connect to wayland display";
+            error = "Could not connect to wayland display. If you are not using Wayland this is expected";
         }
     }
 
@@ -669,6 +686,94 @@ static void waylandFetchMouseState(GroundedWaylandWindow* window, MouseState* mo
     waylandMouseState.horizontalScrollDelta = 0.0f;
 }
 
+
+//*************
+// OpenGL stuff
+EGLDisplay waylandEglDisplay;
+GROUNDED_FUNCTION bool waylandCreateOpenGLContext(GroundedWaylandWindow* window, u32 flags, GroundedWaylandWindow* windowContextToShareResources) {
+    { // Load egl function pointers
+        void* eglLibrary = dlopen("libwayland-egl.so", RTLD_LAZY | RTLD_LOCAL);
+        if(!eglLibrary) {
+            const char* error = "No wayland-egl library found";
+            GROUNDED_LOG_ERROR(error);
+        } else {
+            const char* firstMissingFunctionName = 0;
+            #define X(N, R, P) N = (grounded_wayland_##N *) dlsym(eglLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
+            #include "grounded_wayland_egl_functions.h"
+            #undef X
+            if(firstMissingFunctionName) {
+                printf("Could not load wayland function: %s\n", firstMissingFunctionName);
+                const char* error = "Could not load all wayland-egl functions. Your wayland-egl version is incompatible";
+                GROUNDED_LOG_ERROR(error);
+            }
+        }
+    }
+
+    waylandEglDisplay = eglGetDisplay((EGLNativeDisplayType)waylandDisplay);
+    if(waylandEglDisplay == EGL_NO_DISPLAY) {
+        GROUNDED_LOG_ERROR("Error obtaining EGL display for wayland display");
+        return false;
+    }
+
+    int eglVersionMajor = 0;
+    int eglVersionMinor = 0;
+    if(!eglInitialize(waylandEglDisplay, &eglVersionMajor, &eglVersionMinor)) {
+        GROUNDED_LOG_ERROR("Error initializing EGL display");
+        eglTerminate(waylandEglDisplay);
+        return false;
+    }
+    //LOG_INFO("Using EGL version ", eglVersionMajor, ".", eglVersionMinor);
+
+    // OPENGL_ES available instead of EGL_OPENGL_API
+    if(!eglBindAPI(EGL_OPENGL_API)) {
+        GROUNDED_LOG_ERROR("Error binding OpenGL API");
+        return false;
+    }
+
+    // if config is 0 the total number of configs is returned
+    EGLConfig config;
+    int numConfigs = 0;
+    int attribList[] = {EGL_RED_SIZE, 1, EGL_GREEN_SIZE, 1, EGL_BLUE_SIZE, 1, EGL_NONE};
+    if(!eglChooseConfig(waylandEglDisplay, attribList, &config, 1, &numConfigs) || numConfigs <= 0) {
+        GROUNDED_LOG_ERROR("Error choosing OpenGL config");
+        return false;
+    }
+
+    window->eglContext = eglCreateContext(waylandEglDisplay, config, EGL_NO_CONTEXT, 0);
+    if(window->eglContext == EGL_NO_CONTEXT) {
+        GROUNDED_LOG_ERROR("Error creating EGL Context");
+        return false;
+    }
+
+    window->eglWindow = wl_egl_window_create(window->surface, window->width, window->height);
+    if(!window->eglWindow) {
+        GROUNDED_LOG_ERROR("Error creating wayland EGL window");
+        return false;
+    }
+    window->eglSurface = eglCreateWindowSurface(waylandEglDisplay, config, (EGLNativeWindowType)window->eglWindow, 0);
+    if(window->eglSurface == EGL_NO_SURFACE) {
+        GROUNDED_LOG_ERROR("Error creating EGL surface");
+        return false;
+    }
+
+    return true;
+}
+
+GROUNDED_FUNCTION void waylandOpenGLMakeCurrent(GroundedWaylandWindow* window) {
+    if(!eglMakeCurrent(waylandEglDisplay, window->eglSurface, window->eglSurface, window->eglContext)) {
+        //LOG_INFO("Error: ", eglGetError());
+        GROUNDED_LOG_ERROR("Error making OpenGL context current");
+        //return false;
+    }
+}
+
+GROUNDED_FUNCTION void waylandWindowGlSwapBuffers(GroundedWaylandWindow* window) {
+    eglSwapBuffers(waylandEglDisplay, window->eglSurface);
+}
+
+
+//*************
+// Vulkan stuff
 #ifdef GROUNDED_VULKAN_SUPPORT
 typedef VkFlags VkWaylandSurfaceCreateFlagsKHR;
 typedef struct VkWaylandSurfaceCreateInfoKHR {

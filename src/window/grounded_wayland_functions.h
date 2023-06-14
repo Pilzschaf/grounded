@@ -1,5 +1,5 @@
 /*
- * This file uses the X-List pattern to define all required wayland types
+ * This file uses the X-List pattern to define all required wayland functions
  */
 
 X(wl_display_connect, struct wl_display*, (const char *name))
