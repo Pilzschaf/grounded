@@ -4,6 +4,8 @@
 #include <dlfcn.h>
 // Required for key mapping
 #include <linux/input.h>
+#include <time.h>
+#include <errno.h>
 
 #include <EGL/egl.h>
 
@@ -645,10 +647,48 @@ static u32 waylandGetWindowHeight(GroundedWaylandWindow* window) {
     return window->height;
 }
 
+// Returns true when poll was successful. False on timeout
+static bool waylandPoll(u32 maxWaitingTimeInMs) {
+	int ret;
+	struct pollfd pfd[1];
+    int timeout = (int)maxWaitingTimeInMs;
+
+    if(!timeout) {
+        // negative is infinite block
+        timeout = -1;
+    }
+    struct timespec ts = {0};
+    ts.tv_sec = timeout / 1000;
+    ts.tv_nsec = (timeout * 1000000)%1000000000;
+	pfd[0].fd = wl_display_get_fd(waylandDisplay);
+	pfd[0].events = POLLIN;
+	do {
+		ret = ppoll(pfd, 1, timeout < 0 ? 0 : &ts, 0);
+	} while (ret == -1 && errno == EINTR); // A signal occured before
+
+	if (ret == 0) {
+        // Timed out
+		return false;
+    } else if(ret < 0) {
+        // Error
+        return false;
+    }
+
+	return true;
+}
+
+
 static GroundedEvent* waylandGetEvents(u32* eventCount, u32 maxWaitingTimeInMs) {
     eventQueueIndex = 0;
 
-    wl_display_dispatch(waylandDisplay);
+    if(!maxWaitingTimeInMs) {
+        // Sends out pending requests to all event queues
+        wl_display_roundtrip(waylandDisplay);
+    }
+
+    if(waylandPoll(maxWaitingTimeInMs)) {
+        wl_display_dispatch(waylandDisplay);
+    }
 
     *eventCount = eventQueueIndex;
     return eventQueue;

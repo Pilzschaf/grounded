@@ -3,6 +3,7 @@
  */
 
 X(wl_display_connect, struct wl_display*, (const char *name))
+X(wl_display_get_fd, int, (struct wl_display* display))
 X(wl_proxy_marshal_constructor, struct wl_proxy*, (struct wl_proxy *proxy, uint32_t opcode, const struct wl_interface *interface, ...))
 X(wl_proxy_add_listener, int, (struct wl_proxy* proxy, void (**implementation)(void), void *data))
 X(wl_proxy_marshal_constructor_versioned, struct wl_proxy*, (struct wl_proxy *proxy, uint32_t opcode, const struct wl_interface *interface, uint32_t version, ...))
