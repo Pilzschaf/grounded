@@ -14,7 +14,7 @@
 //#include <liburing.h>
 
 GROUNDED_FUNCTION  u8* groundedReadFile(MemoryArena* arena, String8 filename, u64* size) {
-    MemoryArena* scratch = threadContextGetScratch(0);
+    MemoryArena* scratch = threadContextGetScratch(arena);
     ArenaTempMemory temp = arenaBeginTemp(scratch);
     u8* result = 0;
     ArenaMarker releaseMarker = arenaCreateMarker(arena);
@@ -561,16 +561,25 @@ GROUNDED_FUNCTION String8 groundedGetUserConfigDirectory(MemoryArena* arena) {
 GROUNDED_FUNCTION String8 groundedGetCacheDirectory(MemoryArena* arena) {
     const char* cacheDirectory = 0;
     cacheDirectory = getenv("XDG_CACHE_HOME");
-    String8 result = str8FromCstr(cacheDirectory);
+    String8 result;
+    if(cacheDirectory) {
+        result = str8FromCstr(cacheDirectory);
+    } else {
+        String8 home = getUserDirectory(arena);
+        String8List list = {};
+        str8ListPush(arena, &list, home);
+        str8ListPush(arena, &list, STR8_LITERAL("/.cache"));
+        result = str8ListJoin(arena, &list, 0);
+    }
+    
     return result;
 }
 
 GROUNDED_FUNCTION String8 groundedGetCurrentWorkingDirectory(MemoryArena* arena) {
-    //TODO: Currently assumes virtual memory arena
-    ASSERT(false);
-    u32 sizeIncrease = 256;
-    u32 bufferSize = sizeIncrease;
-    char* buffer = ARENA_PUSH_ARRAY_NO_CLEAR(arena, sizeIncrease, char);
+    u32 bufferSize = 256;
+    ASSERT(bufferSize > 0);
+    ArenaMarker marker = arenaCreateMarker(arena);
+    char* buffer = ARENA_PUSH_ARRAY_NO_CLEAR(arena, bufferSize, char);
     char* result = 0;
     
     while(!result) {
@@ -578,11 +587,12 @@ GROUNDED_FUNCTION String8 groundedGetCurrentWorkingDirectory(MemoryArena* arena)
         if(result == buffer) {
             break;
         } else if(errno != ERANGE || bufferSize > KB(256)) {
-            MEMORY_CLEAR(buffer, sizeIncrease);
+            arenaResetToMarker(marker);
             break;
         }
-        ARENA_PUSH_ARRAY_NO_CLEAR(arena, sizeIncrease, char);
-        bufferSize += sizeIncrease;
+        arenaResetToMarker(marker);
+        bufferSize *= 2;
+        buffer = ARENA_PUSH_ARRAY_NO_CLEAR(arena, bufferSize, char);
     }
 
     u32 len = strlen(buffer);

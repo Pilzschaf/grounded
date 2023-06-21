@@ -196,7 +196,7 @@ GROUNDED_FUNCTION void groundedShutdownWindowSystem() {
 
 GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(struct GroundedWindowCreateParameters* parameters) {
     if (!parameters) {
-        struct GroundedWindowCreateParameters defaultParameters = {0};
+        static struct GroundedWindowCreateParameters defaultParameters = {0};
         parameters = &defaultParameters;
     }
     MemoryArena* scratch = threadContextGetScratch(0);

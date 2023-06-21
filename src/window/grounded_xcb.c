@@ -147,6 +147,7 @@ static void shutdownXcb() {
         xcb_disconnect(xcbConnection);
         xcbConnection = 0;
     }
+    //TODO: Should techincally dlclose(xcb)
 }
 
 static void xcbSetWindowTitle(GroundedXcbWindow* window, String8 title, bool flush) {
@@ -197,7 +198,7 @@ static void xcbWindowSetBorderless(GroundedXcbWindow* window, bool borderless) {
     
     xcb_intern_atom_reply_t *setWindowDecorationsReply = xcb_intern_atom_reply (xcbConnection, setWindowDecorationsCookie, 0);
     
-    xcb_change_property ( xcbConnection,
+    xcb_change_property (xcbConnection,
                          XCB_PROP_MODE_REPLACE,
                          window->window,
                          setWindowDecorationsReply->atom,

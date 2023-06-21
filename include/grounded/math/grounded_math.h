@@ -13,25 +13,31 @@
 #ifndef VEC2
 #define VEC2(x, y) ((GROUNDED_MATH_PREFIX(vec2)){{(x), (y)}})
 #endif
-#ifndef uvec2
-#define uvec2(x, y) ((GROUNDED_MATH_PREFIX(uvec2)){{x, y}})
+#ifndef UVEC2
+#define UVEC2(x, y) ((GROUNDED_MATH_PREFIX(uvec2)){{x, y}})
 #endif
-#ifndef ivec2
-#define ivec2(x, y) ((GROUNDED_MATH_PREFIX(ivec2)){{x, y}})
+#ifndef IVEC2
+#define IVEC2(x, y) ((GROUNDED_MATH_PREFIX(ivec2)){{x, y}})
 #endif
 
 #ifndef VEC3
 #define VEC3(x, y, z) ((GROUNDED_MATH_PREFIX(vec3)){{x, y, z}})
 #endif
-#ifndef uvev3
-#define uvev3(x, y, z) ((GROUNDED_MATH_PREFIX(uvev3)){{x, y, z}})
+#ifndef UVEC3
+#define UVEC3(x, y, z) ((GROUNDED_MATH_PREFIX(uvev3)){{x, y, z}})
 #endif
-#ifndef ivec3
-#define ivec3(x, y, z) ((GROUNDED_MATH_PREFIX(ivec3)){{x, y, z}})
+#ifndef IVEC3
+#define IVEC3(x, y, z) ((GROUNDED_MATH_PREFIX(ivec3)){{x, y, z}})
 #endif
 
 #ifndef VEC4
 #define VEC4(x, y, z, w) ((GROUNDED_MATH_PREFIX(vec4)){{x, y, z, w}})
+#endif
+#ifndef UVEC4
+#define UVEC4(x, y, z, w) ((GROUNDED_MATH_PREFIX(uvec4)){{x, y, z, w}})
+#endif
+#ifndef IVEC4
+#define IVEC4(x, y, z, w) ((GROUNDED_MATH_PREFIX(ivec4)){{x, y, z, w}})
 #endif
 
 typedef union GROUNDED_MATH_PREFIX(vec2) {
