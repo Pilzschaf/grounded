@@ -7,7 +7,9 @@
 #include <poll.h>
 #include <stdlib.h> // For free (required for releasing memory from xcb)
 
+#ifdef GROUNDED_OPENGL_SUPPORT
 #include <EGL/egl.h>
+#endif
 
 // Just some defines for x cursors
 #include <X11/cursorfont.h>
@@ -24,9 +26,10 @@ typedef struct GroundedXcbWindow {
     u32 width;
     u32 height;
 
-    // OpenGL
+#ifdef GROUNDED_OPENGL_SUPPORT
     EGLSurface eglSurface;
     EGLContext eglContext;
+#endif
 } GroundedXcbWindow;
 #define MAX_XCB_WINDOWS 64
 GroundedXcbWindow xcbWindowSlots[MAX_XCB_WINDOWS];

@@ -7,7 +7,9 @@
 #include <time.h>
 #include <errno.h>
 
+#ifdef GROUNDED_OPENGL_SUPPORT
 #include <EGL/egl.h>
+#endif
 
 struct wl_interface {
 	const char *name;
@@ -31,10 +33,11 @@ typedef struct GroundedWaylandWindow {
     u32 width;
     u32 height;
 
-    // OpenGL
+#ifdef GROUNDED_OPENGL_SUPPORT
     EGLSurface eglSurface;
     EGLContext eglContext;
     struct wl_egl_window* eglWindow;
+#endif
 } GroundedWaylandWindow;
 #define MAX_XCB_WINDOWS 64
 GroundedWaylandWindow waylandWindowSlots[MAX_XCB_WINDOWS];
