@@ -239,7 +239,7 @@ GROUNDED_FUNCTION StringDecode strDecodeUtf8(u8* string, u32 capacity) {
         4,          // 11110
         0,          // 11111
     };
-    static u8 firstByteMask[] = {0, 0x7F, 0x1F, 0x0F, 0x07};
+    static u8 firstByteMask[] = {0, 0x7F, 0x1F, 0x0F, 0x07 };
     static u8 finalShift[] = {0, 18, 12, 6, 0};
     StringDecode result = {0};
     if(capacity > 0) {
@@ -250,10 +250,10 @@ GROUNDED_FUNCTION StringDecode strDecodeUtf8(u8* string, u32 capacity) {
         u8 length = lengthTable[byte >> 3];
         if(length > 0 && length <= capacity) {
             u32 codepoint = (byte & firstByteMask[length]) << 18;
-            switch(length) {
-                case 3: codepoint |= ((string[3] & 0x3f) << 0);
-                case 2: codepoint |= ((string[2] & 0x3F) << 6);
-                case 1: codepoint |= ((string[1] & 0x3F) << 12);
+            switch(length-1) {
+                case 3: codepoint |= ((string[3] & 0x3F) << 0); // fallthrough
+                case 2: codepoint |= ((string[2] & 0x3F) << 6); // fallthrough
+                case 1: codepoint |= ((string[1] & 0x3F) << 12); // fallthrough
                 case 0: codepoint >>= finalShift[length];
             }
             result.codepoint = codepoint;

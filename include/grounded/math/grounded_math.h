@@ -165,6 +165,14 @@ GROUNDED_FUNCTION_INLINE float lerp(float a, float f, float b) {
     return (1.0f - f)*a + f*b;
 }
 
+GROUNDED_FUNCTION_INLINE float unlerp(float a, float f, float b) {
+    float t = 0.0f;
+    if(a != b) {
+        t = (f - a)/(b - a);
+    }
+    return t;
+}
+
 GROUNDED_FUNCTION_INLINE float signOf(float value) {
     return value >= 0.0f ? 1.0f : -1.0f;
 }
