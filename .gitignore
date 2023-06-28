@@ -53,3 +53,10 @@ dkms.conf
 
 # VS Code files
 .vscode/settings.json
+
+obj/
+bin/
+build/
+
+*.make
+Makefile

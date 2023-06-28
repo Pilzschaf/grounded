@@ -720,6 +720,7 @@ static void xcbFetchKeyboardState(GroundedKeyboardState* keyboard) {
 
 //*************
 // OpenGL stuff
+#ifdef GROUNDED_OPENGL_SUPPORT
 EGLDisplay eglDisplay;
 
 GROUNDED_FUNCTION bool xcbCreateOpenGLContext(GroundedXcbWindow* window, u32 flags, GroundedXcbWindow* windowContextToShareResources) {
@@ -781,7 +782,7 @@ GROUNDED_FUNCTION void xcbOpenGLMakeCurrent(GroundedXcbWindow* window) {
 GROUNDED_FUNCTION void xcbWindowGlSwapBuffers(GroundedXcbWindow* window) {
     eglSwapBuffers(eglDisplay, window->eglSurface);
 }
-
+#endif // GROUNDED_OPENGL_SUPPORT
 
 //*************
 // Vulkan stuff

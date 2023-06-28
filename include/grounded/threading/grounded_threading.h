@@ -5,6 +5,8 @@
 #include "../memory/grounded_arena.h"
 #include "../logger/grounded_logger.h"
 
+#include <emmintrin.h> // For _mm_mfence
+
 //TODO: Custom data in thread context. Maybe by using a user* data pointer
 // or by using somehting similar to a BOOTSTRAP_PUH_STRUCT. As the user data could be directly
 // stored in the scratch arena.
@@ -56,5 +58,11 @@ GROUNDED_FUNCTION_INLINE void groundedPause() {
 
 // Yield can yield execution to another thread
 GROUNDED_FUNCTION_INLINE void groundedYield();
+
+#ifdef _WIN32
+#include "grounded_win32_threading.inl"
+#else
+#include "grounded_linux_threading.inl"
+#endif
 
 #endif // GROUNDED_THREADING_H

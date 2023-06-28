@@ -729,6 +729,7 @@ static void waylandFetchMouseState(GroundedWaylandWindow* window, MouseState* mo
 
 //*************
 // OpenGL stuff
+#ifdef GROUNDED_OPENGL_SUPPORT
 EGLDisplay waylandEglDisplay;
 GROUNDED_FUNCTION bool waylandCreateOpenGLContext(GroundedWaylandWindow* window, u32 flags, GroundedWaylandWindow* windowContextToShareResources) {
     { // Load egl function pointers
@@ -810,6 +811,7 @@ GROUNDED_FUNCTION void waylandOpenGLMakeCurrent(GroundedWaylandWindow* window) {
 GROUNDED_FUNCTION void waylandWindowGlSwapBuffers(GroundedWaylandWindow* window) {
     eglSwapBuffers(waylandEglDisplay, window->eglSurface);
 }
+#endif // GROUNDED_OPENGL_SUPPORT
 
 
 //*************

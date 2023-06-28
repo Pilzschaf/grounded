@@ -388,12 +388,13 @@ GROUNDED_FUNCTION u64 groundedGetCounter() {
 
 // ************
 // OpenGL stuff
+#ifdef GROUNDED_OPENGL_SUPPORT
 GROUNDED_FUNCTION void groundedWindowGlSwapBuffers(GroundedWindow* window) {
     HDC hDC = GetDC(window->hWnd);
     SwapBuffers(hDC);
     ReleaseDC(window->hWnd, hDC);
 }
-
+#endif // GROUNDED_OPENGL_SUPPORT
 
 
 // ************

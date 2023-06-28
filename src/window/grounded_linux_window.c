@@ -232,6 +232,7 @@ GROUNDED_FUNCTION void groundedFetchMouseState(GroundedWindow* window, MouseStat
 
 // ************
 // OpenGL stuff
+#ifdef GROUNDED_OPENGL_SUPPORT
 GROUNDED_FUNCTION bool groundedCreateOpenGLContext(GroundedWindow* window, u32 flags, GroundedWindow* windowContextToShareResources) {
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
@@ -271,6 +272,7 @@ GROUNDED_FUNCTION void groundedWindowGlSwapBuffers(GroundedWindow* window) {
         default:break;
     }
 }
+#endif // GROUNDED_OPENGL_SUPPORT
 
 
 // ************

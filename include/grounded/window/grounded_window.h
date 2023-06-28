@@ -220,10 +220,11 @@ GROUNDED_FUNCTION_INLINE u32 groundedGetUnicodeCodepointForKeycode(u8 keycode) {
 
 // ********************
 // OpenGL related stuff
+#ifdef GROUNDED_OPENGL_SUPPORT
 GROUNDED_FUNCTION bool groundedCreateOpenGLContext(GroundedWindow* window, u32 flags, GroundedWindow* windowContextToShareResources);
 GROUNDED_FUNCTION void groundedMakeOpenGLContextCurrent(GroundedWindow* window);
 GROUNDED_FUNCTION void groundedWindowGlSwapBuffers(GroundedWindow* window);
-
+#endif // GROUNDED_VULKAN_SUPPORT
 
 // ********************
 // Vulkan related stuff
