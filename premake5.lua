@@ -11,7 +11,7 @@ workspace "Grounded"
     cdialect "C11"
     staticruntime "on"
     objdir "obj/%{cfg.buildcfg}" -- Check if we can use cfg.buildcfg in lowercase
-    targetdir "bin/%{cfg.buildcfg}"
+    targetdir "bin/examples/%{cfg.buildcfg}"
     characterset "Unicode"
 
     includedirs
@@ -59,4 +59,34 @@ project "SimpleWindow"
         "src/window/grounded_window_extra.c",
         "src/logger/grounded_logger.c",
         "src/string/grounded_string.c",
+    }
+
+project "GroundedStatic"
+    kind "StaticLib"
+    targetdir "bin/static/%{cfg.buildcfg}"
+    files
+    {
+        "src/file/grounded_file.c",
+        "src/logger/grounded_logger.c",
+        "src/memory/grounded_arena.c",
+        "src/memory/grounded_memory.c",
+        "src/string/grounded_string.c",
+        "src/threading/grounded_threading.c",
+        "src/window/grounded_window.c",
+        "src/window/grounded_window_extra.c",
+    }
+
+project "GroundedDynamic"
+    kind "SharedLib"
+    targetdir "bin/dynamic/%{cfg.buildcfg}"
+    files
+    {
+        "src/file/grounded_file.c",
+        "src/logger/grounded_logger.c",
+        "src/memory/grounded_arena.c",
+        "src/memory/grounded_memory.c",
+        "src/string/grounded_string.c",
+        "src/threading/grounded_threading.c",
+        "src/window/grounded_window.c",
+        "src/window/grounded_window_extra.c",
     }
