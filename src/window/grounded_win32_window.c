@@ -10,7 +10,7 @@
 #endif
 
 #include <stdio.h>
-#include "../threading/grounded_threading.h"
+#include <grounded/threading/grounded_threading.h>
 
 typedef struct GroundedWin32Window {
     HWND hWnd;

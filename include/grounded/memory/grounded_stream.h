@@ -1,9 +1,9 @@
 #ifndef GROUNDED_STREAM_H
 #define GROUNDED_STREAM_H
 
-#include "../string/grounded_string.h"
-#include "grounded_memory.h"
-#include "../threading/grounded_threading.h"
+#include <grounded/string/grounded_string.h>
+#include <grounded/memory/grounded_memory.h>
+#include <grounded/threading/grounded_threading.h>
 
 enum GroundedStreamErrorCode {
     GROUNDED_STREAM_SUCCESS,

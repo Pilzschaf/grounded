@@ -15,7 +15,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          submodule: recursive
+          submodules: recursive
       - name: Setup Premake5
         uses: abel0b/setup-premake@v2.2
         with:
@@ -32,7 +32,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          submodule: recursive
+          submodules: recursive
       - name: Setup Premake5
         uses: abel0b/setup-premake@v2.2
         with:
