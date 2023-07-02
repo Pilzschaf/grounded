@@ -100,7 +100,7 @@ GROUNDED_FUNCTION void groundedFreeFileImmutable(u8* file, u64 size) {
 #endif
 }
 
-struct GroundedWin32DirectoryIterator {
+struct GroundedDirectoryIterator {
     HANDLE findHandle;
 	wchar_t* directory;
     MemoryArena* arena; //TODO: This is a very weird use of the arena here. A fixed buffer in here to store converted filenames might be enough as we specify, that the string of a directory entry is only valid as long as the next entry has not been retrieved?
@@ -112,7 +112,7 @@ GROUNDED_FUNCTION GroundedDirectoryIterator* createDirectoryIterator(MemoryArena
 	MemoryArena* scratch = threadContextGetScratch(arena);
 	ArenaTempMemory temp = arenaBeginTemp(scratch);
 
-    struct GroundedWin32DirectoryIterator* result = ARENA_PUSH_STRUCT(arena, struct GroundedWin32DirectoryIterator);
+    struct GroundedDirectoryIterator* result = ARENA_PUSH_STRUCT(arena, struct GroundedDirectoryIterator);
     result->arena = arena;
     
 	int requiredBufferSize = MultiByteToWideChar(CP_UTF8, 0, str8GetCstr(scratch, directory), -1, 0, 0);
@@ -137,10 +137,7 @@ GROUNDED_FUNCTION GroundedDirectoryIterator* createDirectoryIterator(MemoryArena
 	return result;
 }
 
-GROUNDED_FUNCTION GroundedDirectoryEntry getNextDirectoryEntry(GroundedDirectoryIterator* abstractIterator) {
-    struct GroundedWin32DirectoryIterator* iterator = (struct GroundedWin32DirectoryIterator*)abstractIterator;
-    ASSERT(iterator);
-
+GROUNDED_FUNCTION GroundedDirectoryEntry getNextDirectoryEntry(GroundedDirectoryIterator* iterator) {
 	GroundedDirectoryEntry result = {0};
     WIN32_FIND_DATA entry;
 
@@ -177,8 +174,7 @@ GROUNDED_FUNCTION GroundedDirectoryEntry getNextDirectoryEntry(GroundedDirectory
 	return result;
 }
 
-GROUNDED_FUNCTION void destroyDirectoryIterator(GroundedDirectoryIterator* abstractIterator) {
-    struct GroundedWin32DirectoryIterator* iterator = (struct GroundedWin32DirectoryIterator*)abstractIterator;
+GROUNDED_FUNCTION void destroyDirectoryIterator(GroundedDirectoryIterator* iterator) {
     ASSERT(iterator);
 	FindClose(iterator->findHandle);
 }
@@ -211,7 +207,7 @@ GROUNDED_FUNCTION bool groundedWriteFile(String8 filename, const void* data, u64
 
 
 
-struct GroundedWin32File {
+struct GroundedFile {
     MemoryArena* arena;
     HANDLE handle;
     u8* buffer;
@@ -231,7 +227,7 @@ GROUNDED_FUNCTION GroundedFile* groundedOpenFile(MemoryArena* arena, String8 fil
         access |= GENERIC_READ;
     }
 
-    struct GroundedWin32File* result = ARENA_PUSH_STRUCT(arena, struct GroundedWin32File);
+    struct GroundedFile* result = ARENA_PUSH_STRUCT(arena, struct GroundedFile);
     wchar_t* utf16Filename = (UTF8ToUTF16(scratch, str8GetCstr(scratch, filename)));
     result->handle = CreateFile(utf16Filename, access, FILE_SHARE_READ, 0, creation, FILE_ATTRIBUTE_NORMAL, 0);
     result->arena = arena;
@@ -243,7 +239,7 @@ GROUNDED_FUNCTION GroundedFile* groundedOpenFile(MemoryArena* arena, String8 fil
 }
 
 static enum GroundedStreamErrorCode fileRefill(BufferedStreamReader* r) {
-    struct GroundedWin32File* f = (struct GroundedWin32File*)r->implementationPointer;
+    struct GroundedFile* f = (struct GroundedFile*)r->implementationPointer;
     s64 bytesRead = 0;
     if (!ReadFile(f->handle, f->buffer, f->bufferSize, &bytesRead, 0)) {
         refillZeros(r);
@@ -275,11 +271,10 @@ static void groundedFileStreamReaderClose(BufferedStreamReader* reader) {
 }
 
 GROUNDED_FUNCTION BufferedStreamReader groundedFileGetStreamReaderFromFile(GroundedFile* file) {
-    struct GroundedWin32File* f = (struct GroundedWin32File*)file;
     BufferedStreamReader result = {
-        .start = f->buffer,
-        .cursor = f->buffer,
-        .end = f->buffer + f->bufferSize,
+        .start = file->buffer,
+        .cursor = file->buffer,
+        .end = file->buffer + file->bufferSize,
         .implementationPointer = file,
         .error = GROUNDED_STREAM_SUCCESS,
         .refill = fileRefill,
@@ -296,7 +291,7 @@ GROUNDED_FUNCTION BufferedStreamReader groundedFileGetStreamReaderFromFilename(M
 }
 
 static enum ErrorCode fileSubmit(BufferedStreamWriter* w, u8* opl) {
-    struct GroundedWin32File* f = (struct GroundedWin32File*)w->implementationPointer;
+    struct GroundedFile* f = (struct GroundedFile*)w->implementationPointer;
     u64 size = opl - f->buffer;
 	//TODO: Handle sizes larger than DWORD
     WriteFile(f->handle, f->buffer, (DWORD)size, 0, 0);
@@ -304,10 +299,9 @@ static enum ErrorCode fileSubmit(BufferedStreamWriter* w, u8* opl) {
 }
 
 GROUNDED_FUNCTION BufferedStreamWriter groundedFileGetStreamWriterFromFile(GroundedFile* file) {
-    struct GroundedWin32File* f = (struct GroundedWin32File*)file;
     BufferedStreamWriter result = {
-        .start = f->buffer,
-        .end = f->buffer + f->bufferSize,
+        .start = file->buffer,
+        .end = file->buffer + file->bufferSize,
         .implementationPointer = file,
         .error = NO_ERROR,
         .submit = fileSubmit,
@@ -322,7 +316,7 @@ GROUNDED_FUNCTION BufferedStreamWriter groundedFileGetStreamWriterFromFilename(M
 }
 
 GROUNDED_FUNCTION void groundedCloseFile(GroundedFile* file) {
-    struct GroundedWin32File* f = (struct GroundedWin32File*)file;
+    struct GroundedFile* f = (struct GroundedFile*)file;
     CloseHandle(f->handle);
 }
 

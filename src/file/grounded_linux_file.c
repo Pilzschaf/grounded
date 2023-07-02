@@ -156,7 +156,7 @@ GROUNDED_FUNCTION  bool groundedCreateDirectory(String8 directory) {
 }
 
 
-struct GroundedLinuxFile {
+struct GroundedFile {
     MemoryArena* arena;
     int fd;
     u8* buffer;
@@ -167,7 +167,7 @@ GROUNDED_FUNCTION  GroundedFile* groundedOpenFile(MemoryArena* arena, String8 fi
     ArenaTempMemory temp = arenaBeginTemp(scratch);
     ArenaMarker errorMarker = arenaCreateMarker(arena);
 
-    struct GroundedLinuxFile* result = ARENA_PUSH_STRUCT(arena, struct GroundedLinuxFile);
+    struct GroundedFile* result = ARENA_PUSH_STRUCT(arena, struct GroundedFile);
     if(result) {
         int flags = O_CREAT;
         if(fileMode == FILE_MODE_READ) {
@@ -201,7 +201,7 @@ GROUNDED_FUNCTION  GroundedFile* groundedOpenFile(MemoryArena* arena, String8 fi
 }
 
 static enum GroundedStreamErrorCode fileRefill(BufferedStreamReader* r) {
-    struct GroundedLinuxFile* f = (struct GroundedLinuxFile*)r->implementationPointer;
+    struct GroundedFile* f = (struct GroundedFile*)r->implementationPointer;
     s64 bytesRead = read(f->fd, f->buffer, f->bufferSize);
     if(bytesRead == 0) {
         refillZeros(r);
@@ -227,7 +227,7 @@ static void groundedFileStreamReaderClose(BufferedStreamReader* reader) {
 }
 
 GROUNDED_FUNCTION BufferedStreamReader groundedFileGetStreamReaderFromFile(GroundedFile* file) {
-    struct GroundedLinuxFile* f = (struct GroundedLinuxFile*)file;
+    struct GroundedFile* f = (struct GroundedFile*)file;
     BufferedStreamReader result = {
         .start = f->buffer,
         .cursor = f->buffer,
@@ -248,7 +248,7 @@ GROUNDED_FUNCTION BufferedStreamReader groundedFileGetStreamReaderFromFilename(M
 }
 
 static enum GroundedStreamErrorCode fileSubmit(BufferedStreamWriter* w, u8* opl) {
-    struct GroundedLinuxFile* f = (struct GroundedLinuxFile*)w->implementationPointer;
+    struct GroundedFile* f = (struct GroundedFile*)w->implementationPointer;
     u64 size = opl - f->buffer;
     //TODO: Error handling
     write(f->fd, f->buffer, size);
@@ -261,7 +261,7 @@ static void groundedFileStreamWriterClose(BufferedStreamWriter* writer) {
 }
 
 GROUNDED_FUNCTION BufferedStreamWriter groundedFileGetStreamWriterFromFile(GroundedFile* file) {
-    struct GroundedLinuxFile* f = (struct GroundedLinuxFile*)file;
+    struct GroundedFile* f = (struct GroundedFile*)file;
     BufferedStreamWriter result = {
         .start = f->buffer,
         .end = f->buffer + f->bufferSize,
@@ -280,7 +280,7 @@ GROUNDED_FUNCTION BufferedStreamWriter groundedFileGetStreamWriterFromFilename(M
 }
 
 GROUNDED_FUNCTION void groundedCloseFile(GroundedFile* file) {
-    struct GroundedLinuxFile* f = (struct GroundedLinuxFile*)file;
+    struct GroundedFile* f = (struct GroundedFile*)file;
     close(f->fd);
 }
 
@@ -420,19 +420,18 @@ GROUNDED_FUNCTION void groundedHandleWatchDirectoryEvents(GroundedDirectoryWatch
 }
 
 
-struct GroundedLinuxDirectoryIterator {
+struct GroundedDirectoryIterator {
     DIR* dir;
 };
 GROUNDED_FUNCTION GroundedDirectoryIterator* createDirectoryIterator(MemoryArena* arena, String8 directory) {
-    struct GroundedLinuxDirectoryIterator* result = ARENA_PUSH_STRUCT(arena, struct GroundedLinuxDirectoryIterator);
+    struct GroundedDirectoryIterator* result = ARENA_PUSH_STRUCT(arena, struct GroundedDirectoryIterator);
     ArenaTempMemory temp = arenaBeginTemp(arena);
     result->dir = opendir(str8GetCstr(arena, directory));
     arenaEndTemp(temp);
     return result;
 }
 
-GROUNDED_FUNCTION GroundedDirectoryEntry getNextDirectoryEntry(GroundedDirectoryIterator* abstractIterator) {
-    struct GroundedLinuxDirectoryIterator* iterator = (struct GroundedLinuxDirectoryIterator*)abstractIterator;
+GROUNDED_FUNCTION GroundedDirectoryEntry getNextDirectoryEntry(GroundedDirectoryIterator* iterator) {
     ASSERT(iterator);
     GroundedDirectoryEntry result = {0};
     if(iterator->dir == 0) {
@@ -472,8 +471,7 @@ GROUNDED_FUNCTION GroundedDirectoryEntry getNextDirectoryEntry(GroundedDirectory
     return result;
 }
 
-GROUNDED_FUNCTION void destroyDirectoryIterator(GroundedDirectoryIterator* abstractIterator) {
-    struct GroundedLinuxDirectoryIterator* iterator = (struct GroundedLinuxDirectoryIterator*)abstractIterator;
+GROUNDED_FUNCTION void destroyDirectoryIterator(GroundedDirectoryIterator* iterator) {
     ASSERT(iterator);
     closedir(iterator->dir);
 }

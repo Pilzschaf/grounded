@@ -5,7 +5,7 @@
 #include "../memory/grounded_arena.h"
 #include "../string/grounded_string.h"
 
-typedef void GroundedWindow;
+typedef struct GroundedWindow GroundedWindow;
 
 void groundedInitWindowSystem();
 void groundedShutdownWindowSystem();

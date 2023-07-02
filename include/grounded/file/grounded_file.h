@@ -15,7 +15,7 @@ enum FileMode {
     FILE_MODE_READ_WRITE,
     FILE_MODE_COUNT,
 };
-typedef void GroundedFile;
+typedef struct GroundedFile GroundedFile;
 GROUNDED_FUNCTION GroundedFile* groundedOpenFile(MemoryArena* arena, String8 filename, enum FileMode);
 GROUNDED_FUNCTION BufferedStreamWriter groundedFileGetStreamWriterFromFilename(MemoryArena* arena, String8 filename);
 GROUNDED_FUNCTION BufferedStreamWriter groundedFileGetStreamWriterFromFile(GroundedFile* file);
@@ -26,7 +26,7 @@ GROUNDED_FUNCTION void groundedCloseFile(GroundedFile* file);
 GROUNDED_FUNCTION bool groundedCreateDirectory(String8 directory);
 
 // Directory iteration
-typedef void GroundedDirectoryIterator;
+typedef struct GroundedDirectoryIterator GroundedDirectoryIterator;
 enum GroundedDirectoryEntryType {
     GROUNDED_DIRECTORY_ENTRY_TYPE_NONE,
     GROUNDED_DIRECTORY_ENTRY_TYPE_FILE,

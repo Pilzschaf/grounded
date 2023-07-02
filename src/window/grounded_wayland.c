@@ -441,7 +441,7 @@ static void xdgToplevelHandleConfigure(void* data,  struct xdg_toplevel* topleve
     if(width && height && (width != window->width || height != window->height)) {
         eventQueue[eventQueueIndex++] = (GroundedEvent){
             .type = GROUNDED_EVENT_TYPE_RESIZE,
-            .resize.window = window,
+            .resize.window = (GroundedWindow*)window,
             .resize.width = width,
             .resize.height = height,
         };
@@ -458,7 +458,7 @@ static void xdgToplevelHandleClose(void* data, struct xdg_toplevel* toplevel) {
     GroundedWaylandWindow* window = (GroundedWaylandWindow*)data;
     eventQueue[eventQueueIndex++] = (GroundedEvent){
         .type = GROUNDED_EVENT_TYPE_CLOSE_REQUEST,
-        .closeRequest.window = window,
+        .closeRequest.window = (GroundedWindow*)window,
     };
 }
 
@@ -634,7 +634,7 @@ static GroundedWindow* waylandCreateWindow(struct GroundedWindowCreateParameters
 
     arenaEndTemp(temp);
 
-    return window;
+    return (GroundedWindow*)window;
 }
 
 static void waylandDestroyWindow(GroundedWaylandWindow* window) {

@@ -282,6 +282,20 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec2) v2Abs(GROUNDED_MATH_PREFIX(v
     return result;
 }
 
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec2) v2Max(GROUNDED_MATH_PREFIX(vec2) a, GROUNDED_MATH_PREFIX(vec2) b) {
+    GROUNDED_MATH_PREFIX(vec2) result;
+    result.x = MAX(a.x, b.x);
+    result.y = MAX(a.y, b.y);
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec2) v2Min(GROUNDED_MATH_PREFIX(vec2) a, GROUNDED_MATH_PREFIX(vec2) b) {
+    GROUNDED_MATH_PREFIX(vec2) result;
+    result.x = MIN(a.x, b.x);
+    result.y = MIN(a.y, b.y);
+    return result;
+}
+
 //////////
 // Vector3
 GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec3) v3AddScalar(GROUNDED_MATH_PREFIX(vec3) v, float c) {
@@ -395,6 +409,22 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec3) v3Abs(GROUNDED_MATH_PREFIX(v
     result.x = ABS(v.x);
     result.y = ABS(v.y);
     result.z = ABS(v.z);
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec3) v3Max(GROUNDED_MATH_PREFIX(vec3) a, GROUNDED_MATH_PREFIX(vec3) b) {
+    GROUNDED_MATH_PREFIX(vec3) result;
+    result.x = MAX(a.x, b.x);
+    result.y = MAX(a.y, b.y);
+    result.z = MAX(a.z, b.z);
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec3) v3Min(GROUNDED_MATH_PREFIX(vec3) a, GROUNDED_MATH_PREFIX(vec3) b) {
+    GROUNDED_MATH_PREFIX(vec3) result;
+    result.x = MIN(a.x, b.x);
+    result.y = MIN(a.y, b.y);
+    result.z = MIN(a.z, b.z);
     return result;
 }
 
@@ -513,6 +543,24 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec4) v4Abs(GROUNDED_MATH_PREFIX(v
     result.y = ABS(v.y);
     result.z = ABS(v.z);
     result.w = ABS(v.w);
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec4) v4Max(GROUNDED_MATH_PREFIX(vec4) a, GROUNDED_MATH_PREFIX(vec4) b) {
+    GROUNDED_MATH_PREFIX(vec4) result;
+    result.x = MAX(a.x, b.x);
+    result.y = MAX(a.y, b.y);
+    result.z = MAX(a.z, b.z);
+    result.w = MAX(a.w, b.w);
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec4) v4Min(GROUNDED_MATH_PREFIX(vec4) a, GROUNDED_MATH_PREFIX(vec4) b) {
+    GROUNDED_MATH_PREFIX(vec4) result;
+    result.x = MIN(a.x, b.x);
+    result.y = MIN(a.y, b.y);
+    result.z = MIN(a.z, b.z);
+    result.w = MIN(a.w, b.w);
     return result;
 }
 

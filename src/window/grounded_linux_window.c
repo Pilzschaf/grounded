@@ -62,10 +62,10 @@ GROUNDED_FUNCTION void groundedDestroyWindow(GroundedWindow* window) {
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
         case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
-            waylandDestroyWindow(window);
+            waylandDestroyWindow((GroundedWaylandWindow*)window);
         } break;
         case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
-            xcbDestroyWindow(window);
+            xcbDestroyWindow((GroundedXcbWindow*)window);
         } break;
         default:break;
     }
@@ -75,10 +75,10 @@ GROUNDED_FUNCTION u32 groundedGetWindowWidth(GroundedWindow* window) {
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
         case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
-            return waylandGetWindowWidth(window);
+            return waylandGetWindowWidth((GroundedWaylandWindow*)window);
         } break;
         case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
-            return xcbGetWindowWidth(window);
+            return xcbGetWindowWidth((GroundedXcbWindow*)window);
         } break;
         default:break;
     }
@@ -89,10 +89,10 @@ GROUNDED_FUNCTION u32 groundedGetWindowHeight(GroundedWindow* window) {
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
         case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
-            return waylandGetWindowHeight(window);
+            return waylandGetWindowHeight((GroundedWaylandWindow*)window);
         } break;
         case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
-            return xcbGetWindowHeight(window);
+            return xcbGetWindowHeight((GroundedXcbWindow*)window);
         } break;
         default:break;
     }
@@ -103,10 +103,10 @@ GROUNDED_FUNCTION void groundedWindowSetTitle(GroundedWindow* window, String8 ti
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
         case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
-            waylandSetWindowTitle(window, title);
+            waylandSetWindowTitle((GroundedWaylandWindow*)window, title);
         } break;
         case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
-            xcbSetWindowTitle(window, title, true);
+            xcbSetWindowTitle((GroundedXcbWindow*)window, title, true);
         } break;
         default:break;
     }
@@ -116,10 +116,10 @@ GROUNDED_FUNCTION void groundedWindowSetFullscreen(GroundedWindow* window, bool 
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
         case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
-            waylandWindowSetFullsreen(window, fullscreen);
+            waylandWindowSetFullsreen((GroundedWaylandWindow*)window, fullscreen);
         } break;
         case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
-            xcbWindowSetFullscreen(window, fullscreen);
+            xcbWindowSetFullscreen((GroundedXcbWindow*)window, fullscreen);
         } break;
         default:break;
     }
@@ -129,10 +129,10 @@ GROUNDED_FUNCTION void groundedWindowSetBorderless(GroundedWindow* window, bool 
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
         case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
-            waylandWindowSetBorderless(window, borderless);
+            waylandWindowSetBorderless((GroundedWaylandWindow*)window, borderless);
         } break;
         case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
-            xcbWindowSetBorderless(window, borderless);
+            xcbWindowSetBorderless((GroundedXcbWindow*)window, borderless);
         } break;
         default:break;
     }
@@ -142,10 +142,10 @@ GROUNDED_FUNCTION void groundedWindowSetHidden(GroundedWindow* window, bool hidd
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
         case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
-            waylandWindowSetHidden(window, hidden);
+            waylandWindowSetHidden((GroundedWaylandWindow*)window, hidden);
         } break;
         case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
-            xcbWindowSetHidden(window, hidden);
+            xcbWindowSetHidden((GroundedXcbWindow*)window, hidden);
         } break;
         default:break;
     }
@@ -220,10 +220,10 @@ GROUNDED_FUNCTION void groundedFetchMouseState(GroundedWindow* window, MouseStat
 
     switch(linuxWindowBackend) {
         case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
-            waylandFetchMouseState(window, mouseState);
+            waylandFetchMouseState((GroundedWaylandWindow*)window, mouseState);
         } break;
         case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
-            xcbFetchMouseState(window, mouseState);
+            xcbFetchMouseState((GroundedXcbWindow*)window, mouseState);
         } break;
         default:break;
     }
@@ -237,10 +237,10 @@ GROUNDED_FUNCTION bool groundedCreateOpenGLContext(GroundedWindow* window, u32 f
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
         case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
-            return waylandCreateOpenGLContext(window, flags, windowContextToShareResources);
+            return waylandCreateOpenGLContext((GroundedWaylandWindow*)window, flags, (GroundedWaylandWindow*)windowContextToShareResources);
         } break;
         case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
-            return xcbCreateOpenGLContext(window, flags, windowContextToShareResources);
+            return xcbCreateOpenGLContext((GroundedXcbWindow*)window, flags, (GroundedXcbWindow*)windowContextToShareResources);
         }break;
         default:break;
     }
@@ -251,10 +251,10 @@ GROUNDED_FUNCTION void groundedMakeOpenGLContextCurrent(GroundedWindow* window) 
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
         case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
-            waylandOpenGLMakeCurrent(window);
+            waylandOpenGLMakeCurrent((GroundedWaylandWindow*)window);
         } break;
         case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
-            xcbOpenGLMakeCurrent(window);
+            xcbOpenGLMakeCurrent((GroundedXcbWindow*)window);
         }break;
         default:break;
     }
@@ -264,10 +264,10 @@ GROUNDED_FUNCTION void groundedWindowGlSwapBuffers(GroundedWindow* window) {
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
         case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
-            waylandWindowGlSwapBuffers(window);
+            waylandWindowGlSwapBuffers((GroundedWaylandWindow*)window);
         } break;
         case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
-            xcbWindowGlSwapBuffers(window);
+            xcbWindowGlSwapBuffers((GroundedXcbWindow*)window);
         }break;
         default:break;
     }

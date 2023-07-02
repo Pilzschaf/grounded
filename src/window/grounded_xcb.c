@@ -361,7 +361,7 @@ static GroundedWindow* xcbCreateWindow(struct GroundedWindowCreateParameters* pa
         xcb_generic_error_t* xcbError = xcb_request_check(xcbConnection, windowCheckCookie);
     }
 
-    return result;
+    return (GroundedWindow*)result;
 }
 
 static void xcbDestroyWindow(GroundedXcbWindow* window) {
@@ -633,7 +633,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             result.type = GROUNDED_EVENT_TYPE_RESIZE;
             result.resize.width = window->width;
             result.resize.height = window->height;
-            result.resize.window = window;
+            result.resize.window = (GroundedWindow*)window;
         } break;
     }
     
