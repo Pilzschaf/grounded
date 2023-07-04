@@ -616,6 +616,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
         case XCB_KEY_PRESS:{
             xcb_key_press_event_t* keyPressEvent = (xcb_key_press_event_t*)event;
             u8 keycode = translateXcbKeycode(keyPressEvent->detail);
+            //xcb_input_device_id_t sourceId = keyPressEvent->sourceid;
             xcbKeyboardState.keys[keycode] = true;
             xcbKeyboardState.keyDownTransitions[keycode]++;
         } break;
@@ -634,6 +635,50 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             result.resize.width = window->width;
             result.resize.height = window->height;
             result.resize.window = (GroundedWindow*)window;
+        } break;
+        case XCB_REPARENT_NOTIFY:{
+            // This window now has a new parent. We ignore this event for now...
+        } break;
+        case XCB_CREATE_NOTIFY:{
+            // This window has been newly created. We ignore this event for now...
+        } break;
+        case XCB_MAP_NOTIFY:{
+            // This window has been mapped eg. the window has been set visible. We ignore this for now...
+        } break;
+        case XCB_MOTION_NOTIFY:{
+            // Mouse movement event
+        } break;
+        case XCB_VISIBILITY_NOTIFY:{
+            // Chane of window visibility. Half or fully covered. Happens for example on minimzation
+        } break;
+        case XCB_UNMAP_NOTIFY:{
+            // Window has been unmapped. For example because of minimization
+        } break;
+        case XCB_MAPPING_NOTIFY:{
+            // New keyboard mapping. Basically new keyboard layout.
+            // WERIRD: Happens if I use my custom keyboard mappings to change volume
+            /*xcb_mapping_notify_event_t* mappingEvent = (xcb_mapping_notify_event_t*)event;
+            // mappingEvent->request can be
+            // XCB_MAPPING_KEYBOARD for keyboard mappings
+            // XCB_MAPPING_POINTER mouse mappings
+            // XCB_MAPPING_MODIFIER mapping change of modifier keys
+            // Should then call  to get new mapping
+            xcb_get_keyboard_mapping_cookie_t mappingCookie;
+            xcb_get_keyboard_mapping_reply_t* mappingReply;
+            mappingCookie = xcb_get_keyboard_mapping(xcbConnection, mappingEvent->first_keycode, mappingEvent->count);
+            mappingReply = xcb_get_keyboard_mapping_reply(xcbConnection, mappingCookie, 0);
+            if (mappingReply) {
+                xcb_keysym_t* keySyms = xcb_get_keyboard_mapping_keysyms(mappingReply);
+                // We have mappingReply->keysyms_per_keycode many keysyms per keycode
+                // So the keySyms array should be keysyms_per_keycode * keycode_count items large
+
+
+                // Free the resources
+                free(mappingReply);
+            }*/
+        } break;
+        default:{
+            ASSERT(false);
         } break;
     }
     
@@ -677,15 +722,18 @@ static GroundedEvent* xcbGetEvents(u32* eventCount, u32 maxWaitingTimeInMs) {
         int xcbFd = xcb_get_file_descriptor(xcbConnection);
         struct pollfd pfd;
         pfd.fd = xcbFd;
-        poll(&pfd, 1, (int)maxWaitingTimeInMs);
+        pfd.events = POLLIN;
+        int timeout = maxWaitingTimeInMs ? ((int)maxWaitingTimeInMs) : -1;
+        poll(&pfd, 1, timeout);
         event = xcb_poll_for_event(xcbConnection);
     }
 
-    if(event) {
+    while(event) {
         GroundedEvent result = xcbTranslateToGroundedEvent(event);
         if(result.type != GROUNDED_EVENT_TYPE_NONE) {
             eventQueue[eventQueueIndex++] = result;
         }
+        event = xcb_poll_for_event(xcbConnection);
     }
 
     *eventCount = eventQueueIndex;

@@ -31,3 +31,6 @@ X(xcb_ungrab_pointer, xcb_void_cookie_t, (xcb_connection_t *conn, xcb_timestamp_
 X(xcb_map_window_checked, xcb_void_cookie_t, (xcb_connection_t *conn, xcb_window_t window))
 X(xcb_unmap_window_checked, xcb_void_cookie_t, (xcb_connection_t *conn, xcb_window_t window))
 X(xcb_change_window_attributes, xcb_void_cookie_t, (xcb_connection_t *conn, xcb_window_t window, uint32_t value_mask, const uint32_t *value_list))
+//X(xcb_get_keyboard_mapping, xcb_get_keyboard_mapping_cookie_t, (xcb_connection_t *c, xcb_keycode_t first_keycode, uint8_t count))
+//X(xcb_get_keyboard_mapping_reply, xcb_get_keyboard_mapping_reply_t*, (xcb_connection_t* c, xcb_get_keyboard_mapping_cookie_t cookie, xcb_generic_error_t** e))
+//X(xcb_get_keyboard_mapping_keysyms, xcb_keysym_t*, (const xcb_get_keyboard_mapping_reply_t *R))

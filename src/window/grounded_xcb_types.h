@@ -6,7 +6,7 @@
 #define XCB_KEY_RELEASE 3
 #define XCB_BUTTON_PRESS 4
 #define XCB_BUTTON_RELEASE 5
-// #define XCB_MOTION_NOTIFY 6
+#define XCB_MOTION_NOTIFY 6
 // #define XCB_ENTER_NOTIFY 7
 // #define XCB_LEAVE_NOTIFY 8
 // #define XCB_FOCUS_IN 9
@@ -15,13 +15,13 @@
 // #define XCB_EXPOSE 12
 // #define XCB_GRAPHICS_EXPOSURE 13
 // #define XCB_NO_EXPOSURE 14
-// #define XCB_VISIBILITY_NOTIFY 15
-// #define XCB_CREATE_NOTIFY 16
+#define XCB_VISIBILITY_NOTIFY 15
+#define XCB_CREATE_NOTIFY 16
 // #define XCB_DESTROY_NOTIFY 17
-// #define XCB_UNMAP_NOTIFY 18
-// #define XCB_MAP_NOTIFY 19
+#define XCB_UNMAP_NOTIFY 18
+#define XCB_MAP_NOTIFY 19
 // #define XCB_MAP_REQUEST 20
-// #define XCB_REPARENT_NOTIFY 21
+#define XCB_REPARENT_NOTIFY 21
 #define XCB_CONFIGURE_NOTIFY 22
 // #define XCB_CONFIGURE_REQUEST 23
 // #define XCB_GRAVITY_NOTIFY 24
@@ -34,7 +34,7 @@
 // #define XCB_SELECTION_NOTIFY 31
 // #define XCB_COLORMAP_NOTIFY 32
 #define XCB_CLIENT_MESSAGE 33
-// #define XCB_MAPPING_NOTIFY 34
+#define XCB_MAPPING_NOTIFY 34
 // #define XCB_GE_GENERIC 35
 
 #define XCB_COPY_FROM_PARENT 0L
@@ -162,6 +162,34 @@ typedef struct xcb_configure_notify_event_t {
     uint8_t      pad1;
 } xcb_configure_notify_event_t;
 
+typedef struct xcb_mapping_notify_event_t {
+    uint8_t       response_type;
+    uint8_t       pad0;
+    uint16_t      sequence;
+    uint8_t       request;
+    xcb_keycode_t first_keycode;
+    uint8_t       count;
+    uint8_t       pad1;
+} xcb_mapping_notify_event_t;
+
+typedef enum xcb_mapping_t {
+    XCB_MAPPING_MODIFIER = 0,
+    XCB_MAPPING_KEYBOARD = 1,
+    XCB_MAPPING_POINTER = 2
+} xcb_mapping_t;
+
+typedef struct xcb_get_keyboard_mapping_cookie_t {
+    unsigned int sequence;
+} xcb_get_keyboard_mapping_cookie_t;
+
+typedef struct xcb_get_keyboard_mapping_reply_t {
+    uint8_t  response_type;
+    uint8_t  keysyms_per_keycode;
+    uint16_t sequence;
+    uint32_t length;
+    uint8_t  pad0[24];
+} xcb_get_keyboard_mapping_reply_t;
+
 typedef struct xcb_query_pointer_cookie_t {
     unsigned int sequence;
 } xcb_query_pointer_cookie_t;
@@ -194,6 +222,8 @@ typedef struct xcb_intern_atom_reply_t {
     uint32_t   length;
     xcb_atom_t atom;
 } xcb_intern_atom_reply_t;
+
+typedef uint32_t xcb_keysym_t;
 
 typedef enum xcb_atom_enum_t {
     XCB_ATOM_NONE = 0,
