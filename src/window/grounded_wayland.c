@@ -680,30 +680,51 @@ static bool waylandPoll(u32 maxWaitingTimeInMs) {
 	return true;
 }
 
-
-static GroundedEvent* waylandGetEvents(u32* eventCount, u32 maxWaitingTimeInMs) {
-    eventQueueIndex = 0;
-
-    if(!maxWaitingTimeInMs) {
-        // Sends out pending requests to all event queues
-        wl_display_roundtrip(waylandDisplay);
-    }
-
-    if(waylandPoll(maxWaitingTimeInMs)) {
-        wl_display_dispatch(waylandDisplay);
-    }
-
-    *eventCount = eventQueueIndex;
-    return eventQueue;
-}
-
 static GroundedEvent* waylandPollEvents(u32* eventCount) {
     eventQueueIndex = 0;
 
     // Sends out pending requests to all event queues
     wl_display_roundtrip(waylandDisplay);
 
-    //wl_display_dispatch_pending(waylandDisplay);
+    // Dispatches pending events from server
+    wl_display_dispatch_pending(waylandDisplay);
+
+    *eventCount = eventQueueIndex;
+    return eventQueue;
+}
+
+static GroundedEvent* waylandGetEvents(u32* eventCount, u32 maxWaitingTimeInMs) {
+    eventQueueIndex = 0;
+    static bool firstInvocation = true;
+
+    // In the first invovation we just want to poll as this might otherwise block applications
+    // which will never get to present anyhing to the surface and therefore the surface never 
+    // gets visible and never receives events
+    if(firstInvocation) {
+        firstInvocation = false;
+        return waylandPollEvents(eventCount);
+    }
+
+    /*while(wl_display_prepare_read(waylandDisplay) != 0) {
+        wl_display_dispatch_pending(waylandDisplay);
+    }
+
+    // Flush display
+    while(wl_display_flush(waylandDisplay) == -1) {
+        if(errno != EAGAIN) {
+            return 0;
+        }
+        struct pollfd fd = {wl_display_get_fd(waylandDisplay), POLLOUT};
+        while(poll(&fd, 1, -1) == -1) {
+            if(errno != EINTR && errno != EAGAIN) {
+                return 0;
+            }
+        }
+    }*/
+
+    if(waylandPoll(maxWaitingTimeInMs)) {
+        wl_display_dispatch(waylandDisplay);
+    }
 
     *eventCount = eventQueueIndex;
     return eventQueue;
