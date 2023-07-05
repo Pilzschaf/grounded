@@ -60,3 +60,4 @@ build/
 
 *.make
 Makefile
+.vscode

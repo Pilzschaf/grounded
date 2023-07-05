@@ -77,6 +77,10 @@ GROUNDED_FUNCTION_INLINE String8 str8FromCstr(const char* cstr) {
     return str8FromBlock((u8*)cstr, strlen(cstr));
 }
 
+GROUNDED_FUNCTION_INLINE bool str8IsEmpty(String8 str) {
+    return str.base == 0 || str.size == 0;
+}
+
 GROUNDED_FUNCTION String8 str8Prefix(String8 str, u64 size);
 GROUNDED_FUNCTION String8 str8Chop(String8 str, u64 amount);
 GROUNDED_FUNCTION String8 str8PostFix(String8 str, u64 size);
@@ -90,6 +94,7 @@ struct MemoryArena;
 GROUNDED_FUNCTION String8 str8Copy(struct MemoryArena* arena, String8 str);
 GROUNDED_FUNCTION String8 str8CopyAndNullTerminate(struct MemoryArena* arena, String8 str);
 GROUNDED_FUNCTION char* str8GetCstr(struct MemoryArena* arena, String8 str);
+GROUNDED_FUNCTION char* str8GetCstrOrNull(struct MemoryArena* arena, String8 str);
 
 GROUNDED_FUNCTION void str8ListPushExplicit(String8List* list, String8 str, String8Node* nodeMemory);
 GROUNDED_FUNCTION void str8ListPush(struct MemoryArena* arena, String8List* list, String8 str);

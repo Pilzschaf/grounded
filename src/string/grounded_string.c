@@ -85,6 +85,14 @@ GROUNDED_FUNCTION char* str8GetCstr(MemoryArena* arena, String8 str) {
     return result;
 }
 
+GROUNDED_FUNCTION char* str8GetCstrOrNull(struct MemoryArena* arena, String8 str) {
+    if(str.size == 0) {
+        return 0;
+    } else {
+        return str8GetCstr(arena, str);
+    }
+}
+
 //////////////
 // String list
 GROUNDED_FUNCTION void str8ListPushExplicit(String8List* list, String8 str, String8Node* nodeMemory) {

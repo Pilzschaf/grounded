@@ -17,6 +17,8 @@
 #define MEMORY_COPY_ARRAY(d,s) MEMORY_COPY((d),(s),CLAMP_TOP(sizeof(s),sizeof(d)))
 #define MEMORY_COPY_TYPED(d,s,c) MEMORY_COPY((d),(s),CLAMP_TOP(sizeof(*(d)),sizeof(*(s)))*(c))
 
+#define MEMORY_IS_ZERO(d, s) (groundedMemoryIsZero(d, s))
+
 // Clears memory at ptr with the specified size to 0
 GROUNDED_FUNCTION_INLINE void groundedClearMemory(void* ptr, u64 size) {
     memset(ptr, 0, size);
@@ -29,6 +31,16 @@ GROUNDED_FUNCTION_INLINE bool groundedCompareMemory(void* a, void* b, u64 size) 
 
 GROUNDED_FUNCTION_INLINE void groundedCopyMemory(void* dest, void* src, u64 size) {
     memcpy(dest, src, size);
+}
+
+GROUNDED_FUNCTION_INLINE bool groundedMemoryIsZero(void* memory, u64 size) {
+    u8* data = (u8*)memory;
+    for(u64 i = 0; i < size; ++i) {
+        if(data[i] != 0) {
+            return false;
+        }
+    }
+    return true;
 }
 
 ///////////////
