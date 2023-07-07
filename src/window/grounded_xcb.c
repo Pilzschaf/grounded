@@ -833,6 +833,10 @@ GROUNDED_FUNCTION void xcbOpenGLMakeCurrent(GroundedXcbWindow* window) {
 GROUNDED_FUNCTION void xcbWindowGlSwapBuffers(GroundedXcbWindow* window) {
     eglSwapBuffers(eglDisplay, window->eglSurface);
 }
+
+GROUNDED_FUNCTION void xcbWindowSetGlSwapInterval(int interval) {
+    eglSwapInterval(eglDisplay, interval);
+}
 #endif // GROUNDED_OPENGL_SUPPORT
 
 //*************

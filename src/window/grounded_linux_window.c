@@ -272,6 +272,19 @@ GROUNDED_FUNCTION void groundedWindowGlSwapBuffers(GroundedWindow* window) {
         default:break;
     }
 }
+
+GROUNDED_FUNCTION void groundedWindowSetGlSwapInterval(int interval) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            waylandWindowSetGlSwapInterval(interval);
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            xcbWindowSetGlSwapInterval(interval);
+        }break;
+        default:break;
+    }
+}
 #endif // GROUNDED_OPENGL_SUPPORT
 
 

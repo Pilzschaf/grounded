@@ -835,6 +835,10 @@ GROUNDED_FUNCTION void waylandOpenGLMakeCurrent(GroundedWaylandWindow* window) {
 GROUNDED_FUNCTION void waylandWindowGlSwapBuffers(GroundedWaylandWindow* window) {
     eglSwapBuffers(waylandEglDisplay, window->eglSurface);
 }
+
+GROUNDED_FUNCTION void waylandWindowSetGlSwapInterval(int interval) {
+    eglSwapInterval(eglDisplay, interval);
+}
 #endif // GROUNDED_OPENGL_SUPPORT
 
 
