@@ -42,6 +42,10 @@ typedef struct GroundedWaylandWindow {
 #define MAX_XCB_WINDOWS 64
 GroundedWaylandWindow waylandWindowSlots[MAX_XCB_WINDOWS];
 
+#ifdef GROUNDED_OPENGL_SUPPORT
+static void waylandResizeEglSurface(GroundedWaylandWindow* window);
+#endif
+
 // wayland function types
 #define X(N, R, P) typedef R grounded_wayland_##N P;
 #include "grounded_wayland_functions.h"
@@ -445,6 +449,9 @@ static void xdgToplevelHandleConfigure(void* data,  struct xdg_toplevel* topleve
             .resize.width = width,
             .resize.height = height,
         };
+        #ifdef GROUNDED_OPENGL_SUPPORT
+        waylandResizeEglSurface(window);
+        #endif
     }
     if(width) {
         window->width = width;
@@ -822,6 +829,13 @@ GROUNDED_FUNCTION bool waylandCreateOpenGLContext(GroundedWaylandWindow* window,
     }
 
     return true;
+}
+
+static void waylandResizeEglSurface(GroundedWaylandWindow* window) {
+    ASSERT(window->eglWindow);
+    ASSERT(window->eglSurface);
+    
+    wl_egl_window_resize(window->eglWindow, window->width, window->height, 0, 0);
 }
 
 GROUNDED_FUNCTION void waylandOpenGLMakeCurrent(GroundedWaylandWindow* window) {
