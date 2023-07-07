@@ -26,6 +26,8 @@ GROUNDED_FUNCTION_INLINE void groundedClearMemory(void* ptr, u64 size) {
 
 // Returns false if they don't match
 GROUNDED_FUNCTION_INLINE bool groundedCompareMemory(void* a, void* b, u64 size) {
+    // Spec does not allow passing null pointers to memcmp
+    ASSERT(a && b);
     return memcmp(a, b, size) == 0;
 }
 

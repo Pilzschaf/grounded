@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <assert.h>
+#include <stdalign.h>
 
 typedef int8_t s8;
 typedef int16_t s16;
@@ -30,11 +31,7 @@ typedef unsigned int uint;
 #endif
 
 #ifndef ALIGNMENT_OF
-    #ifdef __cplusplus
     #define ALIGNMENT_OF(T) (alignof(T))
-    #else
-    #define ALIGNMENT_OF(T) (_Alignof(T))
-    #endif
 #endif
 
 #ifndef INT_FROM_PTR
