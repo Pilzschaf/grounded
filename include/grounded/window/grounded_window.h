@@ -14,7 +14,10 @@ typedef enum GroundedEventType {
     GROUNDED_EVENT_TYPE_NONE,
     GROUNDED_EVENT_TYPE_CLOSE_REQUEST,
 	GROUNDED_EVENT_TYPE_RESIZE,
-    //GROUNDED_EVENT_TYPE_KEY_DOWN,
+    GROUNDED_EVENT_TYPE_KEY_DOWN,
+	GROUNDED_EVENT_TYPE_KEY_UP,
+	GROUNDED_EVENT_TYPE_BUTTON_DOWN,
+	GROUNDED_EVENT_TYPE_BUTTON_UP,
     GROUNDED_EVENT_TYPE_COUNT,
 } GroundedEventType;
 typedef struct GroundedEvent {
@@ -29,6 +32,19 @@ typedef struct GroundedEvent {
 			u32 height;
 			GroundedWindow* window;
 		} resize;
+		struct {
+			u32 keycode;
+			u32 modifiers;
+		} keyDown;
+		struct {
+			u32 keycode;
+		} keyUp;
+		struct {
+			u32 button;
+		} buttonDown;
+		struct {
+			u32 button;
+		} buttonUp;
     };
 } GroundedEvent;
 
@@ -62,6 +78,17 @@ typedef struct MouseState {
 	u16 buttonUpTransitions[32];
 } MouseState;
 
+typedef enum GroundedMouseCursor {
+	GROUNDED_MOUSE_CURSOR_ARROW = 0,
+	GROUNDED_MOUSE_CURSOR_DEFAULT = GROUNDED_MOUSE_CURSOR_ARROW,
+    GROUNDED_MOUSE_CURSOR_IBEAM, // The default text edit cursor
+    GROUNDED_MOUSE_CURSOR_LEFTRIGHT,
+    GROUNDED_MOUSE_CURSOR_UPDOWN,
+	GROUNDED_MOUSE_CURSOR_POINTER, // Usually used when mouse hovers a clickable element
+	GROUNDED_MOUSE_CURSOR_CUSTOM,
+    GROUNDED_MOUSE_CURSOR_COUNT
+} GroundedMouseCursor;
+
 struct GroundedWindowCreateParameters {
 	String8 title;
 	u32 width; // 0 for a platform-specific default size
@@ -86,6 +113,8 @@ GROUNDED_FUNCTION void groundedWindowSetHidden(GroundedWindow* window, bool hidd
 
 GROUNDED_FUNCTION void groundedSetCursorGrab(GroundedWindow* window, bool grab);
 GROUNDED_FUNCTION void groundedSetCursorVisibility(bool visible);
+GROUNDED_FUNCTION void groundedSetCursorType(enum GroundedMouseCursor cursorType);
+//GROUNDED_FUNCTION void groundedSetCustomCursorType();
 
 // Retuned array must not be used anymore once get or poll events is called again
 GROUNDED_FUNCTION GroundedEvent* groundedGetEvents(u32* eventCount, u32 maxWaitingTimeInMs);

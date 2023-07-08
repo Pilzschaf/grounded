@@ -1,5 +1,5 @@
 /*
- * This file uses the X-List pattern to define all required xcb types
+ * This file uses the X-List pattern to define all required xcb functions
  */
 
 X(xcb_connect, xcb_connection_t*, (const char *display, int *screen))

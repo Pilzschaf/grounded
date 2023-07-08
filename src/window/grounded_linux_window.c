@@ -18,8 +18,8 @@ typedef enum WindowBackend {
 WindowBackend linuxWindowBackend = GROUNDED_LINUX_WINDOW_BACKEND_NONE;
 
 GROUNDED_FUNCTION void groundedInitWindowSystem() {
-    bool skipWayland = false;
-    if(initWayland() && !skipWayland) {
+    bool skipWayland = true;
+    if(!skipWayland && initWayland()) {
         linuxWindowBackend = GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND;
     } else {
         initXcb();
@@ -229,6 +229,18 @@ GROUNDED_FUNCTION void groundedFetchMouseState(GroundedWindow* window, MouseStat
     }
 }
 
+GROUNDED_FUNCTION void groundedSetCursorType(enum GroundedMouseCursor cursorType) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            waylandSetCursorType(cursorType);
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            xcbSetCursorType(cursorType);
+        } break;
+        default:break;
+    }
+}
 
 // ************
 // OpenGL stuff

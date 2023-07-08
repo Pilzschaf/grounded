@@ -45,6 +45,7 @@
 
 typedef struct xcb_connection_t xcb_connection_t;  // Opaque structure containing all data that  XCB needs to communicate with an X server
 typedef struct xcb_setup_t xcb_setup_t;
+typedef struct xcb_cursor_context_t xcb_cursor_context_t;
 
 typedef uint32_t xcb_timestamp_t;
 typedef uint32_t xcb_window_t;

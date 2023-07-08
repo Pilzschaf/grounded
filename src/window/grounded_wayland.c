@@ -11,6 +11,9 @@
 #include <EGL/egl.h>
 #endif
 
+//#include <wayland-cursor.h>
+//#include <wayland-client.h>
+
 struct wl_interface {
 	const char *name;
 	int version;
@@ -25,6 +28,9 @@ struct wl_registry;
 struct wl_array;
 struct wl_keyboard;
 struct wl_seat;
+struct wl_shm;
+struct wl_buffer;
+struct wl_cursor_image;
 
 typedef struct GroundedWaylandWindow {
     struct wl_surface* surface;
@@ -66,6 +72,16 @@ static void waylandResizeEglSurface(GroundedWaylandWindow* window);
 #include "grounded_wayland_egl_functions.h"
 #undef X
 
+// wayland-cursor function types
+#define X(N, R, P) typedef R grounded_wayland_##N P;
+#include "grounded_wayland_cursor_functions.h"
+#undef X
+
+// wayland-cursor function pointers
+#define X(N, R, P) static grounded_wayland_##N * N = 0;
+#include "grounded_wayland_cursor_functions.h"
+#undef X
+
 #if 1
 const struct wl_interface* wl_registry_interface;
 const struct wl_interface* wl_surface_interface;
@@ -74,6 +90,7 @@ const struct wl_interface* wl_seat_interface;
 const struct wl_interface* wl_output_interface;
 const struct wl_interface* wl_keyboard_interface;
 const struct wl_interface* wl_pointer_interface;
+const struct wl_interface* wl_shm_interface;
 #else
 extern const struct wl_interface wl_registry_interface;
 extern const struct wl_interface wl_surface_interface;
@@ -89,7 +106,12 @@ struct wl_display* waylandDisplay;
 struct xdg_wm_base* xdgWmBase;
 struct wl_keyboard* keyboard;
 struct wl_pointer* pointer;
+u32 pointerEnterSerial;
 struct zxdg_decoration_manager_v1* decorationManager;
+struct wl_shm* waylandShm; // Shared memory interface to compositor
+struct wl_cursor_theme* cursorTheme;
+struct wl_surface* cursorSurface;
+bool waylandCursorLibraryPresent;
 
 GroundedKeyboardState waylandKeyState;
 MouseState waylandMouseState;
@@ -98,6 +120,8 @@ MouseState waylandMouseState;
 
 #include "wayland_protocols/xdg_shell.h"
 #include "wayland_protocols/xdg-decoration-unstable-v1.h"
+
+static void waylandWindowSetMaximized(GroundedWaylandWindow* window, bool maximized);
 
 static void reportWaylandError(const char* message) {
     printf("Error: %s\n", message);
@@ -283,6 +307,9 @@ static u8 translateWaylandKeycode(u32 key) {
         case KEY_RIGHTSHIFT:
         result = GROUNDED_KEY_RSHIFT;
         break;
+        case KEY_ESC:
+        result = GROUNDED_KEY_ESCAPE;
+        break;
         default:
         GROUNDED_LOG_WARNING("Unknown keycode");
         break;
@@ -291,10 +318,20 @@ static u8 translateWaylandKeycode(u32 key) {
 }
 
 static void keyboard_handle_key(void *data, struct wl_keyboard *keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state) {
+    u8 keycode = translateWaylandKeycode(key);
     if(state == WL_KEYBOARD_KEY_STATE_PRESSED) {
-        waylandKeyState.keys[translateWaylandKeycode(key)] = true;
+        waylandKeyState.keys[keycode] = true;
+        eventQueue[eventQueueIndex++] = (GroundedEvent){
+            .type = GROUNDED_EVENT_TYPE_KEY_DOWN,
+            .keyDown.keycode = keycode,
+            .keyDown.modifiers = 0, //TODO: Modifiers
+        };
     } else if(state == WL_KEYBOARD_KEY_STATE_RELEASED) {
-        waylandKeyState.keys[translateWaylandKeycode(key)] = false;
+        waylandKeyState.keys[keycode] = false;
+        eventQueue[eventQueueIndex++] = (GroundedEvent){
+            .type = GROUNDED_EVENT_TYPE_KEY_UP,
+            .keyUp.keycode = keycode,
+        };
     }
     //fprintf(stderr, "Key is %d state is %d\n", key, state);
 }
@@ -314,7 +351,8 @@ static const struct wl_keyboard_listener keyboard_listener = {
 
 
 static void pointerHandleEnter(void *data, struct wl_pointer *wl_pointer, uint32_t serial, struct wl_surface *surface, wl_fixed_t surface_x, wl_fixed_t surface_y) {
-
+    ASSERT(wl_pointer == pointer);
+    pointerEnterSerial = serial;
 }
 
 static void pointerHandleLeave(void *data, struct wl_pointer *wl_pointer, uint32_t serial, struct wl_surface *surface) {
@@ -331,12 +369,24 @@ static void pointerHandleMotion(void *data, struct wl_pointer *wl_pointer, uint3
 static void pointerHandleButton(void *data, struct wl_pointer *wl_pointer, uint32_t serial, uint32_t time, uint32_t button, uint32_t state) {
     bool pressed = state == 1;
     // button code is platform specific. See linux/input-event-codes.h. Want to use BTN_LEFT, BTN_RIGHT, BTN_MIDDLE
-    if(button == BTN_LEFT) {
-        waylandMouseState.buttons[GROUNDED_MOUSE_BUTTON_LEFT] = pressed;
-    } else if(button == BTN_RIGHT) {
-        waylandMouseState.buttons[GROUNDED_MOUSE_BUTTON_RIGHT] = pressed;
+    u32 buttonCode = GROUNDED_MOUSE_BUTTON_LEFT;
+    if(button == BTN_RIGHT) {
+        buttonCode = GROUNDED_MOUSE_BUTTON_RIGHT;
     } else if(button == BTN_MIDDLE) {
-        waylandMouseState.buttons[GROUNDED_MOUSE_BUTTON_MIDDLE] = pressed;
+        buttonCode = GROUNDED_MOUSE_BUTTON_MIDDLE;
+    }
+    
+    waylandMouseState.buttons[buttonCode] = pressed;
+    if(pressed) {
+        eventQueue[eventQueueIndex++] = (GroundedEvent){
+            .type = GROUNDED_EVENT_TYPE_BUTTON_DOWN,
+            .buttonDown.button = buttonCode,
+        };
+    } else {
+        eventQueue[eventQueueIndex++] = (GroundedEvent){
+            .type = GROUNDED_EVENT_TYPE_BUTTON_UP,
+            .buttonUp.button = buttonCode,
+        };
     }
 }
 
@@ -408,6 +458,22 @@ static void registry_global(void *data, struct wl_registry *registry, uint32_t i
     } else if(strcmp(interface, "zxdg_decoration_manager_v1") == 0) {
         // Client and server side decoration negotiation
         decorationManager = (struct zxdg_decoration_manager_v1*)wl_registry_bind(registry, id, &zxdg_decoration_manager_v1_interface, 1);
+    } else if(strcmp(interface, "wp_cursor_shape_manager_v1") == 0) {
+        // Does not seem to be supported right now...
+    } else if(strcmp(interface, "wl_shm") == 0) {
+        // Shared memory. Needed for custom cursor themes and framebuffers - TODO: might have been replaced by drm (Drm is not particular useful for software rendering)
+        waylandShm = (struct wl_shm*)wl_registry_bind(registry, id, wl_shm_interface, 1);
+        ASSERT(waylandShm);
+        //TODO: We assume that the compositor always comes before wl_shm. I do not see any guarantee by wayland that would actually suggest this so this is probably very unstable!
+        ASSERT(compositor);
+        if(waylandCursorLibraryPresent) {
+            // Load default cursor theme in size 32
+            cursorTheme = wl_cursor_theme_load(0, 32, waylandShm);
+        }
+        if(cursorTheme) {
+            cursorSurface = wl_compositor_create_surface(compositor);
+        }
+        //wl_shm_add_listener(waylandShm, &shmListener, 0);
     }
 }
 
@@ -418,28 +484,35 @@ static const struct wl_registry_listener registryListener = {
     .global_remove = registry_global_remove
 };
 
+//TODO: wl_surface.callback for frame draw callbacks https://wayland-book.com/surfaces-in-depth/frame-callbacks.html
+// struct wl_callback *cb = wl_surface_frame(state.wl_surface);
+// wl_callback_add_listener(cb, &wl_surface_frame_listener, &state);
 
+//TODO: Should do set_opaque_region for the window if the application window has no transparent bits
+
+//TODO: High-dpi: https://wayland-book.com/surfaces-in-depth/hidpi.html
+
+// This might be called multiple times to accumulate new configuration options. Client should handle those and then respond to the xdgSurface configure witha ack_configure
 static void xdgToplevelHandleConfigure(void* data,  struct xdg_toplevel* toplevel,  int32_t width, int32_t height, struct wl_array* states) {
     GroundedWaylandWindow* window = (GroundedWaylandWindow*)data;
 
     // States array tells us in which state the new window is
-    /*u32* state;
+    u32* state;
     wl_array_for_each(state, states) {
         switch(*state) {
             case XDG_TOPLEVEL_STATE_MAXIMIZED:{
-
             } break;
             case XDG_TOPLEVEL_STATE_FULLSCREEN:{
 
             } break;
             case XDG_TOPLEVEL_STATE_RESIZING:{
-
+                // Nothing additional to do
             } break;
             case XDG_TOPLEVEL_STATE_ACTIVATED:{
 
             } break;
         }
-    }*/
+    }
 
     // Here we get a new width and height
     if(width && height && (width != window->width || height != window->height)) {
@@ -449,16 +522,13 @@ static void xdgToplevelHandleConfigure(void* data,  struct xdg_toplevel* topleve
             .resize.width = width,
             .resize.height = height,
         };
+        window->width = width;
+        window->height = height;
         #ifdef GROUNDED_OPENGL_SUPPORT
         waylandResizeEglSurface(window);
         #endif
     }
-    if(width) {
-        window->width = width;
-    }
-    if(height) {
-        window->height = height;
-    }
+    
 }
 
 static void xdgToplevelHandleClose(void* data, struct xdg_toplevel* toplevel) {
@@ -474,12 +544,19 @@ static const struct xdg_toplevel_listener xdgToplevelListener = {
     xdgToplevelHandleClose
 };
 
+// The idea in wayland is that every frame is perfect. So the surface is only redrawn when all state changes have been applied
+// This is done by the server sending state changes followed by a configure event where the client should apply the pending state changes and then ack_configure
+// See https://wayland-book.com/xdg-shell-basics/xdg-surface.html
 static void xdgSurfaceHandleConfigure(void* data, struct xdg_surface* surface, uint32_t serial) {
     xdg_surface_ack_configure(surface, serial);
 
     GroundedWaylandWindow* window = (GroundedWaylandWindow*) data;
+    
     //struct xdg_surface_state *state = xdg_surface_get_pending(surface);
     
+    /*if(window.maximized != maximizePending) {
+
+    }*/
 
     //wl_buffer* buffer = create_buffer(640, 480);
     //wl_surface_attach(window->surface, buffer, 0, 0);
@@ -533,8 +610,25 @@ static bool initWayland() {
         LOAD_WAYLAND_INTERFACE(wl_output_interface);
         LOAD_WAYLAND_INTERFACE(wl_keyboard_interface);
         LOAD_WAYLAND_INTERFACE(wl_pointer_interface);
+        LOAD_WAYLAND_INTERFACE(wl_shm_interface);
         if(firstMissingInterfaceName) {
             error = "Could not load all wayland interfaces. Your wayland version is incompatible";
+        }
+    }
+
+    if(!error) { // Load wayland cursor function pointers
+        void* waylandCursorLibrary = dlopen("libwayland-cursor.so", RTLD_LAZY | RTLD_LOCAL);
+        if(waylandCursorLibrary) {
+            const char* firstMissingFunctionName = 0;
+            #define X(N, R, P) N = (grounded_wayland_##N *) dlsym(waylandCursorLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
+            #include "grounded_wayland_cursor_functions.h"
+            #undef X
+            if(firstMissingFunctionName) {
+                printf("Could not load wayland cursor function: %s\n", firstMissingFunctionName);
+                GROUNDED_LOG_WARNING("Could not load all wayland cursor functions. Wayland cursor support might be limited");
+            } else {
+                waylandCursorLibraryPresent = true;
+            }
         }
     }
 
@@ -595,6 +689,14 @@ static void waylandWindowSetBorderless(GroundedWaylandWindow* window, bool borde
 
 static void waylandWindowSetHidden(GroundedWaylandWindow* window, bool hidden) {
     ASSERT(false);
+}
+
+static void waylandWindowSetMaximized(GroundedWaylandWindow* window, bool maximized) {
+    if(maximized) {
+        xdg_toplevel_set_maximized(window->xdgToplevel);
+    } else {
+        xdg_toplevel_unset_maximized(window->xdgToplevel);
+    }
 }
 
 static GroundedWindow* waylandCreateWindow(struct GroundedWindowCreateParameters* parameters) {
@@ -757,6 +859,42 @@ static void waylandFetchMouseState(GroundedWaylandWindow* window, MouseState* mo
     waylandMouseState.horizontalScrollDelta = 0.0f;
 }
 
+GROUNDED_FUNCTION void waylandSetCursorType(enum GroundedMouseCursor cursorType) {
+    const char* error = 0;
+    if(waylandCursorLibraryPresent && cursorTheme) {
+        struct wl_cursor* cursor = 0;
+        struct wl_cursor_image* cursorImage = 0;
+        struct wl_buffer* cursorBuffer = 0;
+        int scale = 1;
+        cursor = wl_cursor_theme_get_cursor(cursorTheme, "left_ptr");
+        if(!cursor) {
+            error = "Could not find cursor";
+        } else {
+            cursorImage = cursor->images[0];
+            if(!cursorImage) {
+                error = "Could not load cursor image";
+            }
+        }
+        if(!error) {
+            cursorBuffer = wl_cursor_image_get_buffer(cursorImage);
+            if(!cursorBuffer) {
+                error = "Could not get cursor buffer";
+            }
+        }
+        if(!error) {
+            wl_pointer_set_cursor(pointer, pointerEnterSerial, cursorSurface, cursorImage->hotspot_x / scale, cursorImage->hotspot_y / scale);
+            wl_surface_set_buffer_scale(cursorSurface, scale);
+            wl_surface_attach(cursorSurface, cursorBuffer, 0, 0);
+            wl_surface_damage(cursorSurface, 0, 0, cursorImage->width, cursorImage->height);
+            wl_surface_commit(cursorSurface);
+        }
+    } else {
+        error = "Wayland compositor does not support required cursor interface";
+    }
+    if(error) {
+        GROUNDED_LOG_WARNING("Could not satisfy cursor request");
+    }
+}
 
 //*************
 // OpenGL stuff

@@ -4,12 +4,17 @@
 #define WL_REGISTRY_BIND 0
 
 #define WL_SURFACE_DESTROY 0
+#define WL_SURFACE_ATTACH 1
+#define WL_SURFACE_DAMAGE 2
 #define WL_SURFACE_COMMIT 6
+#define WL_SURFACE_SET_BUFFER_SCALE 8
 
 #define WL_SEAT_GET_POINTER 0
 #define WL_SEAT_GET_KEYBOARD 1
 #define WL_SEAT_GET_TOUCH 2
 #define WL_SEAT_RELEASE 3
+
+#define WL_POINTER_SET_CURSOR 0
 
 #define WL_MARSHAL_FLAG_DESTROY (1 << 0)
 
@@ -174,6 +179,59 @@ double wl_fixed_to_double (wl_fixed_t f){
     u.i = ((1023L + 44L) << 52) + (1L << 51) + f;
     return u.d - (3L << 43);
 }
+
+static inline void wl_pointer_set_cursor(struct wl_pointer *wl_pointer, uint32_t serial, struct wl_surface *surface, int32_t hotspot_x, int32_t hotspot_y) {
+	wl_proxy_marshal_flags((struct wl_proxy *) wl_pointer, WL_POINTER_SET_CURSOR, NULL, wl_proxy_get_version((struct wl_proxy *) wl_pointer), 0, serial, surface, hotspot_x, hotspot_y);
+}
+
+static inline void wl_surface_set_buffer_scale(struct wl_surface *wl_surface, int32_t scale) {
+	wl_proxy_marshal_flags((struct wl_proxy *) wl_surface, WL_SURFACE_SET_BUFFER_SCALE, NULL, wl_proxy_get_version((struct wl_proxy *) wl_surface), 0, scale);
+}
+
+static inline void wl_surface_attach(struct wl_surface *wl_surface, struct wl_buffer *buffer, int32_t x, int32_t y) {
+	wl_proxy_marshal_flags((struct wl_proxy *) wl_surface, WL_SURFACE_ATTACH, NULL, wl_proxy_get_version((struct wl_proxy *) wl_surface), 0, buffer, x, y);
+}
+
+static inline void wl_surface_damage(struct wl_surface *wl_surface, int32_t x, int32_t y, int32_t width, int32_t height) {
+	wl_proxy_marshal_flags((struct wl_proxy *) wl_surface, WL_SURFACE_DAMAGE, NULL, wl_proxy_get_version((struct wl_proxy *) wl_surface), 0, x, y, width, height);
+}
+
+struct wl_cursor_image {
+	/** Actual width */
+	uint32_t width;
+
+	/** Actual height */
+	uint32_t height;
+
+	/** Hot spot x (must be inside image) */
+	uint32_t hotspot_x;
+
+	/** Hot spot y (must be inside image) */
+	uint32_t hotspot_y;
+
+	/** Animation delay to next frame (ms) */
+	uint32_t delay;
+};
+
+struct wl_cursor {
+	/** How many images there are in this cursor’s animation */
+	unsigned int image_count;
+
+	/** The array of still images composing this animation */
+	struct wl_cursor_image **images;
+
+	/** The name of this cursor */
+	char *name;
+};
+
+struct wl_array {
+	/** Array size */
+	size_t size;
+	/** Allocated space */
+	size_t alloc;
+	/** Array data */
+	void *data;
+};
 
 struct wl_message {
 	/** Message name */
