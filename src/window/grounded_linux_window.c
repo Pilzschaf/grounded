@@ -3,6 +3,8 @@
 GroundedEvent eventQueue[256];
 u32 eventQueueIndex;
 
+static const char** getCursorNameCandidates(enum GroundedMouseCursor cursorType, u64* candidateCount);
+
 #include "grounded_xcb.c"
 #include "grounded_wayland.c"
 
@@ -18,7 +20,7 @@ typedef enum WindowBackend {
 WindowBackend linuxWindowBackend = GROUNDED_LINUX_WINDOW_BACKEND_NONE;
 
 GROUNDED_FUNCTION void groundedInitWindowSystem() {
-    bool skipWayland = true;
+    bool skipWayland = false;
     if(!skipWayland && initWayland()) {
         linuxWindowBackend = GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND;
     } else {
@@ -227,6 +229,84 @@ GROUNDED_FUNCTION void groundedFetchMouseState(GroundedWindow* window, MouseStat
         } break;
         default:break;
     }
+}
+
+static const char** getCursorNameCandidates(enum GroundedMouseCursor cursorType, u64* candidateCount) {
+    // https://github.com/chromium/chromium/blob/db174a51cdde1785b378e532700af65dfd5b2e28/ui/base/cursor/cursor_factory.cc#L163
+    //TODO: The tee icons might be interesting in some occasions but probably not supported on win32 natively
+    *candidateCount = 0;
+
+    const char* defaultCursors[] = {"default", "arrow", "left_ptr"};
+    const char* iBeamCursors[] = {"text", "xterm"};
+    const char* helpCursors[] = {"help", "question_arrow"};
+    const char* pointerCursors[] = {"pointer", "hand", "hand2"};
+    const char* progressCursors[] = {"progress", "left_ptr_watch", "watch"};
+    const char* waitCursors[] = {"wait", "watch"};
+    const char* dndCopyCursors[] = {"copy"}; //TODO: Seems those are not necessarily dnd related?
+    const char* dndAliasCursors[] = {"alias"};
+    const char* dndNoDropCursors[] = {"no-drop", "not-allowed", "crossed_circle"}; //TODO: What is with circle?
+    const char* notAllowedCursors[] = {"not-allowed", "crossed_circle"};
+    const char* allScrollCursors[] = {"all-scroll", "fleur"}; // Also cursor for movement. However there might be special cursors for that?
+    const char* rowResizeCursors[] = {"row-resize", "sb_v_double_arrow"};
+    const char* columnResizeCursors[] = {"col-resize", "sb_h_double_arrow"};
+    const char* eastResizeCursors[] = {"e-resize", "right_side"};
+    const char* northEastResizeCursors[] = {"ne-resize", "top_right_corner"};
+    const char* northWestResizeCursors[] = {"nw-resize", "top_left_corner"};
+    const char* northResizeCursors[] = {"n-resize", "top_side"};
+    const char* southEastResizeCursors[] = {"se-resize", "bottom_right_corner"};
+    const char* southWestResizeCursors[] = {"sw-resize", "bottom_left_corner"};
+    const char* southResizeCursors[] = {"s-resize", "bottom_side"};
+    const char* westResizeCursors[] = {"w-resize", "left_side"};
+    const char* northSouthResizeCursors[] = {"sb_v_double_arrow", "ns-resize"};
+    const char* eastWestResizeCursors[] = {"sb_h_double_arrow", "ew-resize"};
+
+    const char* crosshairCursors[] = {"crosshair", "cross"};
+    const char* verticalTextCursors[] = {"vertical-text"};
+    const char* cellCursors[] = {"cell", "plus"};
+    const char* contextMenuCursors[] = {"context-menu"};
+    // Not useful in a practical sense but interestig nonetheless
+    const char* specialCursors[] = {"dot", "pirate", "heart"};
+
+
+    // Grab: openhand, grab, hand1
+    // Grabbing: closedhand, grabbing, hand2
+    // northeastsouthwestresize: size_bdiag, nesw-resize, fd_double_arrow
+    // northwestsourtheastresize: size_fdiag, nwse-resize, bd_double_arrow
+    // zoomin: zoom-in
+    // zoomout: zoom-out
+    // DNDNone: dnd-none, hand2
+    // DNDMove: dnd-move, hand2
+    // DNDCopy: dnd-copy, hand2
+    // DNDLink: dnd-link, hand2
+
+    #define USE_CURSOR_CANDIDATE(candidates) cursorCandidates = candidates; cursorCandidateCount = ARRAY_COUNT(candidates)
+    const char** cursorCandidates;
+    u64 cursorCandidateCount = 0;
+    switch(cursorType) {
+        case GROUNDED_MOUSE_CURSOR_DEFAULT:{
+            USE_CURSOR_CANDIDATE(defaultCursors);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_IBEAM:{
+            USE_CURSOR_CANDIDATE(iBeamCursors);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_LEFTRIGHT:{
+            USE_CURSOR_CANDIDATE(eastWestResizeCursors);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_UPDOWN:{
+            USE_CURSOR_CANDIDATE(northSouthResizeCursors);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_POINTER:{
+            USE_CURSOR_CANDIDATE(pointerCursors);
+        } break;
+        default:{
+            // Cursor not found. Try to use a default
+            USE_CURSOR_CANDIDATE(defaultCursors);
+        } break;
+    }
+    #undef USE_CURSOR_CANDIDATE
+
+    *candidateCount = cursorCandidateCount;
+    return cursorCandidates;
 }
 
 GROUNDED_FUNCTION void groundedSetCursorType(enum GroundedMouseCursor cursorType) {

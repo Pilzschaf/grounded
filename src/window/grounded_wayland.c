@@ -112,6 +112,7 @@ struct wl_shm* waylandShm; // Shared memory interface to compositor
 struct wl_cursor_theme* cursorTheme;
 struct wl_surface* cursorSurface;
 bool waylandCursorLibraryPresent;
+GroundedMouseCursor waylandCurrentCursorType = GROUNDED_MOUSE_CURSOR_DEFAULT;
 
 GroundedKeyboardState waylandKeyState;
 MouseState waylandMouseState;
@@ -122,6 +123,7 @@ MouseState waylandMouseState;
 #include "wayland_protocols/xdg-decoration-unstable-v1.h"
 
 static void waylandWindowSetMaximized(GroundedWaylandWindow* window, bool maximized);
+GROUNDED_FUNCTION void waylandSetCursorType(enum GroundedMouseCursor cursorType);
 
 static void reportWaylandError(const char* message) {
     printf("Error: %s\n", message);
@@ -352,6 +354,12 @@ static const struct wl_keyboard_listener keyboard_listener = {
 
 static void pointerHandleEnter(void *data, struct wl_pointer *wl_pointer, uint32_t serial, struct wl_surface *surface, wl_fixed_t surface_x, wl_fixed_t surface_y) {
     ASSERT(wl_pointer == pointer);
+    
+    // Set correct cursor type on first enter
+    if(!pointerEnterSerial) {
+        waylandSetCursorType(waylandCurrentCursorType);
+    }
+
     pointerEnterSerial = serial;
 }
 
@@ -467,8 +475,18 @@ static void registry_global(void *data, struct wl_registry *registry, uint32_t i
         //TODO: We assume that the compositor always comes before wl_shm. I do not see any guarantee by wayland that would actually suggest this so this is probably very unstable!
         ASSERT(compositor);
         if(waylandCursorLibraryPresent) {
-            // Load default cursor theme in size 32
-            cursorTheme = wl_cursor_theme_load(0, 32, waylandShm);
+            // Load default cursor theme in default size
+            const char* sizeText = getenv("XCURSOR_SIZE");
+            int cursorSize = 0;
+            if(sizeText) {
+                cursorSize = (int)strtol(sizeText, 0, 10);
+            }
+            if(!cursorSize) {
+                // Fallback to size 24
+                cursorSize = 24;
+            }
+            const char* cursorThemeName = getenv("XCURSOR_THEME");
+            cursorTheme = wl_cursor_theme_load(cursorThemeName, cursorSize, waylandShm);
         }
         if(cursorTheme) {
             cursorSurface = wl_compositor_create_surface(compositor);
@@ -866,7 +884,16 @@ GROUNDED_FUNCTION void waylandSetCursorType(enum GroundedMouseCursor cursorType)
         struct wl_cursor_image* cursorImage = 0;
         struct wl_buffer* cursorBuffer = 0;
         int scale = 1;
-        cursor = wl_cursor_theme_get_cursor(cursorTheme, "left_ptr");
+
+        u64 candidateCount = 0;
+        const char** candidateNames = getCursorNameCandidates(cursorType, &candidateCount);
+
+        for(u64 i = 0; i < candidateCount; ++i) {
+            cursor = wl_cursor_theme_get_cursor(cursorTheme, candidateNames[i]);
+            if(cursor) {
+                break;
+            }
+        }
         if(!cursor) {
             error = "Could not find cursor";
         } else {
@@ -887,6 +914,7 @@ GROUNDED_FUNCTION void waylandSetCursorType(enum GroundedMouseCursor cursorType)
             wl_surface_attach(cursorSurface, cursorBuffer, 0, 0);
             wl_surface_damage(cursorSurface, 0, 0, cursorImage->width, cursorImage->height);
             wl_surface_commit(cursorSurface);
+            waylandCurrentCursorType = cursorType;
         }
     } else {
         error = "Wayland compositor does not support required cursor interface";

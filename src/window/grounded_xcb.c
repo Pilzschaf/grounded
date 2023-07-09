@@ -60,12 +60,17 @@ xcb_connection_t* xcbConnection;
 xcb_screen_t* xcbScreen;
 xcb_intern_atom_reply_t* xcbDeleteAtom;
 xcb_intern_atom_reply_t* xcbProtocolsAtom;
-xcb_font_t xcbCursorFont;
-xcb_cursor_t xcbDefaultCursor;
+
+xcb_font_t xcbCursorFont; // Could be used as a fallback when xcb_cursor is not available
+xcb_cursor_t xcbDefaultCursor; // Not really used right now and probably also does not contain correct default cursor
 xcb_cursor_context_t* xcbCursorContext;
+xcb_cursor_t xcbCurrentCursor;
+GroundedMouseCursor currentCursorType = GROUNDED_MOUSE_CURSOR_DEFAULT;
 
 GroundedKeyboardState xcbKeyboardState;
 MouseState xcbMouseState;
+
+GROUNDED_FUNCTION void xcbSetCursorType(enum GroundedMouseCursor cursorType);
 
 static void reportXcbError(const char* message) {
     printf("Error: %s\n", message);
@@ -160,6 +165,14 @@ static void initXcb() {
 }
 
 static void shutdownXcb() {
+    if(xcbCurrentCursor) {
+        xcb_free_cursor(xcbConnection, xcbCurrentCursor);
+        xcbCurrentCursor = 0;
+    }
+    if(xcbCursorContext) {
+        xcb_cursor_context_free(xcbCursorContext);
+        xcbCursorContext = 0;
+    }
     if(xcbCursorFont) {
         xcb_close_font(xcbConnection, xcbCursorFont);
         xcbCursorFont = 0;
@@ -381,6 +394,9 @@ static GroundedWindow* xcbCreateWindow(struct GroundedWindowCreateParameters* pa
             xcb_change_property(xcbConnection, XCB_PROP_MODE_REPLACE, result->window, XCB_ATOM_WM_NORMAL_HINTS, XCB_ATOM_WM_SIZE_HINTS, 32, sizeof(sizeHints) >> 2, &sizeHints);
         }
 
+        // At least when running through XWayland this seems to be required to get the correct mouse cursor
+        xcbSetCursorType(currentCursorType);
+
         // Make window visible
         xcb_map_window(xcbConnection, result->window);
 
@@ -388,7 +404,7 @@ static GroundedWindow* xcbCreateWindow(struct GroundedWindowCreateParameters* pa
         xcb_flush(xcbConnection);
 
         xcb_generic_error_t* xcbError = xcb_request_check(xcbConnection, windowCheckCookie);
-    }
+    }    
 
     return (GroundedWindow*)result;
 }
@@ -812,89 +828,9 @@ static void xcbFetchKeyboardState(GroundedKeyboardState* keyboard) {
 }
 
 GROUNDED_FUNCTION void xcbSetCursorType(enum GroundedMouseCursor cursorType) {
-    /*u16 cursorGlyph = XC_X_cursor;
-    cursorGlyph = XC_fleur;
-    u16 maskCursorGlyph = cursorGlyph + 1;
-    xcb_cursor_t cursor = xcb_generate_id(xcbConnection);
-    xcb_create_glyph_cursor(xcbConnection, cursor, xcbCursorFont, xcbCursorFont, cursorGlyph, maskCursorGlyph, 0, 0, 0, 0, 0, 0);
-    
-    u32 mask = XCB_CW_CURSOR;
-    u32 value_list[1] = {cursor};
-    // Apply cursor to window
-    xcb_change_window_attributes (xcbConnection, xcbWindowSlots[0].window, mask, (const u32*)&value_list);*/
-    // https://github.com/chromium/chromium/blob/db174a51cdde1785b378e532700af65dfd5b2e28/ui/base/cursor/cursor_factory.cc#L163
-    //TODO: The tee icons might be interesting in some occasions but probably not supported on win32 natively
-
-    const char* defaultCursors[] = {"default", "arrow", "left_ptr"};
-    const char* iBeamCursors[] = {"text", "xterm"};
-    const char* helpCursors[] = {"help", "question_arrow"};
-    const char* pointerCursors[] = {"pointer", "hand", "hand2"};
-    const char* progressCursors[] = {"progress", "left_ptr_watch", "watch"};
-    const char* waitCursors[] = {"wait", "watch"};
-    const char* dndCopyCursors[] = {"copy"}; //TODO: Seems those are not necessarily dnd related?
-    const char* dndAliasCursors[] = {"alias"};
-    const char* dndNoDropCursors[] = {"no-drop", "not-allowed", "crossed_circle"}; //TODO: What is with circle?
-    const char* notAllowedCursors[] = {"not-allowed", "crossed_circle"};
-    const char* allScrollCursors[] = {"all-scroll", "fleur"}; // Also cursor for movement. However there might be special cursors for that?
-    const char* rowResizeCursors[] = {"row-resize", "sb_v_double_arrow"};
-    const char* columnResizeCursors[] = {"col-resize", "sb_h_double_arrow"};
-    const char* eastResizeCursors[] = {"e-resize", "right_side"};
-    const char* northEastResizeCursors[] = {"ne-resize", "top_right_corner"};
-    const char* northWestResizeCursors[] = {"nw-resize", "top_left_corner"};
-    const char* northResizeCursors[] = {"n-resize", "top_side"};
-    const char* southEastResizeCursors[] = {"se-resize", "bottom_right_corner"};
-    const char* southWestResizeCursors[] = {"sw-resize", "bottom_left_corner"};
-    const char* southResizeCursors[] = {"s-resize", "bottom_side"};
-    const char* westResizeCursors[] = {"w-resize", "left_side"};
-    const char* northSouthResizeCursors[] = {"sb_v_double_arrow", "ns-resize"};
-    const char* eastWestResizeCursors[] = {"sb_h_double_arrow", "ew-resize"};
-
-    const char* crosshairCursors[] = {"crosshair", "cross"};
-    const char* verticalTextCursors[] = {"vertical-text"};
-    const char* cellCursors[] = {"cell", "plus"};
-    const char* contextMenuCursors[] = {"context-menu"};
-    // Not useful in a practical sense but interestig nonetheless
-    const char* specialCursors[] = {"dot", "pirate", "heart"};
-
-
-    // Grab: openhand, grab, hand1
-    // Grabbing: closedhand, grabbing, hand2
-    // northeastsouthwestresize: size_bdiag, nesw-resize, fd_double_arrow
-    // northwestsourtheastresize: size_fdiag, nwse-resize, bd_double_arrow
-    // zoomin: zoom-in
-    // zoomout: zoom-out
-    // DNDNone: dnd-none, hand2
-    // DNDMove: dnd-move, hand2
-    // DNDCopy: dnd-copy, hand2
-    // DNDLink: dnd-link, hand2
-
-    #define USE_CURSOR_CANDIDATE(candidates) cursorCandidates = candidates; cursorCandidateCount = ARRAY_COUNT(candidates)
-    const char** cursorCandidates;
-    u64 cursorCandidateCount = 0;
-    switch(cursorType) {
-        case GROUNDED_MOUSE_CURSOR_DEFAULT:{
-            USE_CURSOR_CANDIDATE(defaultCursors);
-        } break;
-        case GROUNDED_MOUSE_CURSOR_IBEAM:{
-            USE_CURSOR_CANDIDATE(iBeamCursors);
-        } break;
-        case GROUNDED_MOUSE_CURSOR_LEFTRIGHT:{
-            USE_CURSOR_CANDIDATE(eastWestResizeCursors);
-        } break;
-        case GROUNDED_MOUSE_CURSOR_UPDOWN:{
-            USE_CURSOR_CANDIDATE(northSouthResizeCursors);
-        } break;
-        case GROUNDED_MOUSE_CURSOR_POINTER:{
-            USE_CURSOR_CANDIDATE(pointerCursors);
-        } break;
-        default:{
-            // Cursor not found. Try to use a default
-            USE_CURSOR_CANDIDATE(defaultCursors);
-        } break;
-    }
-    #undef USE_CURSOR_CANDIDATE
-
     if(xcbCursorContext) {
+        u64 cursorCandidateCount;
+        const char** cursorCandidates = getCursorNameCandidates(cursorType, &cursorCandidateCount);
         xcb_cursor_t cid = 0;
         for(u32 i = 0; i < cursorCandidateCount; ++i) {
             cid = xcb_cursor_load_cursor(xcbCursorContext, cursorCandidates[i]);
@@ -904,6 +840,10 @@ GROUNDED_FUNCTION void xcbSetCursorType(enum GroundedMouseCursor cursorType) {
             u32 value_list[1] = {cid};
             // Apply cursor to window
             xcb_change_window_attributes (xcbConnection, xcbWindowSlots[0].window, mask, (const u32*)&value_list);
+            if(xcbCurrentCursor) {
+                xcb_free_cursor(xcbConnection, xcbCurrentCursor);
+            }
+            xcbCurrentCursor = cid;
         }
     }
 }
