@@ -113,6 +113,7 @@ MouseState xcbMouseState;
 bool xcbShmAvailable;
 
 GROUNDED_FUNCTION void xcbSetCursorType(enum GroundedMouseCursor cursorType);
+static void xcbSetCursor(GroundedXcbWindow* window, xcb_cursor_t cursor);
 
 static void reportXcbError(const char* message) {
     printf("Error: %s\n", message);
@@ -416,10 +417,7 @@ static void xcbSetCursorVisibility(GroundedXcbWindow* window, bool visible) {
     if(!visible) {
         u32 cursorId = xcb_generate_id(xcbConnection);
         xcb_create_glyph_cursor(xcbConnection, cursorId, xcbCursorFont, xcbCursorFont, ' ', 0, 0, 0, 0, 0, 0, 0);
-        u32 mask = XCB_CW_CURSOR;
-        u32 value_list[1] = {cursorId};
-        // Apply cursor to window
-        xcb_change_window_attributes (xcbConnection, window->window, mask, (const u32*)&value_list);
+        xcbSetCursor(window, cursorId);
     }
 }
 
@@ -956,7 +954,7 @@ static void xcbFetchKeyboardState(GroundedKeyboardState* keyboard) {
 static void xcbSetCursor(GroundedXcbWindow* window, xcb_cursor_t cursor) {
     u32 mask = XCB_CW_CURSOR;
     u32 value_list[1] = {cursor};
-    xcb_change_window_attributes (xcbConnection, xcbWindowSlots[0].window, mask, (const u32*)&value_list);
+    xcb_change_window_attributes (xcbConnection, window->window, mask, (const u32*)&value_list);
     if(xcbCurrentCursor) {
         xcb_free_cursor(xcbConnection, xcbCurrentCursor);
     }
@@ -975,10 +973,15 @@ GROUNDED_FUNCTION void xcbSetCursorType(enum GroundedMouseCursor cursorType) {
         xcb_cursor_t cursor = 0;
         for(u32 i = 0; i < cursorCandidateCount; ++i) {
             cursor = xcb_cursor_load_cursor(xcbCursorContext, cursorCandidates[i]);
+            if(cursor) {
+                break;
+            }
         }
         if(cursor) {
             // Apply cursor to window
             xcbSetCursor(&xcbWindowSlots[0], cursor);
+            xcb_flush(xcbConnection);
+            currentCursorType = cursorType;
         } else {
             error = "Could not find suitable cursor type";
         }
@@ -992,6 +995,7 @@ GROUNDED_FUNCTION void xcbSetCursorType(enum GroundedMouseCursor cursorType) {
         // Fallback to xcbDefaultCursor
         if(xcbDefaultCursor) {
             xcbSetCursor(&xcbWindowSlots[0], xcbDefaultCursor);
+            currentCursorType = GROUNDED_MOUSE_CURSOR_DEFAULT;
         }
         GROUNDED_LOG_WARNING(error);
     }
@@ -1019,14 +1023,9 @@ GROUNDED_FUNCTION void xcbSetCustomCursor(u8* data, u32 width, u32 height) {
         xcb_free_pixmap(xcbConnection, pixmap);
         xcb_render_free_picture(xcbConnection, picture);
 
-        u32 mask = XCB_CW_CURSOR;
-        u32 value_list[1] = {cursor};
-        xcb_change_window_attributes (xcbConnection, xcbWindowSlots[0].window, mask, (const u32*)&value_list);
-        if(xcbCurrentCursor) {
-            xcb_free_cursor(xcbConnection, xcbCurrentCursor);
-        }
+        xcbSetCursor(&xcbWindowSlots[0], cursor);
+        xcb_flush(xcbConnection);
         
-        xcbCurrentCursor = cursor;
         currentCursorType = GROUNDED_MOUSE_CURSOR_CUSTOM;
     } else {
         error = "Necessary xcb render or rgba format not available. Custom cursors not supported";
