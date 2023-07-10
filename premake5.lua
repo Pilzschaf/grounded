@@ -61,6 +61,19 @@ project "SimpleWindow"
         "src/string/grounded_string.c",
     }
 
+project "CursorCycle"
+    files
+    {
+        "example/cursor_cycle/main.c",
+        "src/threading/grounded_threading.c",
+        "src/memory/grounded_arena.c",
+        "src/memory/grounded_memory.c",
+        "src/window/grounded_window.c",
+        "src/window/grounded_window_extra.c",
+        "src/logger/grounded_logger.c",
+        "src/string/grounded_string.c",
+    }
+
 project "GroundedStatic"
     kind "StaticLib"
     targetdir "bin/static/%{cfg.buildcfg}"
