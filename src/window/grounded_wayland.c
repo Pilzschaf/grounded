@@ -57,32 +57,32 @@ static void waylandResizeEglSurface(GroundedWaylandWindow* window);
 
 // wayland function types
 #define X(N, R, P) typedef R grounded_wayland_##N P;
-#include "grounded_wayland_functions.h"
+#include "types/grounded_wayland_functions.h"
 #undef X
 
 // wayland function pointers
 #define X(N, R, P) static grounded_wayland_##N * N = 0;
-#include "grounded_wayland_functions.h"
+#include "types/grounded_wayland_functions.h"
 #undef X
 
 // wayland-egl function types
 #define X(N, R, P) typedef R grounded_wayland_##N P;
-#include "grounded_wayland_egl_functions.h"
+#include "types/grounded_wayland_egl_functions.h"
 #undef X
 
 // wayland-egl function pointers
 #define X(N, R, P) static grounded_wayland_##N * N = 0;
-#include "grounded_wayland_egl_functions.h"
+#include "types/grounded_wayland_egl_functions.h"
 #undef X
 
 // wayland-cursor function types
 #define X(N, R, P) typedef R grounded_wayland_##N P;
-#include "grounded_wayland_cursor_functions.h"
+#include "types/grounded_wayland_cursor_functions.h"
 #undef X
 
 // wayland-cursor function pointers
 #define X(N, R, P) static grounded_wayland_##N * N = 0;
-#include "grounded_wayland_cursor_functions.h"
+#include "types/grounded_wayland_cursor_functions.h"
 #undef X
 
 #if 1
@@ -122,7 +122,7 @@ GroundedMouseCursor waylandCurrentCursorType = GROUNDED_MOUSE_CURSOR_DEFAULT;
 GroundedKeyboardState waylandKeyState;
 MouseState waylandMouseState;
 
-#include "grounded_wayland_types.h"
+#include "types/grounded_wayland_types.h"
 
 #include "wayland_protocols/xdg_shell.h"
 #include "wayland_protocols/xdg-decoration-unstable-v1.h"
@@ -616,7 +616,7 @@ static bool initWayland() {
     if(!error) { // Load function pointers
         const char* firstMissingFunctionName = 0;
         #define X(N, R, P) N = (grounded_wayland_##N *) dlsym(waylandLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
-        #include "grounded_wayland_functions.h"
+        #include "types/grounded_wayland_functions.h"
         #undef X
         if(firstMissingFunctionName) {
             printf("Could not load wayland function: %s\n", firstMissingFunctionName);
@@ -647,7 +647,7 @@ static bool initWayland() {
         if(waylandCursorLibrary) {
             const char* firstMissingFunctionName = 0;
             #define X(N, R, P) N = (grounded_wayland_##N *) dlsym(waylandCursorLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
-            #include "grounded_wayland_cursor_functions.h"
+            #include "types/grounded_wayland_cursor_functions.h"
             #undef X
             if(firstMissingFunctionName) {
                 printf("Could not load wayland cursor function: %s\n", firstMissingFunctionName);
@@ -1012,7 +1012,7 @@ GROUNDED_FUNCTION bool waylandCreateOpenGLContext(GroundedWaylandWindow* window,
         } else {
             const char* firstMissingFunctionName = 0;
             #define X(N, R, P) N = (grounded_wayland_##N *) dlsym(eglLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
-            #include "grounded_wayland_egl_functions.h"
+            #include "types/grounded_wayland_egl_functions.h"
             #undef X
             if(firstMissingFunctionName) {
                 printf("Could not load wayland function: %s\n", firstMissingFunctionName);

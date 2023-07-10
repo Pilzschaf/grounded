@@ -26,7 +26,7 @@
 //#include <xcb/shm.h>
 //#include <xcb/xcb_image.h>
 
-#include "grounded_xcb_types.h"
+#include "types/grounded_xcb_types.h"
 
 //#include <xcb/xcb_cursor.h>
 //#include <xcb/xcb.h>
@@ -46,52 +46,52 @@ GroundedXcbWindow xcbWindowSlots[MAX_XCB_WINDOWS];
 
 // xcb function types
 #define X(N, R, P) typedef R grounded_xcb_##N P;
-#include "grounded_xcb_functions.h"
+#include "types/grounded_xcb_functions.h"
 #undef X
 
 // xcb function pointers
 #define X(N, R, P) static grounded_xcb_##N * N = 0;
-#include "grounded_xcb_functions.h"
+#include "types/grounded_xcb_functions.h"
 #undef X
 
 // xcb cursor function types
 #define X(N, R, P) typedef R grounded_xcb_##N P;
-#include "grounded_xcb_cursor_functions.h"
+#include "types/grounded_xcb_cursor_functions.h"
 #undef X
 
 // xcb cursor function pointers
 #define X(N, R, P) static grounded_xcb_##N * N = 0;
-#include "grounded_xcb_cursor_functions.h"
+#include "types/grounded_xcb_cursor_functions.h"
 #undef X
 
 // xcb shm function types
 #define X(N, R, P) typedef R grounded_xcb_##N P;
-#include "grounded_xcb_shm_functions.h"
+#include "types/grounded_xcb_shm_functions.h"
 #undef X
 
 // xcb shm function pointers
 #define X(N, R, P) static grounded_xcb_##N * N = 0;
-#include "grounded_xcb_shm_functions.h"
+#include "types/grounded_xcb_shm_functions.h"
 #undef X
 
 // xcb image function types
 #define X(N, R, P) typedef R grounded_xcb_##N P;
-#include "grounded_xcb_image_functions.h"
+#include "types/grounded_xcb_image_functions.h"
 #undef X
 
 // xcb image function pointers
 #define X(N, R, P) static grounded_xcb_##N * N = 0;
-#include "grounded_xcb_image_functions.h"
+#include "types/grounded_xcb_image_functions.h"
 #undef X
 
 // xcb render function types
 #define X(N, R, P) typedef R grounded_xcb_##N P;
-#include "grounded_xcb_render_functions.h"
+#include "types/grounded_xcb_render_functions.h"
 #undef X
 
 // xcb render function pointers
 #define X(N, R, P) static grounded_xcb_##N * N = 0;
-#include "grounded_xcb_render_functions.h"
+#include "types/grounded_xcb_render_functions.h"
 #undef X
 
 
@@ -130,7 +130,7 @@ static void initXcb() {
     if(!error) { // Load function pointers
         const char* firstMissingFunctionName = 0;
         #define X(N, R, P) N = (grounded_xcb_##N*)dlsym(xcbLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
-        #include "grounded_xcb_functions.h"
+        #include "types/grounded_xcb_functions.h"
         #undef X
         if(firstMissingFunctionName) {
             printf("Could not load xcb function: %s\n", firstMissingFunctionName);
@@ -164,7 +164,7 @@ static void initXcb() {
         if(xcbCursorLibrary) {
             const char* firstMissingFunctionName = 0;
             #define X(N, R, P) N = (grounded_xcb_##N*)dlsym(xcbCursorLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
-            #include "grounded_xcb_cursor_functions.h"
+            #include "types/grounded_xcb_cursor_functions.h"
             #undef X
             if(firstMissingFunctionName) {
                 printf("Could not load xcb cursor function: %s\n", firstMissingFunctionName);
@@ -180,7 +180,7 @@ static void initXcb() {
         if(xcbShmLibrary) {
             const char* firstMissingFunctionName = 0;
             #define X(N, R, P) N = (grounded_xcb_##N*)dlsym(xcbShmLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
-            #include "grounded_xcb_shm_functions.h"
+            #include "types/grounded_xcb_shm_functions.h"
             #undef X
             if(firstMissingFunctionName) {
                 printf("Could not load xcb shm function: %s\n", firstMissingFunctionName);
@@ -202,7 +202,7 @@ static void initXcb() {
         if(xcbImageLibrary) {
             const char* firstMissingFunctionName = 0;
             #define X(N, R, P) N = (grounded_xcb_##N*)dlsym(xcbImageLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
-            #include "grounded_xcb_image_functions.h"
+            #include "types/grounded_xcb_image_functions.h"
             #undef X
             if(firstMissingFunctionName) {
                 printf("Could not load xcb image function: %s\n", firstMissingFunctionName);
@@ -216,7 +216,7 @@ static void initXcb() {
         if(xcbRenderLibrary) {
             const char* firstMissingFunctionName = 0;
             #define X(N, R, P) N = (grounded_xcb_##N*)dlsym(xcbRenderLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
-            #include "grounded_xcb_render_functions.h"
+            #include "types/grounded_xcb_render_functions.h"
             #undef X
             if(firstMissingFunctionName) {
                 printf("Could not load xcb render function: %s\n", firstMissingFunctionName);
