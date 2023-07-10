@@ -195,6 +195,54 @@ typedef struct xcb_query_pointer_cookie_t {
     unsigned int sequence;
 } xcb_query_pointer_cookie_t;
 
+typedef uint32_t xcb_render_picture_t;
+
+typedef uint32_t xcb_render_pictformat_t;
+
+typedef struct xcb_render_query_pict_formats_cookie_t {
+    unsigned int sequence;
+} xcb_render_query_pict_formats_cookie_t;
+
+typedef uint32_t xcb_render_pictformat_t;
+
+typedef enum xcb_render_pict_type_t {
+    XCB_RENDER_PICT_TYPE_INDEXED = 0,
+    XCB_RENDER_PICT_TYPE_DIRECT = 1
+} xcb_render_pict_type_t;
+
+typedef struct xcb_render_query_pict_formats_reply_t {
+    uint8_t  response_type;
+    uint8_t  pad0;
+    uint16_t sequence;
+    uint32_t length;
+    uint32_t num_formats;
+    uint32_t num_screens;
+    uint32_t num_depths;
+    uint32_t num_visuals;
+    uint32_t num_subpixel;
+    uint8_t  pad1[4];
+} xcb_render_query_pict_formats_reply_t;
+
+typedef struct xcb_render_directformat_t {
+    uint16_t red_shift;
+    uint16_t red_mask;
+    uint16_t green_shift;
+    uint16_t green_mask;
+    uint16_t blue_shift;
+    uint16_t blue_mask;
+    uint16_t alpha_shift;
+    uint16_t alpha_mask;
+} xcb_render_directformat_t;
+
+typedef struct xcb_render_pictforminfo_t {
+    xcb_render_pictformat_t   id;
+    uint8_t                   type;
+    uint8_t                   depth;
+    uint8_t                   pad0[2];
+    xcb_render_directformat_t direct;
+    xcb_colormap_t            colormap;
+} xcb_render_pictforminfo_t;
+
 typedef struct xcb_query_pointer_reply_t {
     uint8_t      response_type;
     uint8_t      same_screen;
@@ -210,6 +258,69 @@ typedef struct xcb_query_pointer_reply_t {
     uint8_t      pad0[2];
 } xcb_query_pointer_reply_t;
 
+typedef enum xcb_pict_standard_t {
+	XCB_PICT_STANDARD_ARGB_32,
+	XCB_PICT_STANDARD_RGB_24,
+	XCB_PICT_STANDARD_A_8,
+	XCB_PICT_STANDARD_A_4,
+	XCB_PICT_STANDARD_A_1
+} xcb_pict_standard_t;
+
+typedef struct xcb_depth_t {
+    uint8_t  depth;
+    uint8_t  pad0;
+    uint16_t visuals_len;
+    uint8_t  pad1[4];
+} xcb_depth_t;
+
+typedef struct xcb_depth_iterator_t {
+    xcb_depth_t *data;
+    int          rem;
+    int          index;
+} xcb_depth_iterator_t;
+
+typedef enum xcb_image_format_t {
+    XCB_IMAGE_FORMAT_XY_BITMAP = 0,
+    XCB_IMAGE_FORMAT_XY_PIXMAP = 1,
+    XCB_IMAGE_FORMAT_Z_PIXMAP = 2
+} xcb_image_format_t;
+
+typedef struct xcb_shm_create_segment_cookie_t {
+    unsigned int sequence;
+} xcb_shm_create_segment_cookie_t;
+
+typedef enum xcb_gc_t {
+    XCB_GC_FUNCTION = 1,
+    XCB_GC_PLANE_MASK = 2,
+    XCB_GC_FOREGROUND = 4,
+    XCB_GC_BACKGROUND = 8,
+    XCB_GC_LINE_WIDTH = 16,
+    XCB_GC_LINE_STYLE = 32,
+    XCB_GC_CAP_STYLE = 64,
+    XCB_GC_JOIN_STYLE = 128,
+    XCB_GC_FILL_STYLE = 256,
+    XCB_GC_FILL_RULE = 512,
+    XCB_GC_TILE = 1024,
+    XCB_GC_STIPPLE = 2048,
+    XCB_GC_TILE_STIPPLE_ORIGIN_X = 4096,
+    XCB_GC_TILE_STIPPLE_ORIGIN_Y = 8192,
+    XCB_GC_FONT = 16384,
+    XCB_GC_SUBWINDOW_MODE = 32768,
+    XCB_GC_GRAPHICS_EXPOSURES = 65536,
+    XCB_GC_CLIP_ORIGIN_X = 131072,
+    XCB_GC_CLIP_ORIGIN_Y = 262144,
+    XCB_GC_CLIP_MASK = 524288,
+    XCB_GC_DASH_OFFSET = 1048576,
+    XCB_GC_DASH_LIST = 2097152,
+    XCB_GC_ARC_MODE = 4194304
+} xcb_gc_t;
+
+typedef uint32_t xcb_shm_seg_t;
+
+typedef struct xcb_shm_query_version_cookie_t {
+    unsigned int sequence;
+} xcb_shm_query_version_cookie_t;
+
 typedef enum xcb_prop_mode_t {
     XCB_PROP_MODE_REPLACE = 0,
     XCB_PROP_MODE_PREPEND = 1,
@@ -223,6 +334,19 @@ typedef struct xcb_intern_atom_reply_t {
     uint32_t   length;
     xcb_atom_t atom;
 } xcb_intern_atom_reply_t;
+
+typedef struct xcb_shm_query_version_reply_t {
+    uint8_t  response_type;
+    uint8_t  shared_pixmaps;
+    uint16_t sequence;
+    uint32_t length;
+    uint16_t major_version;
+    uint16_t minor_version;
+    uint16_t uid;
+    uint16_t gid;
+    uint8_t  pixmap_format;
+    uint8_t  pad0[15];
+} xcb_shm_query_version_reply_t;
 
 typedef uint32_t xcb_keysym_t;
 

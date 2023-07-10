@@ -6,6 +6,7 @@
 #include <stdio.h> // Required for printf
 #include <poll.h>
 #include <stdlib.h> // For free (required for releasing memory from xcb)
+#include <sys/shm.h>
 
 #ifdef GROUNDED_OPENGL_SUPPORT
 #include <EGL/egl.h>
@@ -13,15 +14,22 @@
 
 // Just some defines for x cursors
 #include <X11/cursorfont.h>
+//#include <xcb/xcb_renderutil.h>
 //#include <xcb/xcb_icccm.h>
+//#include <X11/Xcursor/Xcursor.h>
+//#include <xcb/render.h>
 
 /*
  * Unchecked xcb calls push errors into the event loop. Checked xcb calls allow to check the error in a blocking fashion
  */
 
+//#include <xcb/shm.h>
+//#include <xcb/xcb_image.h>
+
 #include "grounded_xcb_types.h"
 
 //#include <xcb/xcb_cursor.h>
+//#include <xcb/xcb.h>
 
 typedef struct GroundedXcbWindow {
     xcb_window_t window;
@@ -56,19 +64,53 @@ GroundedXcbWindow xcbWindowSlots[MAX_XCB_WINDOWS];
 #include "grounded_xcb_cursor_functions.h"
 #undef X
 
+// xcb shm function types
+#define X(N, R, P) typedef R grounded_xcb_##N P;
+#include "grounded_xcb_shm_functions.h"
+#undef X
+
+// xcb shm function pointers
+#define X(N, R, P) static grounded_xcb_##N * N = 0;
+#include "grounded_xcb_shm_functions.h"
+#undef X
+
+// xcb image function types
+#define X(N, R, P) typedef R grounded_xcb_##N P;
+#include "grounded_xcb_image_functions.h"
+#undef X
+
+// xcb image function pointers
+#define X(N, R, P) static grounded_xcb_##N * N = 0;
+#include "grounded_xcb_image_functions.h"
+#undef X
+
+// xcb render function types
+#define X(N, R, P) typedef R grounded_xcb_##N P;
+#include "grounded_xcb_render_functions.h"
+#undef X
+
+// xcb render function pointers
+#define X(N, R, P) static grounded_xcb_##N * N = 0;
+#include "grounded_xcb_render_functions.h"
+#undef X
+
+
 xcb_connection_t* xcbConnection;
 xcb_screen_t* xcbScreen;
 xcb_intern_atom_reply_t* xcbDeleteAtom;
 xcb_intern_atom_reply_t* xcbProtocolsAtom;
+xcb_depth_t* xcbDepth;
 
 xcb_font_t xcbCursorFont; // Could be used as a fallback when xcb_cursor is not available
 xcb_cursor_t xcbDefaultCursor; // Not really used right now and probably also does not contain correct default cursor
 xcb_cursor_context_t* xcbCursorContext;
 xcb_cursor_t xcbCurrentCursor;
 GroundedMouseCursor currentCursorType = GROUNDED_MOUSE_CURSOR_DEFAULT;
+xcb_render_pictforminfo_t* rgbaFormat;
 
 GroundedKeyboardState xcbKeyboardState;
 MouseState xcbMouseState;
+bool xcbShmAvailable;
 
 GROUNDED_FUNCTION void xcbSetCursorType(enum GroundedMouseCursor cursorType);
 
@@ -130,6 +172,86 @@ static void initXcb() {
             } else {
                 xcb_cursor_context_new(xcbConnection, xcbScreen, &xcbCursorContext);
             }
+        }
+    }
+
+    if(!error) {
+        void* xcbShmLibrary = dlopen("libxcb-shm.so", RTLD_LAZY | RTLD_LOCAL);
+        if(xcbShmLibrary) {
+            const char* firstMissingFunctionName = 0;
+            #define X(N, R, P) N = (grounded_xcb_##N*)dlsym(xcbShmLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
+            #include "grounded_xcb_shm_functions.h"
+            #undef X
+            if(firstMissingFunctionName) {
+                printf("Could not load xcb shm function: %s\n", firstMissingFunctionName);
+                GROUNDED_LOG_WARNING("Could not load all xcb shm functions");
+            } else {
+                xcb_shm_query_version_reply_t* reply;
+                reply = xcb_shm_query_version_reply(xcbConnection, xcb_shm_query_version(xcbConnection), 0);
+                if(!reply) {
+                    GROUNDED_LOG_WARNING("No xcb shm available");
+                } else {
+                    xcbShmAvailable = true;
+                }
+            }
+        }
+    }
+
+    if(!error) {
+        void* xcbImageLibrary = dlopen("libxcb-image.so", RTLD_LAZY | RTLD_LOCAL);
+        if(xcbImageLibrary) {
+            const char* firstMissingFunctionName = 0;
+            #define X(N, R, P) N = (grounded_xcb_##N*)dlsym(xcbImageLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
+            #include "grounded_xcb_image_functions.h"
+            #undef X
+            if(firstMissingFunctionName) {
+                printf("Could not load xcb image function: %s\n", firstMissingFunctionName);
+                GROUNDED_LOG_WARNING("Could not load all xcb image functions");
+            }
+        }
+    }
+
+    if(!error) {
+        void* xcbRenderLibrary = dlopen("libxcb-render.so", RTLD_LAZY | RTLD_LOCAL);
+        if(xcbRenderLibrary) {
+            const char* firstMissingFunctionName = 0;
+            #define X(N, R, P) N = (grounded_xcb_##N*)dlsym(xcbRenderLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
+            #include "grounded_xcb_render_functions.h"
+            #undef X
+            if(firstMissingFunctionName) {
+                printf("Could not load xcb render function: %s\n", firstMissingFunctionName);
+                GROUNDED_LOG_WARNING("Could not load all xcb render functions");
+            } else {
+                xcb_render_query_pict_formats_cookie_t formats_cookie = xcb_render_query_pict_formats(xcbConnection);
+                xcb_render_query_pict_formats_reply_t* formatsReply = xcb_render_query_pict_formats_reply(xcbConnection,
+							    formats_cookie, 0);
+                ASSERT(formatsReply);
+                xcb_render_pictforminfo_t* formats = xcb_render_query_pict_formats_formats(formatsReply);
+                for (u32 i = 0; i < formatsReply->num_formats; i++) {
+
+                    if (formats[i].type == XCB_RENDER_PICT_TYPE_DIRECT &&
+                        formats[i].depth == 32 &&
+                        formats[i].direct.alpha_mask == 0xff &&
+                        formats[i].direct.alpha_shift == 24) {
+                        rgbaFormat = &formats[i];
+                    }
+                }
+            }
+        }
+    }
+
+    if(!error) {
+        xcb_depth_iterator_t depth_iter = xcb_screen_allowed_depths_iterator(xcbScreen);
+        while (depth_iter.rem) {
+            if (depth_iter.data->depth == 32 && depth_iter.data->visuals_len) {
+                xcbDepth = depth_iter.data;
+                break;
+            }
+            xcb_depth_next(&depth_iter);
+        }
+        if (!xcbDepth) {
+            error = "ERROR: screen does not support 32 bit color depth";
+            xcb_disconnect(xcbConnection);
         }
     }
 
@@ -734,7 +856,11 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             }*/
         } break;
         case 0:{
-            //TODO: Do not know what this should tell me...
+            // response_type 0 means error
+            GROUNDED_LOG_ERROR("Received error from xcb");
+            xcb_generic_error_t* error = (xcb_generic_error_t*)event;
+            printf("XCB errorcode: %d\n", error->error_code);
+            ASSERT(false);
         } break;
         default:{
             ASSERT(false);
@@ -827,24 +953,88 @@ static void xcbFetchKeyboardState(GroundedKeyboardState* keyboard) {
 	memset(xcbKeyboardState.keyUpTransitions, 0, sizeof(xcbKeyboardState.keyUpTransitions));
 }
 
+static void xcbSetCursor(GroundedXcbWindow* window, xcb_cursor_t cursor) {
+    u32 mask = XCB_CW_CURSOR;
+    u32 value_list[1] = {cursor};
+    xcb_change_window_attributes (xcbConnection, xcbWindowSlots[0].window, mask, (const u32*)&value_list);
+    if(xcbCurrentCursor) {
+        xcb_free_cursor(xcbConnection, xcbCurrentCursor);
+    }
+    xcbCurrentCursor = cursor;
+}
+
 GROUNDED_FUNCTION void xcbSetCursorType(enum GroundedMouseCursor cursorType) {
+    ASSERT(cursorType != GROUNDED_MOUSE_CURSOR_CUSTOM);
+    ASSERT(cursorType < GROUNDED_MOUSE_CURSOR_COUNT);
+
+    const char* error = 0;
+
     if(xcbCursorContext) {
         u64 cursorCandidateCount;
         const char** cursorCandidates = getCursorNameCandidates(cursorType, &cursorCandidateCount);
-        xcb_cursor_t cid = 0;
+        xcb_cursor_t cursor = 0;
         for(u32 i = 0; i < cursorCandidateCount; ++i) {
-            cid = xcb_cursor_load_cursor(xcbCursorContext, cursorCandidates[i]);
+            cursor = xcb_cursor_load_cursor(xcbCursorContext, cursorCandidates[i]);
         }
-        if(cid) {
-            u32 mask = XCB_CW_CURSOR;
-            u32 value_list[1] = {cid};
+        if(cursor) {
             // Apply cursor to window
-            xcb_change_window_attributes (xcbConnection, xcbWindowSlots[0].window, mask, (const u32*)&value_list);
-            if(xcbCurrentCursor) {
-                xcb_free_cursor(xcbConnection, xcbCurrentCursor);
-            }
-            xcbCurrentCursor = cid;
+            xcbSetCursor(&xcbWindowSlots[0], cursor);
+        } else {
+            error = "Could not find suitable cursor type";
         }
+    } else {
+        // We could techincally still use X default glyph cursors.
+        // But those are typically not in the style the user has selected
+        error = "No cursor context available. Cursor support limited";
+    }
+
+    if(error) {
+        // Fallback to xcbDefaultCursor
+        if(xcbDefaultCursor) {
+            xcbSetCursor(&xcbWindowSlots[0], xcbDefaultCursor);
+        }
+        GROUNDED_LOG_WARNING(error);
+    }
+}
+
+GROUNDED_FUNCTION void xcbSetCustomCursor(u8* data, u32 width, u32 height) {
+    const char* error = 0;
+    if(rgbaFormat && xcb_render_create_picture) {
+        u64 imageSize = width * height * 4;
+        int depth = xcbDepth->depth;
+
+        xcb_pixmap_t pixmap = xcb_generate_id(xcbConnection);
+        xcb_create_pixmap(xcbConnection, depth, pixmap, xcbScreen->root, width, height);
+
+        xcb_gcontext_t gc = xcb_generate_id(xcbConnection);
+        xcb_create_gc(xcbConnection, gc, pixmap, 0, 0);
+        xcb_put_image(xcbConnection, XCB_IMAGE_FORMAT_Z_PIXMAP, pixmap, gc, width, height, 0, 0, 0, depth, imageSize, data);
+        xcb_free_gc(xcbConnection, gc);
+
+        xcb_render_picture_t picture = xcb_generate_id(xcbConnection);
+        xcb_render_create_picture(xcbConnection, picture, pixmap, rgbaFormat->id, 0, 0);
+
+        xcb_cursor_t cursor = xcb_generate_id(xcbConnection);
+        xcb_render_create_cursor(xcbConnection, cursor, picture, 0, 0);
+        xcb_free_pixmap(xcbConnection, pixmap);
+        xcb_render_free_picture(xcbConnection, picture);
+
+        u32 mask = XCB_CW_CURSOR;
+        u32 value_list[1] = {cursor};
+        xcb_change_window_attributes (xcbConnection, xcbWindowSlots[0].window, mask, (const u32*)&value_list);
+        if(xcbCurrentCursor) {
+            xcb_free_cursor(xcbConnection, xcbCurrentCursor);
+        }
+        
+        xcbCurrentCursor = cursor;
+        currentCursorType = GROUNDED_MOUSE_CURSOR_CUSTOM;
+    } else {
+        error = "Necessary xcb render or rgba format not available. Custom cursors not supported";
+    }
+    if(error) {
+        // There was an error setting the custom cursor. We fall back to a default cursor
+        xcbSetCursorType(GROUNDED_MOUSE_CURSOR_DEFAULT);
+        GROUNDED_LOG_WARNING(error);
     }
 }
 

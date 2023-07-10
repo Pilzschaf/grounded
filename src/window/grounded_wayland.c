@@ -6,6 +6,9 @@
 #include <linux/input.h>
 #include <time.h>
 #include <errno.h>
+#include <fcntl.h> // For shared memory files
+#include <sys/mman.h> // For shared memory files
+#include <unistd.h>
 
 #ifdef GROUNDED_OPENGL_SUPPORT
 #include <EGL/egl.h>
@@ -91,6 +94,8 @@ const struct wl_interface* wl_output_interface;
 const struct wl_interface* wl_keyboard_interface;
 const struct wl_interface* wl_pointer_interface;
 const struct wl_interface* wl_shm_interface;
+const struct wl_interface* wl_buffer_interface;
+const struct wl_interface* wl_shm_pool_interface;
 #else
 extern const struct wl_interface wl_registry_interface;
 extern const struct wl_interface wl_surface_interface;
@@ -354,9 +359,10 @@ static const struct wl_keyboard_listener keyboard_listener = {
 
 static void pointerHandleEnter(void *data, struct wl_pointer *wl_pointer, uint32_t serial, struct wl_surface *surface, wl_fixed_t surface_x, wl_fixed_t surface_y) {
     ASSERT(wl_pointer == pointer);
-    
-    // Set correct cursor type on first enter
-    if(!pointerEnterSerial) {
+
+    if(waylandCurrentCursorType == GROUNDED_MOUSE_CURSOR_CUSTOM) {
+        wl_pointer_set_cursor(pointer, serial, cursorSurface, 0, 0);
+    } else {
         waylandSetCursorType(waylandCurrentCursorType);
     }
 
@@ -629,6 +635,8 @@ static bool initWayland() {
         LOAD_WAYLAND_INTERFACE(wl_keyboard_interface);
         LOAD_WAYLAND_INTERFACE(wl_pointer_interface);
         LOAD_WAYLAND_INTERFACE(wl_shm_interface);
+        LOAD_WAYLAND_INTERFACE(wl_buffer_interface);
+        LOAD_WAYLAND_INTERFACE(wl_shm_pool_interface);
         if(firstMissingInterfaceName) {
             error = "Could not load all wayland interfaces. Your wayland version is incompatible";
         }
@@ -922,6 +930,73 @@ GROUNDED_FUNCTION void waylandSetCursorType(enum GroundedMouseCursor cursorType)
     if(error) {
         GROUNDED_LOG_WARNING("Could not satisfy cursor request");
     }
+}
+
+static void randname(char *buf) {
+	struct timespec ts;
+	clock_gettime(CLOCK_REALTIME, &ts);
+	long r = ts.tv_nsec;
+	for (int i = 0; i < 6; ++i) {
+		buf[i] = 'A'+(r&15)+(r&16)*2;
+		r >>= 5;
+	}
+}
+
+static int createSharedMemoryFile(u64 size) {
+    int fd = -1;
+    {
+        int retries = 100;
+        do {
+            char name[] = "/wl_shm-XXXXXX";
+            randname(name + sizeof(name) - 7);
+            --retries;
+            fd = shm_open(name, O_RDWR | O_CREAT | O_EXCL, 0600);
+            if (fd >= 0) {
+                shm_unlink(name);
+                break;
+            }
+        } while (retries > 0 && errno == EEXIST);
+    }
+
+	if (fd < 0) {
+		return -1;
+    }
+	int ret;
+	do {
+		ret = ftruncate(fd, size);
+	} while (ret < 0 && errno == EINTR);
+	if (ret < 0) {
+		close(fd);
+		return -1;
+	}
+	return fd;
+}
+
+GROUNDED_FUNCTION void waylandSetCustomCursor(u8* data, u32 width, u32 height) {
+    u64 imageSize = width * height * 4;
+    int fd = createSharedMemoryFile(imageSize);
+    void* shmData = mmap(0, imageSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    memcpy(shmData, data, imageSize);
+    int scale = 1;
+
+    struct wl_buffer* cursorBuffer = 0;
+    //TODO: Destroy the pool again
+    struct wl_shm_pool* pool = wl_shm_create_pool(waylandShm, fd, imageSize);
+    cursorBuffer = wl_shm_pool_create_buffer(pool, 0, width, height, width*4, WL_SHM_FORMAT_ARGB8888);
+
+    s32 hotspotX = 0;
+    s32 hotspotY = 0;
+    wl_pointer_set_cursor(pointer, pointerEnterSerial, cursorSurface, hotspotX / scale, hotspotY / scale);
+    wl_surface_set_buffer_scale(cursorSurface, scale);
+    wl_surface_attach(cursorSurface, cursorBuffer, 0, 0);
+    wl_surface_damage(cursorSurface, 0, 0, width, height);
+    wl_surface_commit(cursorSurface);
+
+    // Now that the new surface is commited we can do cleanup
+    close(fd);
+    wl_shm_pool_destroy(pool);
+
+    waylandCurrentCursorType = GROUNDED_MOUSE_CURSOR_CUSTOM;
 }
 
 //*************

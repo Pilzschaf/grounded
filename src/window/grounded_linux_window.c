@@ -20,7 +20,7 @@ typedef enum WindowBackend {
 WindowBackend linuxWindowBackend = GROUNDED_LINUX_WINDOW_BACKEND_NONE;
 
 GROUNDED_FUNCTION void groundedInitWindowSystem() {
-    bool skipWayland = false;
+    bool skipWayland = true;
     if(!skipWayland && initWayland()) {
         linuxWindowBackend = GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND;
     } else {
@@ -236,36 +236,36 @@ static const char** getCursorNameCandidates(enum GroundedMouseCursor cursorType,
     //TODO: The tee icons might be interesting in some occasions but probably not supported on win32 natively
     *candidateCount = 0;
 
-    const char* defaultCursors[] = {"default", "arrow", "left_ptr"};
-    const char* iBeamCursors[] = {"text", "xterm"};
-    const char* helpCursors[] = {"help", "question_arrow"};
-    const char* pointerCursors[] = {"pointer", "hand", "hand2"};
-    const char* progressCursors[] = {"progress", "left_ptr_watch", "watch"};
-    const char* waitCursors[] = {"wait", "watch"};
-    const char* dndCopyCursors[] = {"copy"}; //TODO: Seems those are not necessarily dnd related?
-    const char* dndAliasCursors[] = {"alias"};
-    const char* dndNoDropCursors[] = {"no-drop", "not-allowed", "crossed_circle"}; //TODO: What is with circle?
-    const char* notAllowedCursors[] = {"not-allowed", "crossed_circle"};
-    const char* allScrollCursors[] = {"all-scroll", "fleur"}; // Also cursor for movement. However there might be special cursors for that?
-    const char* rowResizeCursors[] = {"row-resize", "sb_v_double_arrow"};
-    const char* columnResizeCursors[] = {"col-resize", "sb_h_double_arrow"};
-    const char* eastResizeCursors[] = {"e-resize", "right_side"};
-    const char* northEastResizeCursors[] = {"ne-resize", "top_right_corner"};
-    const char* northWestResizeCursors[] = {"nw-resize", "top_left_corner"};
-    const char* northResizeCursors[] = {"n-resize", "top_side"};
-    const char* southEastResizeCursors[] = {"se-resize", "bottom_right_corner"};
-    const char* southWestResizeCursors[] = {"sw-resize", "bottom_left_corner"};
-    const char* southResizeCursors[] = {"s-resize", "bottom_side"};
-    const char* westResizeCursors[] = {"w-resize", "left_side"};
-    const char* northSouthResizeCursors[] = {"sb_v_double_arrow", "ns-resize"};
-    const char* eastWestResizeCursors[] = {"sb_h_double_arrow", "ew-resize"};
+    static const char* defaultCursors[] = {"default", "arrow", "left_ptr"};
+    static const char* iBeamCursors[] = {"text", "xterm"};
+    static const char* helpCursors[] = {"help", "question_arrow"};
+    static const char* pointerCursors[] = {"pointer", "hand", "hand2"};
+    static const char* progressCursors[] = {"progress", "left_ptr_watch", "watch"};
+    static const char* waitCursors[] = {"wait", "watch"};
+    static const char* dndCopyCursors[] = {"copy"}; //TODO: Seems those are not necessarily dnd related?
+    static const char* dndAliasCursors[] = {"alias"};
+    static const char* dndNoDropCursors[] = {"no-drop", "not-allowed", "crossed_circle"}; //TODO: What is with circle?
+    static const char* notAllowedCursors[] = {"not-allowed", "crossed_circle"};
+    static const char* allScrollCursors[] = {"all-scroll", "fleur"}; // Also cursor for movement. However there might be special cursors for that?
+    static const char* rowResizeCursors[] = {"row-resize", "sb_v_double_arrow"};
+    static const char* columnResizeCursors[] = {"col-resize", "sb_h_double_arrow"};
+    static const char* eastResizeCursors[] = {"e-resize", "right_side"};
+    static const char* northEastResizeCursors[] = {"ne-resize", "top_right_corner"};
+    static const char* northWestResizeCursors[] = {"nw-resize", "top_left_corner"};
+    static const char* northResizeCursors[] = {"n-resize", "top_side"};
+    static const char* southEastResizeCursors[] = {"se-resize", "bottom_right_corner"};
+    static const char* southWestResizeCursors[] = {"sw-resize", "bottom_left_corner"};
+    static const char* southResizeCursors[] = {"s-resize", "bottom_side"};
+    static const char* westResizeCursors[] = {"w-resize", "left_side"};
+    static const char* northSouthResizeCursors[] = {"sb_v_double_arrow", "ns-resize"};
+    static const char* eastWestResizeCursors[] = {"sb_h_double_arrow", "ew-resize"};
 
-    const char* crosshairCursors[] = {"crosshair", "cross"};
-    const char* verticalTextCursors[] = {"vertical-text"};
-    const char* cellCursors[] = {"cell", "plus"};
-    const char* contextMenuCursors[] = {"context-menu"};
+    static const char* crosshairCursors[] = {"crosshair", "cross"};
+    static const char* verticalTextCursors[] = {"vertical-text"};
+    static const char* cellCursors[] = {"cell", "plus"};
+    static const char* contextMenuCursors[] = {"context-menu"};
     // Not useful in a practical sense but interestig nonetheless
-    const char* specialCursors[] = {"dot", "pirate", "heart"};
+    static const char* specialCursors[] = {"dot", "pirate", "heart"};
 
 
     // Grab: openhand, grab, hand1
@@ -317,6 +317,19 @@ GROUNDED_FUNCTION void groundedSetCursorType(enum GroundedMouseCursor cursorType
         } break;
         case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
             xcbSetCursorType(cursorType);
+        } break;
+        default:break;
+    }
+}
+
+GROUNDED_FUNCTION void groundedSetCustomCursor(u8* data, u32 width, u32 height) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            waylandSetCustomCursor(data, width, height);
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            xcbSetCustomCursor(data, width, height);
         } break;
         default:break;
     }

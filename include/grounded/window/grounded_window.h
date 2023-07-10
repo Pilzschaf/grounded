@@ -114,7 +114,8 @@ GROUNDED_FUNCTION void groundedWindowSetHidden(GroundedWindow* window, bool hidd
 GROUNDED_FUNCTION void groundedSetCursorGrab(GroundedWindow* window, bool grab);
 GROUNDED_FUNCTION void groundedSetCursorVisibility(bool visible);
 GROUNDED_FUNCTION void groundedSetCursorType(enum GroundedMouseCursor cursorType);
-//GROUNDED_FUNCTION void groundedSetCustomCursorType();
+// Maybe make custom cursors loadable and applyable. Then the cursors do not have to be recreated when application wants to switch cursors
+GROUNDED_FUNCTION void groundedSetCustomCursor(u8* data, u32 width, u32 height);
 
 // Retuned array must not be used anymore once get or poll events is called again
 GROUNDED_FUNCTION GroundedEvent* groundedGetEvents(u32* eventCount, u32 maxWaitingTimeInMs);
