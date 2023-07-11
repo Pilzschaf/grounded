@@ -90,26 +90,50 @@ static LRESULT CALLBACK win32MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam,
         case WM_LBUTTONDOWN: {
             win32MouseState.buttons[GROUNDED_MOUSE_BUTTON_LEFT] = true;
             win32MouseState.buttonDownTransitions[GROUNDED_MOUSE_BUTTON_LEFT]++;
+            eventQueue[eventQueueIndex++] = (GroundedEvent){
+                .type = GROUNDED_EVENT_TYPE_BUTTON_DOWN,
+                .buttonDown = GROUNDED_MOUSE_BUTTON_LEFT,
+            };
         } break;
         case WM_LBUTTONUP: {
             win32MouseState.buttons[GROUNDED_MOUSE_BUTTON_LEFT] = false;
             win32MouseState.buttonUpTransitions[GROUNDED_MOUSE_BUTTON_LEFT]++;
+            eventQueue[eventQueueIndex++] = (GroundedEvent){
+                .type = GROUNDED_EVENT_TYPE_BUTTON_UP,
+                .buttonDown = GROUNDED_MOUSE_BUTTON_LEFT,
+            };
         } break;
         case WM_RBUTTONDOWN: {
             win32MouseState.buttons[GROUNDED_MOUSE_BUTTON_RIGHT] = true;
             win32MouseState.buttonDownTransitions[GROUNDED_MOUSE_BUTTON_RIGHT]++;
+            eventQueue[eventQueueIndex++] = (GroundedEvent){
+                .type = GROUNDED_EVENT_TYPE_BUTTON_DOWN,
+                .buttonDown = GROUNDED_MOUSE_BUTTON_RIGHT,
+            };
         } break;
         case WM_RBUTTONUP: {
             win32MouseState.buttons[GROUNDED_MOUSE_BUTTON_RIGHT] = false;
             win32MouseState.buttonUpTransitions[GROUNDED_MOUSE_BUTTON_RIGHT]++;
+            eventQueue[eventQueueIndex++] = (GroundedEvent){
+                .type = GROUNDED_EVENT_TYPE_BUTTON_UP,
+                .buttonDown = GROUNDED_MOUSE_BUTTON_RIGHT,
+            };
         } break;
         case WM_MBUTTONDOWN: {
             win32MouseState.buttons[GROUNDED_MOUSE_BUTTON_MIDDLE] = true;
             win32MouseState.buttonDownTransitions[GROUNDED_MOUSE_BUTTON_MIDDLE]++;
+            eventQueue[eventQueueIndex++] = (GroundedEvent){
+                .type = GROUNDED_EVENT_TYPE_BUTTON_DOWN,
+                .buttonDown = GROUNDED_MOUSE_BUTTON_MIDDLE,
+            };
         } break;
         case WM_MBUTTONUP: {
             win32MouseState.buttons[GROUNDED_MOUSE_BUTTON_MIDDLE] = false;
             win32MouseState.buttonUpTransitions[GROUNDED_MOUSE_BUTTON_MIDDLE]++;
+            eventQueue[eventQueueIndex++] = (GroundedEvent){
+                .type = GROUNDED_EVENT_TYPE_BUTTON_UP,
+                .buttonDown = GROUNDED_MOUSE_BUTTON_MIDDLE,
+            };
         } break;
         case WM_MOUSEWHEEL: {
             // Zoom in is positive
@@ -125,11 +149,20 @@ static LRESULT CALLBACK win32MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam,
             u8 keycode = translateWin32Keycode(wParam);
             win32KeyboardState.keys[keycode] = true;
             win32KeyboardState.keyDownTransitions[keycode]++;
+            eventQueue[eventQueueIndex++] = (GroundedEvent){
+                .type = GROUNDED_EVENT_TYPE_KEY_DOWN,
+                .keyDown.keycode = keycode,
+                .keyDown.modifiers = 0, //TODO: Modifiers
+            };
         } break;
         case WM_KEYUP: {
             u8 keycode = translateWin32Keycode(wParam);
             win32KeyboardState.keys[keycode] = false;
             win32KeyboardState.keyUpTransitions[keycode]++;
+            eventQueue[eventQueueIndex++] = (GroundedEvent){
+                .type = GROUNDED_EVENT_TYPE_KEY_UP,
+                .keyUp.keycode = keycode,
+            };
         } break;
         case WM_GETMINMAXINFO: {
             // Sent when size is about to change. We can specify min and max size here
@@ -178,8 +211,8 @@ GROUNDED_FUNCTION void groundedInitWindowSystem() {
     wnd.hInstance = instance;
     // Default icon
     wnd.hIcon = 0;
-    // If this would be 0, the application must set the cursor on every enter event.
-    wnd.hCursor = LoadCursor(NULL, IDC_ARROW);
+    // We set this to 0 so we can overwrite the cursor with SetCursor
+    wnd.hCursor = 0;
     // We have to draw into window ourselves.
     wnd.hbrBackground = 0;
     wnd.lpszClassName = L"GroundedDefaultWindowClass";
@@ -385,6 +418,72 @@ GROUNDED_FUNCTION u64 groundedGetCounter() {
     return (counter.QuadPart * 1000) / ticksPerMicroSecond;
 }
 
+GROUNDED_FUNCTION void groundedSetCursorType(enum GroundedMouseCursor cursorType) {
+    HCURSOR hCursor = 0;
+    switch (cursorType) {
+        case GROUNDED_MOUSE_CURSOR_IBEAM: {
+            hCursor = LoadCursorA(0, IDC_IBEAM);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_LEFTRIGHT: {
+            hCursor = LoadCursorA(0, IDC_SIZEWE);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_UPDOWN: {
+            hCursor = LoadCursorA(0, IDC_SIZENS);
+        } break;
+    }
+    if (!hCursor) {
+        hCursor = LoadCursorA(0, IDC_ARROW);
+    }
+
+    if (hCursor) {
+        SetCursor(hCursor);
+    }
+}
+
+GROUNDED_FUNCTION void groundedSetCustomCursor(u8* data, u32 width, u32 height) {
+    BITMAPV5HEADER bitmapInfo = {
+        .bV5Size = sizeof(bitmapInfo),
+        .bV5Width = width,
+        .bV5Height = -height,
+        .bV5Planes = 1,
+        .bV5BitCount = 32,
+        .bV5Compression = BI_BITFIELDS,
+        .bV5RedMask = 0x00FF0000,
+        .bV5GreenMask = 0x0000FF00,
+        .bV5BlueMask = 0x000000FF,
+        .bV5AlphaMask = 0xFF000000,
+    };
+    HDC dc = GetDC(NULL);
+    u8* colorBitmapData = 0;
+    HBITMAP color = CreateDIBSection(dc, &bitmapInfo, DIB_RGB_COLORS, (void**)&colorBitmapData, 0, 0);
+    ReleaseDC(0, dc);
+
+    HBITMAP mask = CreateBitmap(width, height, 1, 1, 0);
+
+    for (u32 i = 0; i < width * height; ++i) {
+        //TODO: Check if we need data swizzling. If not this can be simplified
+        colorBitmapData[0] = data[0];
+        colorBitmapData[1] = data[1];
+        colorBitmapData[2] = data[2];
+        colorBitmapData[3] = data[3];
+        data += 4;
+        colorBitmapData += 4;
+    }
+    
+    if (color && mask) {
+        ICONINFO iconInfo = {
+            .fIcon = false, // False for cursor
+            .xHotspot = 0,
+            .yHotspot = 0,
+            .hbmMask = 0,
+            .hbmColor = 0,
+        };
+        HICON hIcon = CreateIconIndirect(&iconInfo);
+        if (hIcon) {
+            SetCursor(hIcon);
+        }
+    }
+}
 
 // ************
 // OpenGL stuff
