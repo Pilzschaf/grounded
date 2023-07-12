@@ -1027,4 +1027,13 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matInverse(GROUNDED_MATH_PRE
     return result;
 }
 
+
+////////////////
+// Other helpers
+
+GROUNDED_FUNCTION_INLINE bool v2InRect(GROUNDED_MATH_PREFIX(vec2) min, GROUNDED_MATH_PREFIX(vec2) max, GROUNDED_MATH_PREFIX(vec2) point) {
+    bool result = (min.x <= point.x && point.x < max.x && min.y <= point.y && point.y < max.y);
+    return result;
+}
+
 #endif // GROUNDED_MATH_H

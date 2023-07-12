@@ -1070,6 +1070,8 @@ GROUNDED_FUNCTION bool xcbCreateOpenGLContext(GroundedXcbWindow* window, u32 fla
     EGLConfig config;
     int numConfigs = 0;
     int attribList[] = {EGL_RED_SIZE, 1, EGL_GREEN_SIZE, 1, EGL_BLUE_SIZE, 1, EGL_NONE};
+    // MSAA
+    //attribList[] = {EGL_SAMPLE_BUFFERS, 1, EGL_SAMPLES, 4};
     if(!eglChooseConfig(eglDisplay, attribList, &config, 1, &numConfigs) || numConfigs <= 0) {
         GROUNDED_LOG_ERROR("Error choosing OpenGL config");
         return false;

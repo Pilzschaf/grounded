@@ -182,7 +182,7 @@ GROUNDED_FUNCTION void debugDeallocateLog(MemoryArena* arena, u8* newHead) {
     _arenaPopTo(arena, newHead);
 }
 
-//TODO: Static buffer for now
+//TODO: @Robustness Static buffer for now
 struct MemoryArenaDebugData dataElements[256];
 u64 dataElementIndex;
 
