@@ -54,7 +54,7 @@ typedef struct {
     u64 hash;
 } StringAtom;
 
-#define STR8_LITERAL(s) str8FromBlock((u8*)(s), sizeof(s) - 1)
+#define STR8_LITERAL(s) ((String8){(u8*)(s), sizeof(s) - 1})
 #ifndef __cplusplus
 #define EMPTY_STRING8 ((String8){0, 0})
 #else
@@ -91,6 +91,7 @@ GROUNDED_FUNCTION u64 str8GetFirstOccurence(String8 str, char c); // Returns UIN
 GROUNDED_FUNCTION u64 str8GetLastOccurence(String8 str, char c); // Returns UINT64_MAX if not found
 
 struct MemoryArena;
+GROUNDED_FUNCTION String8 str8FromFormat(struct MemoryArena* arena, const char* format, ...);
 GROUNDED_FUNCTION String8 str8Copy(struct MemoryArena* arena, String8 str);
 GROUNDED_FUNCTION String8 str8CopyAndNullTerminate(struct MemoryArena* arena, String8 str);
 GROUNDED_FUNCTION char* str8GetCstr(struct MemoryArena* arena, String8 str);

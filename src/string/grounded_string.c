@@ -1,6 +1,9 @@
 #include <grounded/string/grounded_string.h>
 #include <grounded/memory/grounded_memory.h>
 
+#include <stdarg.h>
+#include <stdio.h>
+
 GROUNDED_FUNCTION String8 str8Prefix(String8 str, u64 size) {
     ASSERT(size <= str.size);
     u64 sizeClamped = CLAMP_TOP(size, str.size);
@@ -59,6 +62,43 @@ GROUNDED_FUNCTION u64 str8GetLastOccurence(String8 str, char c) {
         if(str.base[i-1] == c) return i-1;
     }
     return UINT64_MAX;
+}
+
+static String8 str8FromFormatVaList(struct MemoryArena* arena, const char* format, va_list args) {
+    // in case we need to try a second time
+    va_list args2;
+    va_copy(args2, args);
+    
+    // try to build the string in 1024 bytes
+    u64 bufferSize = 1024;
+    ArenaMarker firstBufferMarker = arenaCreateMarker(arena);
+    u8* buffer = ARENA_PUSH_ARRAY(arena, bufferSize, u8);
+    u64 actualSize = vsnprintf((char*)buffer, bufferSize, format, args);
+    
+    String8 result = {};
+    if (actualSize < bufferSize){
+        // Release excess memory
+        arenaPopTo(arena, buffer + actualSize + 1);
+        result = str8FromBlock(buffer, actualSize);
+    } else {
+        // If first try failed, reset and try again with correct size
+        arenaResetToMarker(firstBufferMarker);
+        u8* fixedBuffer = ARENA_PUSH_ARRAY(arena, actualSize + 1, u8);
+        u64 finalSize = vsnprintf((char*)fixedBuffer, actualSize + 1, format, args2);
+        result = str8FromBlock(fixedBuffer, finalSize);
+    }
+    
+    va_end(args2);
+    
+    return result;
+}
+
+GROUNDED_FUNCTION String8 str8FromFormat(struct MemoryArena* arena, const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    String8 result = str8FromFormatVaList(arena, format, args);
+    va_end(args);
+    return result;
 }
 
 GROUNDED_FUNCTION String8 str8Copy(MemoryArena* arena, String8 str) {

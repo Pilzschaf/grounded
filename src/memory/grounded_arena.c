@@ -259,8 +259,6 @@ GROUNDED_FUNCTION void debugDeallocateOverflowDetect(MemoryArena* arena, u8* new
             // We should reset to the same point we already are so ignore...
         } else {
             // Should actually only be called if the arena must shrink.
-            //TODO: This is not true anymore as allocation is always done in whole pages but an application might release to the middle of a page.
-            ASSERT(newHead < memory || newHead > memory + commitPos);
             while(newHead < memory || newHead > memory + commitPos) {
                 // We have to release a block
                 arena->memory = header->prevBlockMemory;
