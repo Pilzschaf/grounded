@@ -91,6 +91,7 @@ typedef enum GroundedMouseCursor {
 
 struct GroundedWindowCreateParameters {
 	String8 title;
+	String8 applicationId; // Should be the name of your application in lowercase. In contrast to the title this is not expected to change
 	u32 width; // 0 for a platform-specific default size
 	u32 height; // 0 for a platform-specific default size
 	u32 minWidth;
@@ -110,6 +111,8 @@ GROUNDED_FUNCTION void groundedWindowSetTitle(GroundedWindow* window, String8 ti
 GROUNDED_FUNCTION void groundedWindowSetFullscreen(GroundedWindow* window, bool fullscreen);
 GROUNDED_FUNCTION void groundedWindowSetBorderless(GroundedWindow* window, bool borderless);
 GROUNDED_FUNCTION void groundedWindowSetHidden(GroundedWindow* window, bool hidden);
+
+GROUNDED_FUNCTION void groundedWindowSetIcon(u8* data, u32 width, u32 height);
 
 GROUNDED_FUNCTION void groundedSetCursorGrab(GroundedWindow* window, bool grab);
 GROUNDED_FUNCTION void groundedSetCursorVisibility(bool visible);

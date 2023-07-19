@@ -1,5 +1,6 @@
 #include <grounded/window/grounded_window.h>
 #include <grounded/threading/grounded_threading.h>
+#include <grounded/file/grounded_file.h>
 
 #include <dlfcn.h>
 // Required for key mapping
@@ -16,6 +17,13 @@
 
 //#include <wayland-cursor.h>
 //#include <wayland-client.h>
+
+// Wayland icons
+// Wayland requires .desktop specification for icon support
+// .desktop can be installed in ~/.local/share/applications
+// icons can be installed in ~/.local/share/icons
+// Actually path is $XDG_DATA_DIRS/icons
+// Old variant was in ~/.icons
 
 struct wl_interface {
 	const char *name;
@@ -730,8 +738,8 @@ static GroundedWindow* waylandCreateWindow(struct GroundedWindowCreateParameters
         static struct GroundedWindowCreateParameters defaultParameters = {0};
         parameters = &defaultParameters;
     }
-    MemoryArena* tempArena = threadContextGetScratch(0);
-    ArenaTempMemory temp = arenaBeginTemp(tempArena);
+    MemoryArena* scratch = threadContextGetScratch(0);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
 
     GroundedWaylandWindow* window = &waylandWindowSlots[0];
     window->width = parameters->width;
@@ -744,6 +752,9 @@ static GroundedWindow* waylandCreateWindow(struct GroundedWindowCreateParameters
     xdg_surface_add_listener(window->xdgSurface, &xdgSurfaceListener, window);
     window->xdgToplevel = xdg_surface_get_toplevel(window->xdgSurface);
     xdg_toplevel_add_listener(window->xdgToplevel, &xdgToplevelListener, window);
+    if(!str8IsEmpty(parameters->applicationId)) {
+        xdg_toplevel_set_app_id(window->xdgToplevel, str8GetCstr(scratch, parameters->applicationId));
+    }
     ASSERT(window->xdgToplevel);
     
     // Window Title
@@ -883,6 +894,28 @@ static void waylandFetchMouseState(GroundedWaylandWindow* window, MouseState* mo
 
     waylandMouseState.scrollDelta = 0.0f;
     waylandMouseState.horizontalScrollDelta = 0.0f;
+}
+
+GROUNDED_FUNCTION void waylandSetIcon(u8* data, u32 width, u32 height) {
+    /*
+     * This is probably the WORST part about the wayland API. Wayland expects that all applications are shipped with corresponding
+     * .desktop files that describe what icon to use. As I want to allow applications to ship as a single executable file and still
+     * have an icon I have to do some really nasty tricks to make it work. (There are also unofficial ways with DBUS etc. to achieve
+     * this but those only work on specific window managers)
+     * .desktop files traditionally live in /usr/share/applications/app_id.desktop. As this directory typically belongs to root, we can
+     * not create a desktop file there without running as root which we obviously dont want to do. But we can check wheter the corresponding
+     * files exist there. If so the application has probably been installed via a system specific way (typically a package manager) and we do
+     * not have to set the icon specifically. If the application wanted to set a different icon it is silently ignored here but I give the system
+     * specified icon precedence.
+     * The other directory is ~/.local/share/applciations/app_id.desktop this has precedence over /usr/share. However I do not really want to
+     * create persisting files in the home directory of the user. If he would install the application later using a package manager the created
+     * desktop file in his user directory would overwrite the system .desktop file and the application might not work or use a wrong version.
+     * So the idea is to create the .desktop file temporarily. But how do we do this in a robust way so that it is cleaned even if the application crashes?
+     * We can mark it as being generated with a comment.
+     * See also here for why icon support in wayland is definately not required. https://gitlab.freedesktop.org/wayland/wayland-protocols/-/issues/52
+     */
+
+    // TODO: Problem is that we have to save the image as png
 }
 
 GROUNDED_FUNCTION void waylandSetCursorType(enum GroundedMouseCursor cursorType) {

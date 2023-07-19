@@ -231,6 +231,20 @@ GROUNDED_FUNCTION void groundedFetchMouseState(GroundedWindow* window, MouseStat
     }
 }
 
+GROUNDED_FUNCTION void groundedWindowSetIcon(u8* data, u32 width, u32 height) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            waylandSetIcon(data, width, height);
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            xcbSetIcon(data, width, height);
+        } break;
+        default:break;
+    }
+}
+
 static const char** getCursorNameCandidates(enum GroundedMouseCursor cursorType, u64* candidateCount) {
     // https://github.com/chromium/chromium/blob/db174a51cdde1785b378e532700af65dfd5b2e28/ui/base/cursor/cursor_factory.cc#L163
     //TODO: The tee icons might be interesting in some occasions but probably not supported on win32 natively

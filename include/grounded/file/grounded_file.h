@@ -23,6 +23,8 @@ GROUNDED_FUNCTION BufferedStreamReader groundedFileGetStreamReaderFromFilename(M
 GROUNDED_FUNCTION BufferedStreamReader groundedFileGetStreamReaderFromFile(GroundedFile* file);
 GROUNDED_FUNCTION void groundedCloseFile(GroundedFile* file);
 
+GROUNDED_FUNCTION bool groundedDoesFileExist(String8 filename);
+GROUNDED_FUNCTION bool groundedDoesDirectoryExist(String8 directory);
 GROUNDED_FUNCTION bool groundedCreateDirectory(String8 directory);
 
 // Directory iteration

@@ -1001,6 +1001,10 @@ GROUNDED_FUNCTION void xcbSetCursorType(enum GroundedMouseCursor cursorType) {
     }
 }
 
+GROUNDED_FUNCTION void xcbSetIcon(u8* data, u32 width, u32 height) {
+
+}
+
 GROUNDED_FUNCTION void xcbSetCustomCursor(u8* data, u32 width, u32 height) {
     const char* error = 0;
     if(rgbaFormat && xcb_render_create_picture) {
