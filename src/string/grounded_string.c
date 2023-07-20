@@ -75,7 +75,7 @@ static String8 str8FromFormatVaList(struct MemoryArena* arena, const char* forma
     u8* buffer = ARENA_PUSH_ARRAY(arena, bufferSize, u8);
     u64 actualSize = vsnprintf((char*)buffer, bufferSize, format, args);
     
-    String8 result = {};
+    String8 result = {0};
     if (actualSize < bufferSize){
         // Release excess memory
         arenaPopTo(arena, buffer + actualSize + 1);
