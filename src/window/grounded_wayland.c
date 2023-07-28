@@ -383,6 +383,11 @@ static void pointerHandleEnter(void *data, struct wl_pointer *wl_pointer, uint32
 }
 
 static void pointerHandleLeave(void *data, struct wl_pointer *wl_pointer, uint32_t serial, struct wl_surface *surface) {
+    if(activeWindow) {
+        // Make sure mouse position is outisde screen
+        activeWindow->mouseState.x = -1;
+        activeWindow->mouseState.y = -1;
+    }
     activeWindow = 0;
     if(waylandCursorTypeOverwrite < GROUNDED_MOUSE_CURSOR_COUNT) {
         // Remove cursor overwrite
