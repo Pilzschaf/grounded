@@ -5,6 +5,13 @@ u32 eventQueueIndex;
 
 static const char** getCursorNameCandidates(enum GroundedMouseCursor cursorType, u64* candidateCount);
 
+#ifdef GROUNDED_OPENGL_SUPPORT
+#include <EGL/egl.h>
+struct GroundedOpenGLContext {
+    EGLContext eglContext;
+};
+#endif
+
 #include "grounded_xcb.c"
 #include "grounded_wayland.c"
 
@@ -41,7 +48,7 @@ GROUNDED_FUNCTION void groundedShutdownWindowSystem() {
     }
 }
 
-GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(struct GroundedWindowCreateParameters* parameters) {
+GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(MemoryArena* arena, struct GroundedWindowCreateParameters* parameters) {
     if(!parameters) {
         static struct GroundedWindowCreateParameters defaultParameters = {0};
         parameters = &defaultParameters;
@@ -50,10 +57,10 @@ GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(struct GroundedWindowCrea
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
         case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
-            return waylandCreateWindow(parameters);
+            return waylandCreateWindow(arena, parameters);
         } break;
         case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
-            return xcbCreateWindow(parameters);
+            return xcbCreateWindow(arena, parameters);
         } break;
         default:break;
     }
@@ -151,6 +158,33 @@ GROUNDED_FUNCTION void groundedWindowSetHidden(GroundedWindow* window, bool hidd
         } break;
         default:break;
     }
+}
+
+GROUNDED_FUNCTION void groundedWindowSetUserData(GroundedWindow* window, void* userData) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            waylandWindowSetUserData((GroundedWaylandWindow*)window, userData);
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            xcbWindowSetUserData((GroundedXcbWindow*)window, userData);
+        } break;
+        default:break;
+    }
+}
+
+GROUNDED_FUNCTION void* groundedWindowGetUserData(GroundedWindow* window) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            return waylandWindowGetUserData((GroundedWaylandWindow*)window);
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            return xcbWindowGetUserData((GroundedXcbWindow*)window);
+        } break;
+        default:break;
+    }
+    return 0;
 }
 
 GROUNDED_FUNCTION GroundedEvent* groundedGetEvents(u32* eventCount, u32 maxWaitingTimeInMs) {
@@ -309,6 +343,18 @@ static const char** getCursorNameCandidates(enum GroundedMouseCursor cursorType,
         case GROUNDED_MOUSE_CURSOR_UPDOWN:{
             USE_CURSOR_CANDIDATE(northSouthResizeCursors);
         } break;
+        case GROUNDED_MOUSE_CURSOR_UPRIGHT:{
+            USE_CURSOR_CANDIDATE(northEastResizeCursors);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_UPLEFT:{
+            USE_CURSOR_CANDIDATE(northWestResizeCursors);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_DOWNRIGHT:{
+            USE_CURSOR_CANDIDATE(southEastResizeCursors);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_DOWNLEFT:{
+            USE_CURSOR_CANDIDATE(southWestResizeCursors);
+        } break;
         case GROUNDED_MOUSE_CURSOR_POINTER:{
             USE_CURSOR_CANDIDATE(pointerCursors);
         } break;
@@ -352,28 +398,28 @@ GROUNDED_FUNCTION void groundedSetCustomCursor(u8* data, u32 width, u32 height) 
 // ************
 // OpenGL stuff
 #ifdef GROUNDED_OPENGL_SUPPORT
-GROUNDED_FUNCTION bool groundedCreateOpenGLContext(GroundedWindow* window, u32 flags, GroundedWindow* windowContextToShareResources) {
+GROUNDED_FUNCTION GroundedOpenGLContext* groundedCreateOpenGLContext(MemoryArena* arena, GroundedOpenGLContext* contextToShareResources) {
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
         case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
-            return waylandCreateOpenGLContext((GroundedWaylandWindow*)window, flags, (GroundedWaylandWindow*)windowContextToShareResources);
+            return waylandCreateOpenGLContext(arena, contextToShareResources);
         } break;
         case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
-            return xcbCreateOpenGLContext((GroundedXcbWindow*)window, flags, (GroundedXcbWindow*)windowContextToShareResources);
+            return xcbCreateOpenGLContext(arena, contextToShareResources);
         }break;
         default:break;
     }
     return false;
 }
 
-GROUNDED_FUNCTION void groundedMakeOpenGLContextCurrent(GroundedWindow* window) {
+GROUNDED_FUNCTION void groundedMakeOpenGLContextCurrent(GroundedWindow* window, GroundedOpenGLContext* context) {
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
         case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
-            waylandOpenGLMakeCurrent((GroundedWaylandWindow*)window);
+            waylandOpenGLMakeCurrent((GroundedWaylandWindow*)window, context);
         } break;
         case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
-            xcbOpenGLMakeCurrent((GroundedXcbWindow*)window);
+            xcbOpenGLMakeCurrent((GroundedXcbWindow*)window, context);
         }break;
         default:break;
     }

@@ -110,6 +110,14 @@ static inline void wl_surface_commit(struct wl_surface *wl_surface) {
 	wl_proxy_marshal((struct wl_proxy *) wl_surface, WL_SURFACE_COMMIT);
 }
 
+static inline void wl_surface_set_user_data(struct wl_surface *wl_surface, void *user_data) {
+	wl_proxy_set_user_data((struct wl_proxy *) wl_surface, user_data);
+}
+
+static inline void* wl_surface_get_user_data(struct wl_surface *wl_surface) {
+	return wl_proxy_get_user_data((struct wl_proxy *) wl_surface);
+}
+
 static inline int wl_keyboard_add_listener(struct wl_keyboard *wl_keyboard, const struct wl_keyboard_listener *listener, void *data) {
 	return wl_proxy_add_listener((struct wl_proxy *) wl_keyboard, (void (**)(void)) listener, data);
 }

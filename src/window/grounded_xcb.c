@@ -35,14 +35,13 @@ typedef struct GroundedXcbWindow {
     xcb_window_t window;
     u32 width;
     u32 height;
+    void* userData;
+    GroundedWindowCustomTitlebarCallback* customTitlebarCallback;
 
 #ifdef GROUNDED_OPENGL_SUPPORT
     EGLSurface eglSurface;
-    EGLContext eglContext;
 #endif
 } GroundedXcbWindow;
-#define MAX_XCB_WINDOWS 64
-GroundedXcbWindow xcbWindowSlots[MAX_XCB_WINDOWS];
 
 // xcb function types
 #define X(N, R, P) typedef R grounded_xcb_##N P;
@@ -392,6 +391,13 @@ static void xcbWindowSetHidden(GroundedXcbWindow* window, bool hidden) {
     //xcb_flush(xcbConnection);
 }
 
+static void xcbWindowSetUserData(GroundedXcbWindow* window, void* userData) {
+    window->userData = userData;
+}
+
+static void* xcbWindowGetUserData(GroundedXcbWindow* window) {
+    return window->userData;
+}
 
 static void xcbSetCursorGrab(GroundedXcbWindow* window, bool grab) {
     if(grab) {
@@ -429,25 +435,7 @@ static u32 xcbGetWindowHeight(GroundedXcbWindow* window) {
     return window->height;
 }
 
-static GroundedXcbWindow* xcbGetNextFreeWindowSlot() {
-    for(u32 i = 0; i < ARRAY_COUNT(xcbWindowSlots); ++i) {
-        if(!xcbWindowSlots[i].window) {
-            return &xcbWindowSlots[i];
-        }
-    }
-    reportXcbError("No free window slots available");
-    return 0;
-}
-
-static void xcbReleaseWindowSlot(GroundedXcbWindow* window) {
-    ASSERT(window >= xcbWindowSlots && window < xcbWindowSlots + ARRAY_COUNT(xcbWindowSlots));
-    ASSERT(window);
-    if(window) {
-        *window = (GroundedXcbWindow){};
-    }
-}
-
-static GroundedWindow* xcbCreateWindow(struct GroundedWindowCreateParameters* parameters) {
+static GroundedWindow* xcbCreateWindow(MemoryArena* arena, struct GroundedWindowCreateParameters* parameters) {
     ASSERT(xcbConnection);
     if(!parameters) {
         static struct GroundedWindowCreateParameters defaultParameters = {0};
@@ -455,15 +443,15 @@ static GroundedWindow* xcbCreateWindow(struct GroundedWindowCreateParameters* pa
     }
 
     const char* error = 0;
-    GroundedXcbWindow* result = xcbGetNextFreeWindowSlot();
+    ArenaMarker errorMarker = arenaCreateMarker(arena);
+    GroundedXcbWindow* result = ARENA_PUSH_STRUCT(arena, GroundedXcbWindow);
     xcb_window_t parent = xcbScreen->root;
 
     if(result) { // Generate window id
         result->window = xcb_generate_id(xcbConnection);
         if(result->window == 0xFFFFFFFF) {
             error = "Could not reserve xid for window";
-            result->window = 0;
-            xcbReleaseWindowSlot(result);
+            arenaResetToMarker(errorMarker);
             result = 0;
         }
     }
@@ -517,6 +505,8 @@ static GroundedWindow* xcbCreateWindow(struct GroundedWindowCreateParameters* pa
         // At least when running through XWayland this seems to be required to get the correct mouse cursor
         xcbSetCursorType(currentCursorType);
 
+        result->customTitlebarCallback = parameters->customTitlebarCallback;
+
         // Make window visible
         xcb_map_window(xcbConnection, result->window);
 
@@ -531,19 +521,9 @@ static GroundedWindow* xcbCreateWindow(struct GroundedWindowCreateParameters* pa
 
 static void xcbDestroyWindow(GroundedXcbWindow* window) {
     xcb_destroy_window(xcbConnection, window->window);
-    xcbReleaseWindowSlot(window);
 
     // Flush all pending requests to the X server
     xcb_flush(xcbConnection);
-}
-
-static GroundedXcbWindow* getWindowSlot(xcb_window_t xcbWindow) {
-    for(u32 i = 0; i < ARRAY_COUNT(xcbWindowSlots); ++i) {
-        if(xcbWindowSlots[i].window == xcbWindow) {
-            return &xcbWindowSlots[i];
-        }
-    }
-    return 0;
 }
 
 static u8 translateXcbKeycode(u8 xcbKeycode) {
@@ -737,7 +717,8 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
     switch(event->response_type & 0x7f) {
         case XCB_CLIENT_MESSAGE:{
             xcb_client_message_event_t* clientMessageEvent = (xcb_client_message_event_t*)event;
-            GroundedXcbWindow* window = getWindowSlot(clientMessageEvent->window);
+            ASSERT(false);
+            /*GroundedXcbWindow* window = getWindowSlot(clientMessageEvent->window);
             if(window) {
                 if(clientMessageEvent->data.data32[0] == xcbDeleteAtom->atom) {
                     // Delete request
@@ -745,7 +726,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                 }
             } else {
                 reportXcbError("Xcb client message for unknown window");
-            }
+            }*/
         } break;
         case XCB_BUTTON_PRESS:{
             xcb_button_press_event_t* mouseButtonEvent = (xcb_button_press_event_t*) event;
@@ -804,13 +785,14 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
         } break;
         case XCB_CONFIGURE_NOTIFY:{
             xcb_configure_notify_event_t* configureEvent = (xcb_configure_notify_event_t*)event;
-            GroundedXcbWindow* window = getWindowSlot(configureEvent->window);
+            ASSERT(false);
+            /*GroundedXcbWindow* window = getWindowSlot(configureEvent->window);
             if(configureEvent->width > 0) window->width = configureEvent->width;
             if(configureEvent->height > 0) window->height = configureEvent->height;
             result.type = GROUNDED_EVENT_TYPE_RESIZE;
             result.resize.width = window->width;
             result.resize.height = window->height;
-            result.resize.window = (GroundedWindow*)window;
+            result.resize.window = (GroundedWindow*)window;*/
         } break;
         case XCB_REPARENT_NOTIFY:{
             // This window now has a new parent. We ignore this event for now...
@@ -979,7 +961,8 @@ GROUNDED_FUNCTION void xcbSetCursorType(enum GroundedMouseCursor cursorType) {
         }
         if(cursor) {
             // Apply cursor to window
-            xcbSetCursor(&xcbWindowSlots[0], cursor);
+            ASSERT(false);
+            //xcbSetCursor(&xcbWindowSlots[0], cursor);
             xcb_flush(xcbConnection);
             currentCursorType = cursorType;
         } else {
@@ -994,7 +977,8 @@ GROUNDED_FUNCTION void xcbSetCursorType(enum GroundedMouseCursor cursorType) {
     if(error) {
         // Fallback to xcbDefaultCursor
         if(xcbDefaultCursor) {
-            xcbSetCursor(&xcbWindowSlots[0], xcbDefaultCursor);
+            ASSERT(false);
+            //xcbSetCursor(&xcbWindowSlots[0], xcbDefaultCursor);
             currentCursorType = GROUNDED_MOUSE_CURSOR_DEFAULT;
         }
         GROUNDED_LOG_WARNING(error);
@@ -1027,7 +1011,8 @@ GROUNDED_FUNCTION void xcbSetCustomCursor(u8* data, u32 width, u32 height) {
         xcb_free_pixmap(xcbConnection, pixmap);
         xcb_render_free_picture(xcbConnection, picture);
 
-        xcbSetCursor(&xcbWindowSlots[0], cursor);
+        ASSERT(false);
+        //xcbSetCursor(&xcbWindowSlots[0], cursor);
         xcb_flush(xcbConnection);
         
         currentCursorType = GROUNDED_MOUSE_CURSOR_CUSTOM;
@@ -1044,60 +1029,76 @@ GROUNDED_FUNCTION void xcbSetCustomCursor(u8* data, u32 width, u32 height) {
 //*************
 // OpenGL stuff
 #ifdef GROUNDED_OPENGL_SUPPORT
-EGLDisplay eglDisplay;
+EGLDisplay xcbEglDisplay;
 
-GROUNDED_FUNCTION bool xcbCreateOpenGLContext(GroundedXcbWindow* window, u32 flags, GroundedXcbWindow* windowContextToShareResources) {
-    
+GROUNDED_FUNCTION GroundedOpenGLContext* xcbCreateOpenGLContext(MemoryArena* arena, GroundedOpenGLContext* contextToShareResources) {
+    GroundedOpenGLContext* result = ARENA_PUSH_STRUCT(arena, GroundedOpenGLContext);
+
     //display = eglGetDisplay((NativeDisplayType) xcbConnection);
     //TODO: eglGetPlatformDisplay
-    eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-    if(eglDisplay == EGL_NO_DISPLAY) {
+    xcbEglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    if(xcbEglDisplay == EGL_NO_DISPLAY) {
         GROUNDED_LOG_ERROR("Error obtaining EGL display");
-        return false;
+        return 0;
     }
     int eglVersionMajor = 0;
     int eglVersionMinor = 0;
-    if(!eglInitialize(eglDisplay, &eglVersionMajor, &eglVersionMinor)) {
+    if(!eglInitialize(xcbEglDisplay, &eglVersionMajor, &eglVersionMinor)) {
         GROUNDED_LOG_ERROR("Error initializing EGL display");
-        eglTerminate(eglDisplay);
-        return false;
+        eglTerminate(xcbEglDisplay);
+        return 0;
     }
     //GROUNDED_LOG_INFO("Using EGL version ", eglVersionMajor, ".", eglVersionMinor);
     
     // OPENGL_ES available instead of EGL_OPENGL_API
     if(!eglBindAPI(EGL_OPENGL_API)) {
         GROUNDED_LOG_ERROR("Error binding OpenGL API");
-        return false;
+        return 0;
     }
     
+    // if config is 0 the total number of configs is returned
+    //TODO: Config is required when creating the context and when creating the window
+    EGLConfig config;
+    int numConfigs = 0;
+    int attribList[] = {EGL_RED_SIZE, 1, EGL_GREEN_SIZE, 1, EGL_BLUE_SIZE, 1, EGL_NONE};
+    // MSAA
+    //attribList[] = {EGL_SAMPLE_BUFFERS, 1, EGL_SAMPLES, 4};
+    if(!eglChooseConfig(xcbEglDisplay, attribList, &config, 1, &numConfigs) || numConfigs <= 0) {
+        GROUNDED_LOG_ERROR("Error choosing OpenGL config");
+        return 0;
+    }
+    
+    result->eglContext = eglCreateContext(xcbEglDisplay, config, EGL_NO_CONTEXT, 0);
+    if(result->eglContext == EGL_NO_CONTEXT) {
+        GROUNDED_LOG_ERROR("Error creating EGL Context");
+        return 0;
+    }
+    
+    return result;
+}
+
+static bool xcbCreateEglSurface(GroundedXcbWindow* window) {
     // if config is 0 the total number of configs is returned
     EGLConfig config;
     int numConfigs = 0;
     int attribList[] = {EGL_RED_SIZE, 1, EGL_GREEN_SIZE, 1, EGL_BLUE_SIZE, 1, EGL_NONE};
     // MSAA
     //attribList[] = {EGL_SAMPLE_BUFFERS, 1, EGL_SAMPLES, 4};
-    if(!eglChooseConfig(eglDisplay, attribList, &config, 1, &numConfigs) || numConfigs <= 0) {
+    if(!eglChooseConfig(xcbEglDisplay, attribList, &config, 1, &numConfigs) || numConfigs <= 0) {
         GROUNDED_LOG_ERROR("Error choosing OpenGL config");
-        return false;
+        return 0;
     }
-    
-    window->eglContext = eglCreateContext(eglDisplay, config, EGL_NO_CONTEXT, 0);
-    if(window->eglContext == EGL_NO_CONTEXT) {
-        GROUNDED_LOG_ERROR("Error creating EGL Context");
-        return false;
-    }
-    
-    window->eglSurface = eglCreateWindowSurface(eglDisplay, config, window->window, 0);
+
+    window->eglSurface = eglCreateWindowSurface(xcbEglDisplay, config, window->window, 0);
     if(window->eglSurface == EGL_NO_SURFACE) {
         GROUNDED_LOG_ERROR("Error creating surface");
         return false;
     }
-    
     return true;
 }
 
-GROUNDED_FUNCTION void xcbOpenGLMakeCurrent(GroundedXcbWindow* window) {
-    if(!eglMakeCurrent(eglDisplay, window->eglSurface, window->eglSurface, window->eglContext)) {
+GROUNDED_FUNCTION void xcbOpenGLMakeCurrent(GroundedXcbWindow* window, GroundedOpenGLContext* context) {
+    if(!eglMakeCurrent(xcbEglDisplay, window->eglSurface, window->eglSurface, context->eglContext)) {
         //GROUNDED_LOG_ERROR("Error: ", eglGetError());
         GROUNDED_LOG_ERROR("Error making OpenGL context current");
         //return false;
@@ -1105,11 +1106,11 @@ GROUNDED_FUNCTION void xcbOpenGLMakeCurrent(GroundedXcbWindow* window) {
 }
 
 GROUNDED_FUNCTION void xcbWindowGlSwapBuffers(GroundedXcbWindow* window) {
-    eglSwapBuffers(eglDisplay, window->eglSurface);
+    eglSwapBuffers(xcbEglDisplay, window->eglSurface);
 }
 
 GROUNDED_FUNCTION void xcbWindowSetGlSwapInterval(int interval) {
-    eglSwapInterval(eglDisplay, interval);
+    eglSwapInterval(xcbEglDisplay, interval);
 }
 #endif // GROUNDED_OPENGL_SUPPORT
 

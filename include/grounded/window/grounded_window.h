@@ -84,10 +84,27 @@ typedef enum GroundedMouseCursor {
     GROUNDED_MOUSE_CURSOR_IBEAM, // The default text edit cursor
     GROUNDED_MOUSE_CURSOR_LEFTRIGHT,
     GROUNDED_MOUSE_CURSOR_UPDOWN,
+	GROUNDED_MOUSE_CURSOR_UPRIGHT,
+	GROUNDED_MOUSE_CURSOR_UPLEFT,
+	GROUNDED_MOUSE_CURSOR_DOWNRIGHT,
+	GROUNDED_MOUSE_CURSOR_DOWNLEFT,
 	GROUNDED_MOUSE_CURSOR_POINTER, // Usually used when mouse hovers a clickable element
 	GROUNDED_MOUSE_CURSOR_CUSTOM,
     GROUNDED_MOUSE_CURSOR_COUNT
 } GroundedMouseCursor;
+
+typedef enum GroundedWindowCustomTitlebarHit {
+	GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_NONE,
+	GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_BAR, // Click on this will initiate move
+	GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_MINIMIZE,
+	GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_MAXIMIZE,
+	GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_CLOSE,
+	GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_BORDER, // Click on this will initiate move
+	GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_HELP, // Click here will open some kind of help dialog by the application
+	GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_COUNT,
+} GroundedWindowCustomTitlebarHit;
+#define GROUNDED_WINDOW_CUSTOM_TITLEBAR_CALLBACK(name) GroundedWindowCustomTitlebarHit name(GroundedWindow* window, u32 x, u32 y)
+typedef GROUNDED_WINDOW_CUSTOM_TITLEBAR_CALLBACK(GroundedWindowCustomTitlebarCallback);
 
 struct GroundedWindowCreateParameters {
 	String8 title;
@@ -98,9 +115,15 @@ struct GroundedWindowCreateParameters {
 	u32 minHeight;
 	u32 maxWidth;
 	u32 maxHeight;
+	bool borderless;
+	//bool fullscreen;
+	//bool hidden;
+	//bool transparent;
+	void* userData;
+	GroundedWindowCustomTitlebarCallback* customTitlebarCallback; //TODO: We should let clients with custom title bars know if they should show a titlebar or not
 };
 
-GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(struct GroundedWindowCreateParameters* parameters);
+GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(MemoryArena* arena, struct GroundedWindowCreateParameters* parameters);
 GROUNDED_FUNCTION void groundedDestroyWindow(GroundedWindow* window);
 
 GROUNDED_FUNCTION u32 groundedGetWindowWidth(GroundedWindow* window);
@@ -111,6 +134,9 @@ GROUNDED_FUNCTION void groundedWindowSetTitle(GroundedWindow* window, String8 ti
 GROUNDED_FUNCTION void groundedWindowSetFullscreen(GroundedWindow* window, bool fullscreen);
 GROUNDED_FUNCTION void groundedWindowSetBorderless(GroundedWindow* window, bool borderless);
 GROUNDED_FUNCTION void groundedWindowSetHidden(GroundedWindow* window, bool hidden);
+
+GROUNDED_FUNCTION void groundedWindowSetUserData(GroundedWindow* window, void* userData);
+GROUNDED_FUNCTION void* groundedWindowGetUserData(GroundedWindow* window);
 
 GROUNDED_FUNCTION void groundedWindowSetIcon(u8* data, u32 width, u32 height);
 
@@ -254,8 +280,9 @@ GROUNDED_FUNCTION_INLINE u32 groundedGetUnicodeCodepointForKeycode(u8 keycode) {
 // ********************
 // OpenGL related stuff
 #ifdef GROUNDED_OPENGL_SUPPORT
-GROUNDED_FUNCTION bool groundedCreateOpenGLContext(GroundedWindow* window, u32 flags, GroundedWindow* windowContextToShareResources);
-GROUNDED_FUNCTION void groundedMakeOpenGLContextCurrent(GroundedWindow* window);
+typedef struct GroundedOpenGLContext GroundedOpenGLContext;
+GROUNDED_FUNCTION GroundedOpenGLContext* groundedCreateOpenGLContext(MemoryArena* arena, GroundedOpenGLContext* contextToShareResources);
+GROUNDED_FUNCTION void groundedMakeOpenGLContextCurrent(GroundedWindow* window, GroundedOpenGLContext* context);
 GROUNDED_FUNCTION void groundedWindowGlSwapBuffers(GroundedWindow* window);
 GROUNDED_FUNCTION void groundedWindowSetGlSwapInterval(int interval);
 #endif // GROUNDED_VULKAN_SUPPORT
