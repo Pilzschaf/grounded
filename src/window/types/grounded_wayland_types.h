@@ -1,11 +1,18 @@
 
 #define WL_DISPLAY_GET_REGISTRY 1
-#define WL_COMPOSITOR_CREATE_SURFACE 0
+
 #define WL_REGISTRY_BIND 0
+
+#define WL_COMPOSITOR_CREATE_SURFACE 0
+#define WL_COMPOSITOR_CREATE_REGION 1
+
+#define WL_REGION_DESTROY 0
+#define WL_REGION_ADD 1
 
 #define WL_SURFACE_DESTROY 0
 #define WL_SURFACE_ATTACH 1
 #define WL_SURFACE_DAMAGE 2
+#define WL_SURFACE_SET_INPUT_REGION 5
 #define WL_SURFACE_COMMIT 6
 #define WL_SURFACE_SET_BUFFER_SCALE 8
 
@@ -21,6 +28,20 @@
 #define WL_SHM_CREATE_POOL 0
 #define WL_SHM_POOL_CREATE_BUFFER 0
 #define WL_SHM_POOL_DESTROY 1
+
+#define WL_DATA_DEVICE_MANAGER_CREATE_DATA_SOURCE 0
+#define WL_DATA_DEVICE_MANAGER_GET_DATA_DEVICE 1
+
+#define WL_DATA_DEVICE_START_DRAG 0
+
+#define WL_DATA_OFFER_ACCEPT 0
+#define WL_DATA_OFFER_RECEIVE 1
+#define WL_DATA_OFFER_DESTROY 2
+#define WL_DATA_OFFER_FINISH 3
+
+#define WL_DATA_SOURCE_OFFER 0
+#define WL_DATA_SOURCE_DESTROY 1
+#define WL_DATA_SOURCE_SET_ACTIONS 2
 
 #define wl_array_for_each(pos, array)					\
 	for (pos = (array)->data;					\
@@ -61,6 +82,30 @@ struct wl_pointer_listener {
 	void (*axis_value120)(void *data, struct wl_pointer *wl_pointer, uint32_t axis, int32_t value120);
 };
 
+struct wl_data_device_listener {
+	void (*data_offer)(void *data, struct wl_data_device *wl_data_device, struct wl_data_offer *id);
+	void (*enter)(void *data, struct wl_data_device *wl_data_device, uint32_t serial, struct wl_surface *surface, wl_fixed_t x, wl_fixed_t y, struct wl_data_offer *id);
+	void (*leave)(void *data, struct wl_data_device *wl_data_device);
+	void (*motion)(void *data, struct wl_data_device *wl_data_device, uint32_t time, wl_fixed_t x, wl_fixed_t y);
+	void (*drop)(void *data, struct wl_data_device *wl_data_device);
+	void (*selection)(void *data, struct wl_data_device *wl_data_device, struct wl_data_offer *id);
+};
+
+struct wl_data_offer_listener {
+	void (*offer)(void *data, struct wl_data_offer *wl_data_offer, const char *mime_type);
+	void (*source_actions)(void *data, struct wl_data_offer *wl_data_offer, uint32_t source_actions);
+	void (*action)(void *data, struct wl_data_offer *wl_data_offer, uint32_t dnd_action);
+};
+
+struct wl_data_source_listener {
+	void (*target)(void *data, struct wl_data_source *wl_data_source, const char *mime_type);
+	void (*send)(void *data, struct wl_data_source *wl_data_source, const char *mime_type, int32_t fd);
+	void (*cancelled)(void *data, struct wl_data_source *wl_data_source);
+	void (*dnd_drop_performed)(void *data, struct wl_data_source *wl_data_source);
+	void (*dnd_finished)(void *data, struct wl_data_source *wl_data_source);
+	void (*action)(void *data, struct wl_data_source *wl_data_source, uint32_t dnd_action);
+};
+
 enum wl_keyboard_key_state {
 	WL_KEYBOARD_KEY_STATE_RELEASED = 0,
 	WL_KEYBOARD_KEY_STATE_PRESSED = 1,
@@ -70,6 +115,13 @@ enum wl_seat_capability {
 	WL_SEAT_CAPABILITY_POINTER = 1,
 	WL_SEAT_CAPABILITY_KEYBOARD = 2,
 	WL_SEAT_CAPABILITY_TOUCH = 4,
+};
+
+enum wl_data_device_manager_dnd_action {
+	WL_DATA_DEVICE_MANAGER_DND_ACTION_NONE = 0,
+	WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY = 1,
+	WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE = 2,
+	WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK = 4,
 };
 
 static inline struct wl_registry* wl_display_get_registry(struct wl_display *wl_display) {
@@ -86,6 +138,25 @@ static inline struct wl_surface* wl_compositor_create_surface(struct wl_composit
 	id = wl_proxy_marshal_constructor((struct wl_proxy *) wl_compositor, WL_COMPOSITOR_CREATE_SURFACE, wl_surface_interface, 0);
 
 	return (struct wl_surface *) id;
+}
+
+static inline struct wl_region* wl_compositor_create_region(struct wl_compositor *wl_compositor) {
+	struct wl_proxy *id;
+
+	id = wl_proxy_marshal_flags((struct wl_proxy *) wl_compositor,
+			 WL_COMPOSITOR_CREATE_REGION, wl_region_interface, wl_proxy_get_version((struct wl_proxy *) wl_compositor), 0, NULL);
+
+	return (struct wl_region *) id;
+}
+
+static inline void wl_region_add(struct wl_region *wl_region, int32_t x, int32_t y, int32_t width, int32_t height) {
+	wl_proxy_marshal_flags((struct wl_proxy *) wl_region,
+			 WL_REGION_ADD, NULL, wl_proxy_get_version((struct wl_proxy *) wl_region), 0, x, y, width, height);
+}
+
+static inline void wl_region_destroy(struct wl_region *wl_region) {
+	wl_proxy_marshal_flags((struct wl_proxy *) wl_region,
+			 WL_REGION_DESTROY, NULL, wl_proxy_get_version((struct wl_proxy *) wl_region), WL_MARSHAL_FLAG_DESTROY);
 }
 
 static inline int wl_registry_add_listener(struct wl_registry *wl_registry, const struct wl_registry_listener *listener, void *data) {
@@ -117,6 +188,12 @@ static inline void wl_surface_set_user_data(struct wl_surface *wl_surface, void 
 static inline void* wl_surface_get_user_data(struct wl_surface *wl_surface) {
 	return wl_proxy_get_user_data((struct wl_proxy *) wl_surface);
 }
+
+static inline void wl_surface_set_input_region(struct wl_surface *wl_surface, struct wl_region *region) {
+	wl_proxy_marshal_flags((struct wl_proxy *) wl_surface,
+			 WL_SURFACE_SET_INPUT_REGION, NULL, wl_proxy_get_version((struct wl_proxy *) wl_surface), 0, region);
+}
+
 
 static inline int wl_keyboard_add_listener(struct wl_keyboard *wl_keyboard, const struct wl_keyboard_listener *listener, void *data) {
 	return wl_proxy_add_listener((struct wl_proxy *) wl_keyboard, (void (**)(void)) listener, data);
@@ -228,6 +305,78 @@ static inline struct wl_buffer* wl_shm_pool_create_buffer(struct wl_shm_pool *wl
 
 static inline void wl_shm_pool_destroy(struct wl_shm_pool *wl_shm_pool) {
 	wl_proxy_marshal_flags((struct wl_proxy *) wl_shm_pool, WL_SHM_POOL_DESTROY, NULL, wl_proxy_get_version((struct wl_proxy *) wl_shm_pool), WL_MARSHAL_FLAG_DESTROY);
+}
+
+static inline struct wl_data_source * wl_data_device_manager_create_data_source(struct wl_data_device_manager *wl_data_device_manager) {
+	struct wl_proxy *id;
+
+	id = wl_proxy_marshal_flags((struct wl_proxy *) wl_data_device_manager,
+			 WL_DATA_DEVICE_MANAGER_CREATE_DATA_SOURCE, wl_data_source_interface, wl_proxy_get_version((struct wl_proxy *) wl_data_device_manager), 0, NULL);
+
+	return (struct wl_data_source *) id;
+}
+
+static inline struct wl_data_device * wl_data_device_manager_get_data_device(struct wl_data_device_manager *wl_data_device_manager, struct wl_seat *seat) {
+	struct wl_proxy *id;
+
+	id = wl_proxy_marshal_flags((struct wl_proxy *) wl_data_device_manager,
+			 WL_DATA_DEVICE_MANAGER_GET_DATA_DEVICE, wl_data_device_interface, wl_proxy_get_version((struct wl_proxy *) wl_data_device_manager), 0, NULL, seat);
+
+	return (struct wl_data_device *) id;
+}
+
+static inline void wl_data_device_start_drag(struct wl_data_device *wl_data_device, struct wl_data_source *source, struct wl_surface *origin, struct wl_surface *icon, uint32_t serial) {
+	wl_proxy_marshal_flags((struct wl_proxy *) wl_data_device,
+			 WL_DATA_DEVICE_START_DRAG, NULL, wl_proxy_get_version((struct wl_proxy *) wl_data_device), 0, source, origin, icon, serial);
+}
+
+static inline int wl_data_device_add_listener(struct wl_data_device *wl_data_device, const struct wl_data_device_listener *listener, void *data) {
+	return wl_proxy_add_listener((struct wl_proxy *) wl_data_device,
+				     (void (**)(void)) listener, data);
+}
+
+static inline void wl_data_offer_accept(struct wl_data_offer *wl_data_offer, uint32_t serial, const char *mime_type) {
+	wl_proxy_marshal_flags((struct wl_proxy *) wl_data_offer,
+			 WL_DATA_OFFER_ACCEPT, NULL, wl_proxy_get_version((struct wl_proxy *) wl_data_offer), 0, serial, mime_type);
+}
+
+static inline int wl_data_offer_add_listener(struct wl_data_offer *wl_data_offer, const struct wl_data_offer_listener *listener, void *data) {
+	return wl_proxy_add_listener((struct wl_proxy *) wl_data_offer, (void (**)(void)) listener, data);
+}
+
+static inline void wl_data_offer_receive(struct wl_data_offer *wl_data_offer, const char *mime_type, int32_t fd) {
+	wl_proxy_marshal_flags((struct wl_proxy *) wl_data_offer,
+			 WL_DATA_OFFER_RECEIVE, NULL, wl_proxy_get_version((struct wl_proxy *) wl_data_offer), 0, mime_type, fd);
+}
+
+static inline void wl_data_offer_finish(struct wl_data_offer *wl_data_offer) {
+	wl_proxy_marshal_flags((struct wl_proxy *) wl_data_offer,
+			 WL_DATA_OFFER_FINISH, NULL, wl_proxy_get_version((struct wl_proxy *) wl_data_offer), 0);
+}
+
+static inline void wl_data_offer_destroy(struct wl_data_offer *wl_data_offer) {
+	wl_proxy_marshal_flags((struct wl_proxy *) wl_data_offer, WL_DATA_OFFER_DESTROY, NULL, wl_proxy_get_version((struct wl_proxy *) wl_data_offer), WL_MARSHAL_FLAG_DESTROY);
+}
+
+static inline void * wl_data_offer_get_user_data(struct wl_data_offer *wl_data_offer) {
+	return wl_proxy_get_user_data((struct wl_proxy *) wl_data_offer);
+}
+
+
+static inline int wl_data_source_add_listener(struct wl_data_source *wl_data_source, const struct wl_data_source_listener *listener, void *data) {
+	return wl_proxy_add_listener((struct wl_proxy *) wl_data_source, (void (**)(void)) listener, data);
+}
+
+static inline void wl_data_source_offer(struct wl_data_source *wl_data_source, const char *mime_type) {
+	wl_proxy_marshal_flags((struct wl_proxy *) wl_data_source, WL_DATA_SOURCE_OFFER, NULL, wl_proxy_get_version((struct wl_proxy *) wl_data_source), 0, mime_type);
+}
+
+static inline void wl_data_source_destroy(struct wl_data_source *wl_data_source) {
+	wl_proxy_marshal_flags((struct wl_proxy *) wl_data_source, WL_DATA_SOURCE_DESTROY, NULL, wl_proxy_get_version((struct wl_proxy *) wl_data_source), WL_MARSHAL_FLAG_DESTROY);
+}
+
+static inline void wl_data_source_set_actions(struct wl_data_source *wl_data_source, uint32_t dnd_actions) {
+	wl_proxy_marshal_flags((struct wl_proxy *) wl_data_source, WL_DATA_SOURCE_SET_ACTIONS, NULL, wl_proxy_get_version((struct wl_proxy *) wl_data_source), 0, dnd_actions);
 }
 
 #ifndef WL_SHM_FORMAT_ENUM

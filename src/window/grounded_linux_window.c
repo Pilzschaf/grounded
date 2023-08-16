@@ -290,9 +290,10 @@ static const char** getCursorNameCandidates(enum GroundedMouseCursor cursorType,
     static const char* pointerCursors[] = {"pointer", "hand", "hand2"};
     static const char* progressCursors[] = {"progress", "left_ptr_watch", "watch"};
     static const char* waitCursors[] = {"wait", "watch"};
-    static const char* dndCopyCursors[] = {"copy"}; //TODO: Seems those are not necessarily dnd related?
-    static const char* dndAliasCursors[] = {"alias"};
-    static const char* dndNoDropCursors[] = {"no-drop", "not-allowed", "crossed_circle"}; //TODO: What is with circle?
+    static const char* dndCopyCursors[] = {"dnd-copy", "copy", "hand2"}; //TODO: Seems those are not necessarily dnd related?
+    static const char* dndMoveCursors[] = {"dnd-move", "move", "hand2"};
+    static const char* dndLinkCursors[] = {"dnd-link", "alias", "hand2"};
+    static const char* dndNoDropCursors[] = {"dnd-none", "no-drop", "not-allowed", "crossed_circle", "hand2"}; //TODO: What is with circle?
     static const char* notAllowedCursors[] = {"not-allowed", "crossed_circle"};
     static const char* allScrollCursors[] = {"all-scroll", "fleur"}; // Also cursor for movement. However there might be special cursors for that?
     static const char* rowResizeCursors[] = {"row-resize", "sb_v_double_arrow"};
@@ -315,17 +316,13 @@ static const char** getCursorNameCandidates(enum GroundedMouseCursor cursorType,
     // Not useful in a practical sense but interestig nonetheless
     static const char* specialCursors[] = {"dot", "pirate", "heart"};
 
+    static const char* grabbingCursors[] = {"closedhand", "grabbing", "hand2"};
 
     // Grab: openhand, grab, hand1
-    // Grabbing: closedhand, grabbing, hand2
     // northeastsouthwestresize: size_bdiag, nesw-resize, fd_double_arrow
     // northwestsourtheastresize: size_fdiag, nwse-resize, bd_double_arrow
     // zoomin: zoom-in
     // zoomout: zoom-out
-    // DNDNone: dnd-none, hand2
-    // DNDMove: dnd-move, hand2
-    // DNDCopy: dnd-copy, hand2
-    // DNDLink: dnd-link, hand2
 
     #define USE_CURSOR_CANDIDATE(candidates) cursorCandidates = candidates; cursorCandidateCount = ARRAY_COUNT(candidates)
     const char** cursorCandidates;
@@ -357,6 +354,18 @@ static const char** getCursorNameCandidates(enum GroundedMouseCursor cursorType,
         } break;
         case GROUNDED_MOUSE_CURSOR_POINTER:{
             USE_CURSOR_CANDIDATE(pointerCursors);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_DND_NO_DROP:{
+            USE_CURSOR_CANDIDATE(dndNoDropCursors);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_DND_MOVE:{
+            USE_CURSOR_CANDIDATE(dndMoveCursors);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_DND_COPY:{
+            USE_CURSOR_CANDIDATE(dndCopyCursors);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_GRABBING:{
+            USE_CURSOR_CANDIDATE(grabbingCursors);
         } break;
         default:{
             // Cursor not found. Try to use a default
@@ -393,6 +402,43 @@ GROUNDED_FUNCTION void groundedSetCustomCursor(u8* data, u32 width, u32 height) 
         } break;
         default:break;
     }
+}
+
+// Release of the arena is done in wayland/xcb backend once the drag is over
+static void _groundedStartDragAndDrop(MemoryArena* arena, GroundedWindow* window, u64 mimeTypeCount, String8* mimeTypes, GroundedWindowDndSendCallback* callback, void* userData) {
+    ASSERT(arena);
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            waylandStartDragAndDrop(arena, (GroundedWaylandWindow*)window, mimeTypeCount, mimeTypes, callback, userData);
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            //xcbSetCustomCursor(data, width, height);
+            ASSERT(false);
+        } break;
+        default:break;
+    }
+}
+
+GROUNDED_FUNCTION void groundedStartDragAndDrop(GroundedWindow* window, u64 mimeTypeCount, String8* mimeTypes, GroundedWindowDndSendCallback* callback, void* userData) {
+    MemoryArena* arena = ARENA_BOOTSTRAP(createGrowingArena(osGetMemorySubsystem(), KB(4)));
+    _groundedStartDragAndDrop(arena, window, mimeTypeCount, mimeTypes, callback, userData);
+}
+
+GROUNDED_WINDOW_DND_SEND_CALLBACK(simpleDragAndDropSend) {
+    ASSERT(mimeIndex == 0);
+    ASSERT(userData);
+    String8* payload = (String8*) userData;
+    return *payload;
+}
+
+GROUNDED_FUNCTION void groundedStartDragAndDropWithSingleDataType(GroundedWindow* window, String8 mimeType, u8* data, u64 size) {
+    // Create the arena and store itself as well as the payload data itself in it
+    MemoryArena* arena = ARENA_BOOTSTRAP(createGrowingArena(osGetMemorySubsystem(), size + KB(2)));
+    String8 original = str8FromBlock(data, size);
+    String8* payload = ARENA_PUSH_STRUCT_NO_CLEAR(arena, String8);
+    *payload = str8Copy(arena, original);
+    _groundedStartDragAndDrop(arena, window, 1, &mimeType, simpleDragAndDropSend, payload);
 }
 
 // ************

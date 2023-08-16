@@ -41,9 +41,11 @@ typedef struct GroundedEvent {
 		} keyUp;
 		struct {
 			u32 button;
+			GroundedWindow* window;
 		} buttonDown;
 		struct {
 			u32 button;
+			GroundedWindow* window;
 		} buttonUp;
     };
 } GroundedEvent;
@@ -89,6 +91,11 @@ typedef enum GroundedMouseCursor {
 	GROUNDED_MOUSE_CURSOR_DOWNRIGHT,
 	GROUNDED_MOUSE_CURSOR_DOWNLEFT,
 	GROUNDED_MOUSE_CURSOR_POINTER, // Usually used when mouse hovers a clickable element
+	GROUNDED_MOUSE_CURSOR_DND_NO_DROP,
+	GROUNDED_MOUSE_CURSOR_DND_MOVE,
+	GROUNDED_MOUSE_CURSOR_DND_COPY,
+	//GROUNDED_MOUSE_CURSOR_DND_LINK,
+	GROUNDED_MOUSE_CURSOR_GRABBING,
 	GROUNDED_MOUSE_CURSOR_CUSTOM,
     GROUNDED_MOUSE_CURSOR_COUNT
 } GroundedMouseCursor;
@@ -106,6 +113,16 @@ typedef enum GroundedWindowCustomTitlebarHit {
 #define GROUNDED_WINDOW_CUSTOM_TITLEBAR_CALLBACK(name) GroundedWindowCustomTitlebarHit name(GroundedWindow* window, u32 x, u32 y)
 typedef GROUNDED_WINDOW_CUSTOM_TITLEBAR_CALLBACK(GroundedWindowCustomTitlebarCallback);
 
+//#define GROUNDED_WINDOW_MIME_TYPE_CALLBACK(name) bool name(String8 mimeType)
+//typedef GROUNDED_WINDOW_MIME_TYPE_CALLBACK(GroundedWindowMimeTypeCallback);
+
+struct GroundedDragPayload;
+
+#define GROUNDED_WINDOW_DND_CALLBACK(name) u32 name(struct GroundedDragPayload* payload, GroundedWindow* window, s32 x, s32 y, u32 mimeTypeCount, String8* mimeTypes)
+typedef GROUNDED_WINDOW_DND_CALLBACK(GroundedWindowDndCallback);
+#define GROUNDED_WINDOW_DND_SEND_CALLBACK(name) String8 name(MemoryArena* arena, String8 mimeType, u64 mimeIndex, void* userData)
+typedef GROUNDED_WINDOW_DND_SEND_CALLBACK(GroundedWindowDndSendCallback);
+
 struct GroundedWindowCreateParameters {
 	String8 title;
 	String8 applicationId; // Should be the name of your application in lowercase. In contrast to the title this is not expected to change
@@ -121,6 +138,7 @@ struct GroundedWindowCreateParameters {
 	//bool transparent;
 	void* userData;
 	GroundedWindowCustomTitlebarCallback* customTitlebarCallback; //TODO: We should let clients with custom title bars know if they should show a titlebar or not
+	GroundedWindowDndCallback* dndCallback; // Application should return the index of the mime type it wants to accept. UINT32_MAX for none?
 };
 
 GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(MemoryArena* arena, struct GroundedWindowCreateParameters* parameters);
@@ -145,6 +163,9 @@ GROUNDED_FUNCTION void groundedSetCursorVisibility(bool visible);
 GROUNDED_FUNCTION void groundedSetCursorType(enum GroundedMouseCursor cursorType);
 // Maybe make custom cursors loadable and applyable. Then the cursors do not have to be recreated when application wants to switch cursors
 GROUNDED_FUNCTION void groundedSetCustomCursor(u8* data, u32 width, u32 height);
+
+GROUNDED_FUNCTION void groundedStartDragAndDrop(GroundedWindow* window, u64 mimeTypeCount, String8* mimeTypes, GroundedWindowDndSendCallback* callback, void* userData);
+GROUNDED_FUNCTION void groundedStartDragAndDropWithSingleDataType(GroundedWindow* window, String8 mimeType, u8* data, u64 size); // Data can be freed after this call
 
 // Retuned array must not be used anymore once get or poll events is called again
 GROUNDED_FUNCTION GroundedEvent* groundedGetEvents(u32* eventCount, u32 maxWaitingTimeInMs);

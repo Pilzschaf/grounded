@@ -158,6 +158,11 @@ GROUNDED_FUNCTION void str8ListPushCopy(struct MemoryArena* arena, String8List* 
     str8ListPushExplicit(list, str8Copy(arena, str), node);
 }
 
+GROUNDED_FUNCTION void str8ListPushCopyAndNullTerminate(struct MemoryArena* arena, String8List* list, String8 str) {
+    String8Node* node = ARENA_PUSH_ARRAY(arena, 1, String8Node);
+    str8ListPushExplicit(list, str8CopyAndNullTerminate(arena, str), node);
+}
+
 GROUNDED_FUNCTION String8 str8ListJoin(MemoryArena* arena, String8List* list, StringJoin* optionalJoin) {
     static StringJoin dummyJoin = {0};
     StringJoin* join = optionalJoin;
