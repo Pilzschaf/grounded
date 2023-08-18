@@ -744,6 +744,63 @@ static void dataDeviceListenerMotion(void* data, struct wl_data_device* dataDevi
     }
 }
 
+// Read by using two alternating arenas. One persisting the other scratch.
+static String8 readIntoBuffer(MemoryArena* arena, int fd) {
+    String8 result = {0};
+
+    MemoryArena* scratch = threadContextGetScratch(arena);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
+
+    MemoryArena* arenas[2] = {arena, scratch};
+    ArenaMarker resetMarkers[2] = {arenaCreateMarker(arena), arenaCreateMarker(scratch)};
+    u64 currentSize = 256;
+    u32 currentArenaIndex = 1; // We start with the scratch arena as we have to call read twice to determine end of data (return value <= 0)
+    u8* currentBuffer = 0;
+    u64 actualSize = 0;
+
+    while(true) {
+        ASSERT(actualSize <= currentSize);
+        arenaResetToMarker(resetMarkers[currentArenaIndex]);
+        u8* nextBuffer = ARENA_PUSH_ARRAY_NO_CLEAR(arenas[currentArenaIndex], currentSize, u8);
+        if(actualSize > 0) {
+            MEMORY_COPY(nextBuffer, currentBuffer, actualSize);
+        }
+        currentBuffer = nextBuffer;
+        
+        ssize_t n = read(fd, currentBuffer + actualSize, currentSize - actualSize);
+        if(n <= 0) {
+            break;
+        } else {
+            actualSize += n;
+        }
+
+        currentSize = actualSize * 2;
+        currentSize = CLAMP_TOP(currentSize, INT32_MAX);
+        currentArenaIndex = (currentArenaIndex + 1) % 2;
+    }
+
+    if(!actualSize) {
+        // Error so release allocated persisting memory
+        arenaResetToMarker(resetMarkers[0]);
+    } else {
+        if(currentArenaIndex != 0) {
+            // Copy final size to persisting arena
+            arenaResetToMarker(resetMarkers[0]);
+            u8* buffer = ARENA_PUSH_ARRAY_NO_CLEAR(arenas[0], actualSize, u8);
+            MEMORY_COPY(buffer, currentBuffer, actualSize);
+            result.base = buffer;
+        } else {
+            // Release overallocation on persisting arena
+            result.base = currentBuffer;
+            arenaPopTo(arenas[0], currentBuffer + actualSize);
+        }
+    }
+
+    result.size = actualSize;
+    arenaEndTemp(temp);
+    return result;
+}
+
 static void dataDeviceListenerDrop(void* data, struct wl_data_device* dataDevice) {
     printf("Data offer drop\n");
 
@@ -761,7 +818,8 @@ static void dataDeviceListenerDrop(void* data, struct wl_data_device* dataDevice
         // Roundtrip to receive data. Especially necessary if we are source and destination
         wl_display_roundtrip(waylandDisplay);
 
-        // TODO: read from fds[0]
+        // Read in data
+        String8 data = readIntoBuffer(&waylandOffer->arena, fds[0]);
 	    close(fds[0]);
     }
     
@@ -1731,41 +1789,3 @@ static VkSurfaceKHR waylandGetVulkanSurface(GroundedWaylandWindow* window, VkIns
     return surface;
 }
 #endif // GROUNDED_VULKAN_SUPPORT
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

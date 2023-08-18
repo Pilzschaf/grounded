@@ -80,6 +80,12 @@ typedef struct MouseState {
 	u16 buttonUpTransitions[32];
 } MouseState;
 
+typedef struct GroundedWindowDragPayloadImage {
+	u8* data;
+	u32 width;
+	u32 height;
+} GroundedWindowDragPayloadImage;
+
 typedef enum GroundedMouseCursor {
 	GROUNDED_MOUSE_CURSOR_ARROW = 0,
 	GROUNDED_MOUSE_CURSOR_DEFAULT = GROUNDED_MOUSE_CURSOR_ARROW,
@@ -164,8 +170,11 @@ GROUNDED_FUNCTION void groundedSetCursorType(enum GroundedMouseCursor cursorType
 // Maybe make custom cursors loadable and applyable. Then the cursors do not have to be recreated when application wants to switch cursors
 GROUNDED_FUNCTION void groundedSetCustomCursor(u8* data, u32 width, u32 height);
 
-GROUNDED_FUNCTION void groundedStartDragAndDrop(GroundedWindow* window, u64 mimeTypeCount, String8* mimeTypes, GroundedWindowDndSendCallback* callback, void* userData);
-GROUNDED_FUNCTION void groundedStartDragAndDropWithSingleDataType(GroundedWindow* window, String8 mimeType, u8* data, u64 size); // Data can be freed after this call
+GROUNDED_FUNCTION void groundedStartDragAndDrop(GroundedWindow* window, u64 mimeTypeCount, String8* mimeTypes, GroundedWindowDndSendCallback* callback, GroundedWindowDragPayloadImage* image, void* userData);
+GROUNDED_FUNCTION void groundedStartDragAndDropWithSingleDataType(GroundedWindow* window, String8 mimeType, u8* data, u64 size, GroundedWindowDragPayloadImage* image); // Data can be freed after this call
+GROUNDED_FUNCTION String8 groundedGetDragAndDropDataAsMimeType(struct GroundedDragPayload* payload, String8 mimeType);
+GROUNDED_FUNCTION MemoryArena* groundedGetPayloadMemoryArena(struct GroundedDragPayload* payload);
+//TODO: Additional helpers for quick retrieval of text, single file and multiple files
 
 // Retuned array must not be used anymore once get or poll events is called again
 GROUNDED_FUNCTION GroundedEvent* groundedGetEvents(u32* eventCount, u32 maxWaitingTimeInMs);

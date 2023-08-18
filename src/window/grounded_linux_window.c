@@ -405,7 +405,7 @@ GROUNDED_FUNCTION void groundedSetCustomCursor(u8* data, u32 width, u32 height) 
 }
 
 // Release of the arena is done in wayland/xcb backend once the drag is over
-static void _groundedStartDragAndDrop(MemoryArena* arena, GroundedWindow* window, u64 mimeTypeCount, String8* mimeTypes, GroundedWindowDndSendCallback* callback, void* userData) {
+static void _groundedStartDragAndDrop(MemoryArena* arena, GroundedWindow* window, u64 mimeTypeCount, String8* mimeTypes, GroundedWindowDndSendCallback* callback, GroundedWindowDragPayloadImage* image, void* userData) {
     ASSERT(arena);
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
@@ -420,9 +420,9 @@ static void _groundedStartDragAndDrop(MemoryArena* arena, GroundedWindow* window
     }
 }
 
-GROUNDED_FUNCTION void groundedStartDragAndDrop(GroundedWindow* window, u64 mimeTypeCount, String8* mimeTypes, GroundedWindowDndSendCallback* callback, void* userData) {
+GROUNDED_FUNCTION void groundedStartDragAndDrop(GroundedWindow* window, u64 mimeTypeCount, String8* mimeTypes, GroundedWindowDndSendCallback* callback, GroundedWindowDragPayloadImage* image, void* userData) {
     MemoryArena* arena = ARENA_BOOTSTRAP(createGrowingArena(osGetMemorySubsystem(), KB(4)));
-    _groundedStartDragAndDrop(arena, window, mimeTypeCount, mimeTypes, callback, userData);
+    _groundedStartDragAndDrop(arena, window, mimeTypeCount, mimeTypes, callback, image, userData);
 }
 
 GROUNDED_WINDOW_DND_SEND_CALLBACK(simpleDragAndDropSend) {
@@ -432,13 +432,13 @@ GROUNDED_WINDOW_DND_SEND_CALLBACK(simpleDragAndDropSend) {
     return *payload;
 }
 
-GROUNDED_FUNCTION void groundedStartDragAndDropWithSingleDataType(GroundedWindow* window, String8 mimeType, u8* data, u64 size) {
+GROUNDED_FUNCTION void groundedStartDragAndDropWithSingleDataType(GroundedWindow* window, String8 mimeType, u8* data, u64 size, GroundedWindowDragPayloadImage* image) {
     // Create the arena and store itself as well as the payload data itself in it
     MemoryArena* arena = ARENA_BOOTSTRAP(createGrowingArena(osGetMemorySubsystem(), size + KB(2)));
     String8 original = str8FromBlock(data, size);
     String8* payload = ARENA_PUSH_STRUCT_NO_CLEAR(arena, String8);
     *payload = str8Copy(arena, original);
-    _groundedStartDragAndDrop(arena, window, 1, &mimeType, simpleDragAndDropSend, payload);
+    _groundedStartDragAndDrop(arena, window, 1, &mimeType, simpleDragAndDropSend, image, payload);
 }
 
 // ************
