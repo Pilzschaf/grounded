@@ -160,6 +160,46 @@ static void reportWaylandError(const char* message) {
     printf("Error: %s\n", message);
 }
 
+static void randname(char *buf) {
+	struct timespec ts;
+	clock_gettime(CLOCK_REALTIME, &ts);
+	long r = ts.tv_nsec;
+	for (int i = 0; i < 6; ++i) {
+		buf[i] = 'A'+(r&15)+(r&16)*2;
+		r >>= 5;
+	}
+}
+
+static int createSharedMemoryFile(u64 size) {
+    int fd = -1;
+    {
+        int retries = 100;
+        do {
+            char name[] = "/wl_shm-XXXXXX";
+            randname(name + sizeof(name) - 7);
+            --retries;
+            fd = shm_open(name, O_RDWR | O_CREAT | O_EXCL, 0600);
+            if (fd >= 0) {
+                shm_unlink(name);
+                break;
+            }
+        } while (retries > 0 && errno == EEXIST);
+    }
+
+	if (fd < 0) {
+		return -1;
+    }
+	int ret;
+	do {
+		ret = ftruncate(fd, size);
+	} while (ret < 0 && errno == EINTR);
+	if (ret < 0) {
+		close(fd);
+		return -1;
+	}
+	return fd;
+}
+
 static void keyboard_handle_keymap(void *data, struct wl_keyboard *keyboard, uint32_t format, int fd, uint32_t size) {
     GROUNDED_LOG_VERBOSE("Keyboard keymap");
 }
@@ -938,7 +978,13 @@ static struct wl_data_source_listener dataSourceListener = {
     dataSourceHandleAction,
 };
 
-void waylandStartDragAndDrop(MemoryArena* arena, GroundedWaylandWindow* window, u64 mimeTypeCount, String8* mimeTypes, GroundedWindowDndSendCallback* callback, void* userData) {
+struct GroundedWindowDragPayloadImage {
+    u8* data;
+    u32 width;
+    u32 height;
+};
+
+void waylandStartDragAndDrop(MemoryArena* arena, GroundedWaylandWindow* window, u64 mimeTypeCount, String8* mimeTypes, GroundedWindowDndSendCallback* callback, GroundedWindowDragPayloadImage* image, void* userData) {
     // Serial is the last pointer serial. Should probably be pointer button serial
     MemoryArena* scratch = threadContextGetScratch(0);
     ArenaTempMemory temp = arenaBeginTemp(scratch);
@@ -963,10 +1009,36 @@ void waylandStartDragAndDrop(MemoryArena* arena, GroundedWaylandWindow* window, 
     setCursorOverwrite(GROUNDED_MOUSE_CURSOR_GRABBING);
 
     struct wl_surface* icon = 0;
+    if(image) {
+        icon = wl_compositor_create_surface(compositor);
+        // TODO: Move image into icon
+        u64 imageSize = image->width * image->height * sizeof(u32);
+        int fd = createSharedMemoryFile(imageSize);
+        u8* poolData = mmap(0, imageSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        struct wl_shm_pool* pool = wl_shm_create_pool(waylandShm, fd, imageSize);
+
+        struct wl_buffer* wlBuffer = wl_shm_pool_create_buffer(pool, 0, image->width, image->height, image->width * sizeof(u32), WL_SHM_FORMAT_XRGB8888);
+        MEMORY_COPY(poolData, image->data, imageSize);
+
+        wl_surface_attach(icon, wlBuffer, 0, 0);
+        wl_surface_damage(icon, 0, 0, UINT32_MAX, UINT32_MAX);
+        wl_surface_commit(icon);
+    }
+
     printf("Drag serial: %u\n", lastPointerSerial);
     wl_data_device_start_drag(dataDevice, dataSource, window->surface, icon, lastPointerSerial);
 
     arenaEndTemp(temp);
+}
+
+GROUNDED_FUNCTION GroundedWindowDragPayloadImage* groundedCreateDragImage(MemoryArena* arena, u8* data, u32 width, u32 height) {
+    GroundedWindowDragPayloadImage* result = ARENA_PUSH_STRUCT(arena, GroundedWindowDragPayloadImage);
+
+    result->data = data;
+    result->width = width;
+    result->height = height;
+
+    return result;
 }
 
 static void seatHandleCapabilities(void *data, struct wl_seat *seat, u32 c) {
@@ -1547,46 +1619,6 @@ GROUNDED_FUNCTION void waylandSetCursorType(enum GroundedMouseCursor cursorType)
     if(error) {
         GROUNDED_LOG_WARNING("Could not satisfy cursor request");
     }
-}
-
-static void randname(char *buf) {
-	struct timespec ts;
-	clock_gettime(CLOCK_REALTIME, &ts);
-	long r = ts.tv_nsec;
-	for (int i = 0; i < 6; ++i) {
-		buf[i] = 'A'+(r&15)+(r&16)*2;
-		r >>= 5;
-	}
-}
-
-static int createSharedMemoryFile(u64 size) {
-    int fd = -1;
-    {
-        int retries = 100;
-        do {
-            char name[] = "/wl_shm-XXXXXX";
-            randname(name + sizeof(name) - 7);
-            --retries;
-            fd = shm_open(name, O_RDWR | O_CREAT | O_EXCL, 0600);
-            if (fd >= 0) {
-                shm_unlink(name);
-                break;
-            }
-        } while (retries > 0 && errno == EEXIST);
-    }
-
-	if (fd < 0) {
-		return -1;
-    }
-	int ret;
-	do {
-		ret = ftruncate(fd, size);
-	} while (ret < 0 && errno == EINTR);
-	if (ret < 0) {
-		close(fd);
-		return -1;
-	}
-	return fd;
 }
 
 GROUNDED_FUNCTION void waylandSetCustomCursor(u8* data, u32 width, u32 height) {

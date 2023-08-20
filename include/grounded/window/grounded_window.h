@@ -80,11 +80,7 @@ typedef struct MouseState {
 	u16 buttonUpTransitions[32];
 } MouseState;
 
-typedef struct GroundedWindowDragPayloadImage {
-	u8* data;
-	u32 width;
-	u32 height;
-} GroundedWindowDragPayloadImage;
+typedef struct GroundedWindowDragPayloadImage GroundedWindowDragPayloadImage;
 
 typedef enum GroundedMouseCursor {
 	GROUNDED_MOUSE_CURSOR_ARROW = 0,
@@ -174,6 +170,7 @@ GROUNDED_FUNCTION void groundedStartDragAndDrop(GroundedWindow* window, u64 mime
 GROUNDED_FUNCTION void groundedStartDragAndDropWithSingleDataType(GroundedWindow* window, String8 mimeType, u8* data, u64 size, GroundedWindowDragPayloadImage* image); // Data can be freed after this call
 GROUNDED_FUNCTION String8 groundedGetDragAndDropDataAsMimeType(struct GroundedDragPayload* payload, String8 mimeType);
 GROUNDED_FUNCTION MemoryArena* groundedGetPayloadMemoryArena(struct GroundedDragPayload* payload);
+GROUNDED_FUNCTION GroundedWindowDragPayloadImage* groundedCreateDragImage(MemoryArena* arena, u8* data, u32 width, u32 height);
 //TODO: Additional helpers for quick retrieval of text, single file and multiple files
 
 // Retuned array must not be used anymore once get or poll events is called again
@@ -315,6 +312,7 @@ GROUNDED_FUNCTION GroundedOpenGLContext* groundedCreateOpenGLContext(MemoryArena
 GROUNDED_FUNCTION void groundedMakeOpenGLContextCurrent(GroundedWindow* window, GroundedOpenGLContext* context);
 GROUNDED_FUNCTION void groundedWindowGlSwapBuffers(GroundedWindow* window);
 GROUNDED_FUNCTION void groundedWindowSetGlSwapInterval(int interval);
+GROUNDED_FUNCTION GroundedWindowDragPayloadImage* groundedCreateDragImageOpenGL(int texture);
 #endif // GROUNDED_VULKAN_SUPPORT
 
 // ********************

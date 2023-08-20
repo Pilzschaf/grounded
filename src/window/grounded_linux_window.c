@@ -410,7 +410,7 @@ static void _groundedStartDragAndDrop(MemoryArena* arena, GroundedWindow* window
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
         case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
-            waylandStartDragAndDrop(arena, (GroundedWaylandWindow*)window, mimeTypeCount, mimeTypes, callback, userData);
+            waylandStartDragAndDrop(arena, (GroundedWaylandWindow*)window, mimeTypeCount, mimeTypes, callback, image, userData);
         } break;
         case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
             //xcbSetCustomCursor(data, width, height);
