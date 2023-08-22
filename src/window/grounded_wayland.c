@@ -534,7 +534,7 @@ static void pointerHandleButton(void *data, struct wl_pointer *wl_pointer, uint3
         buttonCode = GROUNDED_MOUSE_BUTTON_MIDDLE;
     }
     lastPointerSerial = serial;
-    printf("Click serial: %u\n", lastPointerSerial);
+    //printf("Click serial: %u\n", lastPointerSerial);
     if(pressed && activeWindow && activeWindow->customTitlebarCallback) {
         GroundedWindowCustomTitlebarHit hit = activeWindow->customTitlebarCallback((GroundedWindow*)activeWindow, activeWindow->mouseState.x, activeWindow->mouseState.y);
         if(hit == GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_BAR) {
@@ -1382,7 +1382,7 @@ static GroundedWindow* waylandCreateWindow(MemoryArena* arena, struct GroundedWi
         static struct GroundedWindowCreateParameters defaultParameters = {0};
         parameters = &defaultParameters;
     }
-    MemoryArena* scratch = threadContextGetScratch(0);
+    MemoryArena* scratch = threadContextGetScratch(arena);
     ArenaTempMemory temp = arenaBeginTemp(scratch);
 
     GroundedWaylandWindow* window = ARENA_PUSH_STRUCT(arena, GroundedWaylandWindow);

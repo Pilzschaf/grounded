@@ -74,6 +74,29 @@ project "CursorCycle"
         "src/string/grounded_string.c",
     }
 
+project "DoubleClick"
+    defines
+    {
+        "GROUNDED_OPENGL_SUPPORT",
+    }
+    files
+    {
+        "example/double_click/main.c",
+        "src/threading/grounded_threading.c",
+        "src/memory/grounded_arena.c",
+        "src/memory/grounded_memory.c",
+        "src/window/grounded_window.c",
+        "src/window/grounded_window_extra.c",
+        "src/logger/grounded_logger.c",
+        "src/string/grounded_string.c",
+    }
+    links
+    {
+        "EGL",
+        "GL",
+        --"glew",
+    }
+
 project "GroundedStatic"
     kind "StaticLib"
     targetdir "bin/static/%{cfg.buildcfg}"

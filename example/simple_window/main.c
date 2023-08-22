@@ -13,7 +13,7 @@ int main() {
     groundedInitWindowSystem();
 
     // Create window
-    GroundedWindow* window = groundedCreateWindow(&(struct GroundedWindowCreateParameters){
+    GroundedWindow* window = groundedCreateWindow(threadContextGetScratch(0), &(struct GroundedWindowCreateParameters){
         .title = STR8_LITERAL("Simple grounded window"),
         .minWidth = 320,
         .minHeight = 240,
