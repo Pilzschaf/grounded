@@ -155,6 +155,21 @@ GROUNDED_FUNCTION  bool groundedCreateDirectory(String8 directory) {
     return result;
 }
 
+GROUNDED_FUNCTION String8 groundedGetAbsoluteDirectory(MemoryArena* arena, String8 directory) {
+    char* buffer = ARENA_PUSH_ARRAY_NO_CLEAR(arena, PATH_MAX, char);
+
+    MemoryArena* tempArena = threadContextGetScratch(arena);
+    ArenaTempMemory temp = arenaBeginTemp(tempArena);
+    const char* cPath = str8GetCstr(tempArena, directory);
+    buffer[0] = '\0';
+    realpath(cPath, buffer);
+    arenaEndTemp(temp);
+
+    String8 result = str8FromCstr(buffer);
+    arenaPopTo(arena, result.base + result.size);
+    return result;
+}
+
 
 struct GroundedFile {
     MemoryArena* arena;
