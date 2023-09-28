@@ -227,7 +227,7 @@ GROUNDED_FUNCTION void groundedShutdownWindowSystem() {
     //TODO: Release resources
 }
 
-GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(struct GroundedWindowCreateParameters* parameters) {
+GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(MemoryArena* arena, struct GroundedWindowCreateParameters* parameters) {
     if (!parameters) {
         static struct GroundedWindowCreateParameters defaultParameters = {0};
         parameters = &defaultParameters;
@@ -274,7 +274,7 @@ GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(struct GroundedWindowCrea
     }
     
     arenaEndTemp(temp);
-    return result;
+    return (GroundedWindow*)result;
 }
 
 GROUNDED_FUNCTION void groundedDestroyWindow(GroundedWindow* window) {
@@ -356,7 +356,8 @@ GROUNDED_FUNCTION u32 groundedGetWindowHeight(GroundedWindow* opaqueWindow) {
     return ABS(size.top - size.bottom);
 }
 
-GROUNDED_FUNCTION void groundedFetchMouseState(GroundedWin32Window* window, MouseState* mouseState) {
+GROUNDED_FUNCTION void groundedFetchMouseState(GroundedWindow* opaqueWindow, MouseState* mouseState) {
+    GroundedWin32Window* window = (GroundedWin32Window*)opaqueWindow;
     mouseState->lastX = mouseState->x;
     mouseState->lastY = mouseState->y;
     ASSERT(sizeof(mouseState->buttons) == sizeof(mouseState->lastButtons));
@@ -421,18 +422,55 @@ GROUNDED_FUNCTION u64 groundedGetCounter() {
 GROUNDED_FUNCTION void groundedSetCursorType(enum GroundedMouseCursor cursorType) {
     HCURSOR hCursor = 0;
     switch (cursorType) {
+        case GROUNDED_MOUSE_CURSOR_DEFAULT: {
+            // Skip switch and use same as fallback
+        } break;
         case GROUNDED_MOUSE_CURSOR_IBEAM: {
-            hCursor = LoadCursorA(0, IDC_IBEAM);
+            hCursor = LoadCursorA(0, (LPCSTR)IDC_IBEAM);
         } break;
         case GROUNDED_MOUSE_CURSOR_LEFTRIGHT: {
-            hCursor = LoadCursorA(0, IDC_SIZEWE);
+            hCursor = LoadCursorA(0, (LPCSTR)IDC_SIZEWE);
         } break;
         case GROUNDED_MOUSE_CURSOR_UPDOWN: {
-            hCursor = LoadCursorA(0, IDC_SIZENS);
+            hCursor = LoadCursorA(0, (LPCSTR)IDC_SIZENS);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_UPRIGHT: {
+            hCursor = LoadCursorA(0, (LPCSTR)IDC_SIZENESW);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_UPLEFT: {
+            hCursor = LoadCursorA(0, (LPCSTR)IDC_SIZENWSE);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_DOWNRIGHT: {
+            hCursor = LoadCursorA(0, (LPCSTR)IDC_SIZENWSE);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_DOWNLEFT: {
+            hCursor = LoadCursorA(0, (LPCSTR)IDC_SIZENESW);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_POINTER: {
+            hCursor = LoadCursorA(0, (LPCSTR)IDC_HAND);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_DND_NO_DROP: {
+            hCursor = LoadCursorA(0, (LPCSTR)IDC_NO);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_DND_MOVE: {
+            //TODO: No good icon
+            hCursor = LoadCursorA(0, (LPCSTR)IDC_SIZEALL);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_DND_COPY: {
+            //TODO: No good icon
+            hCursor = LoadCursorA(0, (LPCSTR)IDC_SIZEALL);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_GRABBING: {
+            //TODO: No good icon
+            hCursor = LoadCursorA(0, (LPCSTR)IDC_HAND);
+        } break;
+        default: {
+            // Unknown cursor type
+            ASSERT(false);
         } break;
     }
     if (!hCursor) {
-        hCursor = LoadCursorA(0, IDC_ARROW);
+        hCursor = LoadCursorA(0, (LPCSTR)IDC_ARROW);
     }
 
     if (hCursor) {
@@ -488,7 +526,8 @@ GROUNDED_FUNCTION void groundedSetCustomCursor(u8* data, u32 width, u32 height) 
 // ************
 // OpenGL stuff
 #ifdef GROUNDED_OPENGL_SUPPORT
-GROUNDED_FUNCTION void groundedWindowGlSwapBuffers(GroundedWindow* window) {
+GROUNDED_FUNCTION void groundedWindowGlSwapBuffers(GroundedWindow* w) {
+    GroundedWin32Window* window = (GroundedWin32Window*)w;
     HDC hDC = GetDC(window->hWnd);
     SwapBuffers(hDC);
     ReleaseDC(window->hWnd, hDC);
