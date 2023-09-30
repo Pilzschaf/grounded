@@ -9,7 +9,7 @@
 #include <sys/shm.h>
 
 #ifdef GROUNDED_OPENGL_SUPPORT
-#include <EGL/egl.h>
+//#include <EGL/egl.h>
 #endif
 
 // Just some defines for x cursors
@@ -1089,7 +1089,7 @@ static bool xcbCreateEglSurface(GroundedXcbWindow* window) {
         return 0;
     }
 
-    window->eglSurface = eglCreateWindowSurface(xcbEglDisplay, config, window->window, 0);
+    window->eglSurface = eglCreateWindowSurface(xcbEglDisplay, config, PTR_FROM_INT(window->window), 0);
     if(window->eglSurface == EGL_NO_SURFACE) {
         GROUNDED_LOG_ERROR("Error creating surface");
         return false;

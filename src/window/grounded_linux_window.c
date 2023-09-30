@@ -6,10 +6,21 @@ u32 eventQueueIndex;
 static const char** getCursorNameCandidates(enum GroundedMouseCursor cursorType, u64* candidateCount);
 
 #ifdef GROUNDED_OPENGL_SUPPORT
-#include <EGL/egl.h>
+//#include <EGL/egl.h>
+#include "types/grounded_egl_types.h"
 struct GroundedOpenGLContext {
     EGLContext eglContext;
 };
+
+// egl function types
+#define X(N, R, P) typedef R grounded_egl_##N P;
+#include "types/grounded_egl_functions.h"
+#undef X
+
+// egl function pointers
+#define X(N, R, P) static grounded_egl_##N * N = 0;
+#include "types/grounded_egl_functions.h"
+#undef X
 #endif
 
 #include "grounded_xcb.c"
@@ -446,6 +457,28 @@ GROUNDED_FUNCTION void groundedStartDragAndDropWithSingleDataType(GroundedWindow
 #ifdef GROUNDED_OPENGL_SUPPORT
 GROUNDED_FUNCTION GroundedOpenGLContext* groundedCreateOpenGLContext(MemoryArena* arena, GroundedOpenGLContext* contextToShareResources) {
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+
+    if(!eglCreateContext) {
+        void* eglLibrary = dlopen("libEGL.so", RTLD_LAZY | RTLD_LOCAL);
+        if(!eglLibrary) {
+            GROUNDED_LOG_ERROR("No egl library found");
+            return 0;
+        } else {
+            const char* firstMissingFunctionName = 0;
+            #define X(N, R, P) N = (grounded_egl_##N *) dlsym(eglLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
+            #include "types/grounded_egl_functions.h"
+            #undef X
+            if(firstMissingFunctionName) {
+                printf("Could not load egl function: %s\n", firstMissingFunctionName);
+                const char* error = "Could not load all egl functions. Your egl version is incompatible";
+                GROUNDED_LOG_ERROR(error);
+                dlclose(eglLibrary);
+                eglLibrary = 0;
+                return 0;
+            }
+        }
+    }
+
     switch(linuxWindowBackend) {
         case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
             return waylandCreateOpenGLContext(arena, contextToShareResources);

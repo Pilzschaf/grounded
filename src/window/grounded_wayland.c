@@ -14,7 +14,7 @@
 #include <unistd.h>
 
 #ifdef GROUNDED_OPENGL_SUPPORT
-#include <EGL/egl.h>
+//#include <EGL/egl.h>
 #endif
 
 //#include <wayland-cursor.h>
@@ -1651,27 +1651,28 @@ GROUNDED_FUNCTION void waylandSetCustomCursor(u8* data, u32 width, u32 height) {
 //*************
 // OpenGL stuff
 #ifdef GROUNDED_OPENGL_SUPPORT
-EGLDisplay waylandEglDisplay;
-void* eglLibrary;
+static EGLDisplay waylandEglDisplay;
+static void* waylandEglLibrary;
+//TODO: We seem to load the function pointers multiple times here
 GROUNDED_FUNCTION GroundedOpenGLContext* waylandCreateOpenGLContext(MemoryArena* arena, GroundedOpenGLContext* contextToShareResources) {
     GroundedOpenGLContext* result = ARENA_PUSH_STRUCT(arena, GroundedOpenGLContext);
-    if(!eglLibrary) { // Load egl function pointers
-        eglLibrary = dlopen("libwayland-egl.so", RTLD_LAZY | RTLD_LOCAL);
-        if(!eglLibrary) {
+    if(!waylandEglLibrary) { // Load egl function pointers
+        waylandEglLibrary = dlopen("libwayland-egl.so", RTLD_LAZY | RTLD_LOCAL);
+        if(!waylandEglLibrary) {
             const char* error = "No wayland-egl library found";
             GROUNDED_LOG_ERROR(error);
             return false;
         } else {
             const char* firstMissingFunctionName = 0;
-            #define X(N, R, P) N = (grounded_wayland_##N *) dlsym(eglLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
+            #define X(N, R, P) N = (grounded_wayland_##N *) dlsym(waylandEglLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
             #include "types/grounded_wayland_egl_functions.h"
             #undef X
             if(firstMissingFunctionName) {
                 printf("Could not load wayland function: %s\n", firstMissingFunctionName);
                 const char* error = "Could not load all wayland-egl functions. Your wayland-egl version is incompatible";
                 GROUNDED_LOG_ERROR(error);
-                dlclose(eglLibrary);
-                eglLibrary = 0;
+                dlclose(waylandEglLibrary);
+                waylandEglLibrary = 0;
                 return false;
             }
         }
@@ -1681,8 +1682,8 @@ GROUNDED_FUNCTION GroundedOpenGLContext* waylandCreateOpenGLContext(MemoryArena*
         waylandEglDisplay = eglGetDisplay((EGLNativeDisplayType)waylandDisplay);
         if(waylandEglDisplay == EGL_NO_DISPLAY) {
             GROUNDED_LOG_ERROR("Error obtaining EGL display for wayland display");
-            dlclose(eglLibrary);
-            eglLibrary = 0;
+            dlclose(waylandEglLibrary);
+            waylandEglLibrary = 0;
             waylandEglDisplay = 0;
             return false;
         }
@@ -1691,8 +1692,8 @@ GROUNDED_FUNCTION GroundedOpenGLContext* waylandCreateOpenGLContext(MemoryArena*
         if(!eglInitialize(waylandEglDisplay, &eglVersionMajor, &eglVersionMinor)) {
             GROUNDED_LOG_ERROR("Error initializing EGL display");
             eglTerminate(waylandEglDisplay);
-            dlclose(eglLibrary);
-            eglLibrary = 0;
+            dlclose(waylandEglLibrary);
+            waylandEglLibrary = 0;
             waylandEglDisplay = 0;
             return false;
         }
@@ -1705,8 +1706,8 @@ GROUNDED_FUNCTION GroundedOpenGLContext* waylandCreateOpenGLContext(MemoryArena*
     if(!eglBindAPI(EGL_OPENGL_API)) {
         GROUNDED_LOG_ERROR("Error binding OpenGL API");
         eglTerminate(waylandEglDisplay);
-        dlclose(eglLibrary);
-        eglLibrary = 0;
+        dlclose(waylandEglLibrary);
+        waylandEglLibrary = 0;
         waylandEglDisplay = 0;
         return false;
     }

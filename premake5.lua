@@ -104,7 +104,6 @@ project "DoubleClick"
         links
         {
             "GL",
-            "EGL",
         }
 
 project "GroundedStatic"
