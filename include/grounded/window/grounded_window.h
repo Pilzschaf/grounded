@@ -312,7 +312,7 @@ GROUNDED_FUNCTION GroundedOpenGLContext* groundedCreateOpenGLContext(MemoryArena
 GROUNDED_FUNCTION void groundedMakeOpenGLContextCurrent(GroundedWindow* window, GroundedOpenGLContext* context);
 GROUNDED_FUNCTION void groundedWindowGlSwapBuffers(GroundedWindow* window);
 GROUNDED_FUNCTION void groundedWindowSetGlSwapInterval(int interval);
-GROUNDED_FUNCTION GroundedWindowDragPayloadImage* groundedCreateDragImageOpenGL(int texture);
+//GROUNDED_FUNCTION GroundedWindowDragPayloadImage* groundedCreateDragImageOpenGL(int texture);
 #endif // GROUNDED_VULKAN_SUPPORT
 
 // ********************

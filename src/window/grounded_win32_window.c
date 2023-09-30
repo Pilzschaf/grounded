@@ -1,5 +1,8 @@
 #include <grounded/window/grounded_window.h>
 
+//TODO: Temporary
+//#define GROUNDED_OPENGL_SUPPORT
+
 #if 0
 #include "grounded_win32_types.h"
 #else
@@ -11,6 +14,12 @@
 
 #include <stdio.h>
 #include <grounded/threading/grounded_threading.h>
+
+#ifdef GROUNDED_OPENGL_SUPPORT
+struct GroundedOpenGLContext {
+    HGLRC hGLRC;
+};
+#endif
 
 typedef struct GroundedWin32Window {
     HWND hWnd;
@@ -482,7 +491,7 @@ GROUNDED_FUNCTION void groundedSetCustomCursor(u8* data, u32 width, u32 height) 
     BITMAPV5HEADER bitmapInfo = {
         .bV5Size = sizeof(bitmapInfo),
         .bV5Width = width,
-        .bV5Height = -height,
+        .bV5Height = -(s32)height,
         .bV5Planes = 1,
         .bV5BitCount = 32,
         .bV5Compression = BI_BITFIELDS,
@@ -493,7 +502,7 @@ GROUNDED_FUNCTION void groundedSetCustomCursor(u8* data, u32 width, u32 height) 
     };
     HDC dc = GetDC(NULL);
     u8* colorBitmapData = 0;
-    HBITMAP color = CreateDIBSection(dc, &bitmapInfo, DIB_RGB_COLORS, (void**)&colorBitmapData, 0, 0);
+    HBITMAP color = CreateDIBSection(dc, (const BITMAPINFO*) &bitmapInfo, DIB_RGB_COLORS, (void**)&colorBitmapData, 0, 0);
     ReleaseDC(0, dc);
 
     HBITMAP mask = CreateBitmap(width, height, 1, 1, 0);
@@ -526,12 +535,226 @@ GROUNDED_FUNCTION void groundedSetCustomCursor(u8* data, u32 width, u32 height) 
 // ************
 // OpenGL stuff
 #ifdef GROUNDED_OPENGL_SUPPORT
+
+#include <gl/gl.h>
+#include "wgl/wglext.h"
+
+static PFNWGLGETPIXELFORMATATTRIBFVARBPROC wglGetPixelFormatAttribivARB;
+static PFNWGLGETPIXELFORMATATTRIBFVARBPROC wglGetPixelFormatAttribfvARB;
+static PFNWGLCHOOSEPIXELFORMATARBPROC wglChoosePixelFormatARB;
+static PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB;
+static PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
+static bool wglLoaded;
+
+//TODO: Spec says we require CS_OWNDC on windows that use opengl
+static const wchar_t* openGLDummyClassName = L"Grounded OpenGL Initialization Dummy Window";
+
+static bool loadWGL() {
+    HWND dummyWindowHwnd = 0;
+    HDC dummyDC = 0;
+    HGLRC dummyGLRC = 0;
+    HINSTANCE hInstance = GetModuleHandle(0);
+    bool loaded = false;
+
+    WNDCLASS wc = { 0 };
+    wc.style = CS_OWNDC;
+    wc.hInstance = hInstance;
+    wc.lpszClassName = openGLDummyClassName;
+    wc.lpfnWndProc = DefWindowProc;
+
+    if (!RegisterClass(&wc)) {
+        GROUNDED_LOG_ERROR("Error registering OpenGL Initialization Dummy Window class");
+        return false;
+    }
+
+    // WS_CLIPCHILDREN | WS_CLIPSIBLINGS because opengl is only allowed to draw into exactly this window. Should be irrelevant for the dummy window however
+    //TODO: WS_CLIPCHILDREN | WS_CLIPSIBLINGS for actual opengl windows?
+    // WS_EX_APPWINDOW
+    // TODO: Is CreateWindowEx faster?
+    dummyWindowHwnd = CreateWindowW(wc.lpszClassName, L"", 0, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, hInstance, 0);
+    if (dummyWindowHwnd == 0) {
+        GROUNDED_LOG_ERROR("Error creating OpenGL Initialization Dummy Window");
+        goto exit;
+    }
+
+    dummyDC = GetDC(dummyWindowHwnd);
+    if (dummyDC == 0) {
+        GROUNDED_LOG_ERROR("Error creating dummy DC");
+        goto exit;
+    }
+
+    PIXELFORMATDESCRIPTOR pfd = {0};
+    pfd.nSize = sizeof(PIXELFORMATDESCRIPTOR);
+    pfd.nVersion = 1;
+    pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
+    pfd.iPixelType = PFD_TYPE_RGBA;
+    pfd.cColorBits = 32;
+    pfd.iLayerType = PFD_MAIN_PLANE;
+
+    int formatIndex = ChoosePixelFormat(dummyDC, &pfd);
+    if (formatIndex == 0) {
+        GROUNDED_LOG_WARNING("Failed to select pixel format for dummy window. Trying first option.");
+        formatIndex = 1;
+    }
+
+    if (!SetPixelFormat(dummyDC, formatIndex, &pfd)) {
+        GROUNDED_LOG_ERROR("Error setting pixel format of dummy window");
+        goto exit;
+    }
+
+    dummyGLRC = wglCreateContext(dummyDC);
+    if (dummyGLRC == 0) {
+        GROUNDED_LOG_ERROR("Error creating dummy WGL context");
+        goto exit;
+    }
+
+    if (!wglMakeCurrent(dummyDC, dummyGLRC)) {
+        GROUNDED_LOG_ERROR("Error making dummy context current");
+        goto exit;
+    }
+
+    // Techincally the extensions should be looked for with wglGetExtensionsString.
+    // As the chance that a symbol might be aliased with something different is very low the functions are retrieved directly with wglGetProcAddress
+    // Load function pointers
+    //TODO: What extensions do we want to hard require?
+    wglGetPixelFormatAttribivARB = (PFNWGLGETPIXELFORMATATTRIBFVARBPROC)wglGetProcAddress("wglGetPixelFormatAttribivARB");
+    wglGetPixelFormatAttribfvARB = (PFNWGLGETPIXELFORMATATTRIBFVARBPROC)wglGetProcAddress("wglGetPixelFormatAttribfvARB");
+    wglChoosePixelFormatARB = (PFNWGLCHOOSEPIXELFORMATARBPROC)wglGetProcAddress("wglChoosePixelFormatARB");
+    wglCreateContextAttribsARB = (PFNWGLCREATECONTEXTATTRIBSARBPROC)wglGetProcAddress("wglCreateContextAttribsARB");
+    wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC)wglGetProcAddress("wglSwapIntervalEXT");
+    if (!(wglGetPixelFormatAttribivARB && wglGetPixelFormatAttribfvARB && wglChoosePixelFormatARB && wglCreateContextAttribsARB && wglSwapIntervalEXT)) {
+        GROUNDED_LOG_ERROR("Not all extension pointers could be loaded");
+        wglMakeCurrent(0, 0);
+        goto exit;
+    }
+
+    if (!wglMakeCurrent(0, 0)) {
+        GROUNDED_LOG_ERROR("Error releasing dummy context");
+        // We continue from this as it is a shutdown error and might not interfere with correct initialization
+    }
+
+    loaded = true;
+
+exit:
+    {
+        if (dummyGLRC) wglDeleteContext(dummyGLRC);
+        if (dummyDC) ReleaseDC(dummyWindowHwnd, dummyDC);
+        if (dummyWindowHwnd) DestroyWindow(dummyWindowHwnd);
+        // We let the class registered so we can create dummy windows for context pixel format selection
+        //UnregisterClass(wc.lpszClassName, hInstance);
+        return loaded;
+    }
+}
+
+//TODO: On Windows it seems to be the case that we have to know the pixel format upon at window creation. How to solve this nicely?
+// This is also the case for linux I think. But on windows we acually require the window to set the pixel format. This is the actual problem
+// HDC is required for context creation...
+// Can share a single hglrc between multiple windows
+GROUNDED_FUNCTION GroundedOpenGLContext* groundedCreateOpenGLContext(MemoryArena* arena, GroundedOpenGLContext* contextToShareResources) {
+    GroundedOpenGLContext* result = ARENA_PUSH_STRUCT(arena, GroundedOpenGLContext);
+    if (!wglLoaded) {
+        wglLoaded = loadWGL();
+    }
+
+    // Workaround for context creation is to create a dummy window for each context
+    HINSTANCE hInstance = (HINSTANCE)GetModuleHandle(0);
+    HWND dummyWindowHwnd = CreateWindowW(openGLDummyClassName, L"", 0, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, hInstance, 0);
+    if (dummyWindowHwnd == 0) {
+        GROUNDED_LOG_ERROR("Error creating OpenGL Initialization Dummy Window");
+    }
+
+    HDC dummyDC = GetDC(dummyWindowHwnd);
+    if (dummyDC == 0) {
+        GROUNDED_LOG_ERROR("Error creating dummy DC");
+    }
+
+    // Try R8G8B8A8
+    int desiredAttributes[] = {
+        WGL_DRAW_TO_WINDOW_ARB, 1,
+        WGL_ACCELERATION_ARB, WGL_FULL_ACCELERATION_ARB,
+        WGL_RED_BITS_ARB, 8, // 10
+        WGL_GREEN_BITS_ARB, 8, // 10
+        WGL_BLUE_BITS_ARB, 8, // 10
+        WGL_ALPHA_BITS_ARB, 8, // 2
+        WGL_DOUBLE_BUFFER_ARB, 1,
+        0,0,
+    };
+
+    int pixelFormatIndex = 0;
+    UINT numFormats = 0;
+    wglChoosePixelFormatARB(dummyDC, desiredAttributes, 0, 1, &pixelFormatIndex, &numFormats);
+    // TODO: Describe pixel format?
+    // Needs to be called before wglCreateContext to set the pixel format
+    SetPixelFormat(dummyDC, pixelFormatIndex, 0);
+
+    const int contextAttributes[] = {
+        WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
+        WGL_CONTEXT_MINOR_VERSION_ARB, 3,
+        //WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+        WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+        0
+    };
+
+    HGLRC shareContext = contextToShareResources ? contextToShareResources->hGLRC : 0;
+    result->hGLRC = wglCreateContextAttribsARB(dummyDC, shareContext, contextAttributes);
+
+    // Already done at context creation
+    /*if (windowContextToShareResources) {
+        if (!wglShareLists(windowContextToShareResources->hGLRC, window->hGLRC)) {
+            LOG_ERROR("Error requesting shared resources between two wgl contexts");
+            // Hard error as the caller likely expect resource share availability if we would succeed
+            return false;
+        }
+    }*/
+
+    ReleaseDC(dummyWindowHwnd, dummyDC);
+    //TODO: Can we maybe also destroy the window?
+
+    return result;
+}
+
+GROUNDED_FUNCTION void groundedMakeOpenGLContextCurrent(GroundedWindow* opaqueWindow, GroundedOpenGLContext* context) {
+    GroundedWin32Window* window = (GroundedWin32Window*)opaqueWindow;
+    assert(context->hGLRC);
+
+    HDC hDC = GetDC(window->hWnd);
+
+    { // TODO: Must only be done once
+        // Try R8G8B8A8
+        int desiredAttributes[] = {
+            WGL_DRAW_TO_WINDOW_ARB, 1,
+            WGL_ACCELERATION_ARB, WGL_FULL_ACCELERATION_ARB,
+            WGL_RED_BITS_ARB, 8, // 10
+            WGL_GREEN_BITS_ARB, 8, // 10
+            WGL_BLUE_BITS_ARB, 8, // 10
+            WGL_ALPHA_BITS_ARB, 8, // 2
+            WGL_DOUBLE_BUFFER_ARB, 1,
+            0,0,
+        };
+
+        int pixelFormatIndex = 0;
+        UINT numFormats = 0;
+        wglChoosePixelFormatARB(hDC, desiredAttributes, 0, 1, &pixelFormatIndex, &numFormats);
+        SetPixelFormat(hDC, pixelFormatIndex, 0);
+    }
+
+    wglMakeCurrent(hDC, context->hGLRC);
+    ReleaseDC(window->hWnd, hDC);
+}
+
 GROUNDED_FUNCTION void groundedWindowGlSwapBuffers(GroundedWindow* w) {
     GroundedWin32Window* window = (GroundedWin32Window*)w;
     HDC hDC = GetDC(window->hWnd);
     SwapBuffers(hDC);
     ReleaseDC(window->hWnd, hDC);
 }
+
+GROUNDED_FUNCTION void groundedWindowSetGlSwapInterval(int interval) {
+    if (wglSwapIntervalEXT) {
+        wglSwapIntervalEXT(interval);
+    }
+}
+
 #endif // GROUNDED_OPENGL_SUPPORT
 
 

@@ -387,7 +387,7 @@ GROUNDED_FUNCTION String8 str8FromStr16(MemoryArena* arena, String16 str) {
     u16* opl = str.base + str.size;
 
     for(;ptr < opl;) {
-        StringDecode decode = strDecodeUtf16(ptr, (u64)(opl - ptr));
+        StringDecode decode = strDecodeUtf16(ptr, (u32)(opl - ptr));
         if(decode.size == 0) break;
         u32 encodedSize = strEncodeUtf8(dptr, decode.codepoint);
         ptr += decode.size;
@@ -431,7 +431,7 @@ GROUNDED_FUNCTION String16 str16FromStr8(MemoryArena* arena, String8 str) {
     u8* opl = str.base + str.size;
 
     for(;ptr < opl;) {
-        StringDecode decode = strDecodeUtf8(ptr, (u64)(opl - ptr));
+        StringDecode decode = strDecodeUtf8(ptr, (u32)(opl - ptr));
         if(decode.size == 0) break;
         u32 encodedSize = strEncodeUtf16(dptr, decode.codepoint);
         ptr += decode.size;
@@ -475,7 +475,7 @@ GROUNDED_FUNCTION String32 str32FromStr8(MemoryArena* arena, String8 str) {
     u8* opl = str.base + str.size;
 
     for(;ptr < opl;) {
-        StringDecode decode = strDecodeUtf8(ptr, (u64)(opl - ptr));
+        StringDecode decode = strDecodeUtf8(ptr, (u32)(opl - ptr));
         if(decode.size == 0) break;
         *dptr = decode.codepoint;
         ptr += decode.size;
@@ -498,7 +498,7 @@ GROUNDED_FUNCTION String32 str32FromStr16(struct MemoryArena* arena, String16 st
     u16* opl = str.base + str.size;
 
     for(;ptr < opl;) {
-        StringDecode decode = strDecodeUtf16(ptr, (u64)(opl - ptr));
+        StringDecode decode = strDecodeUtf16(ptr, (u32)(opl - ptr));
         if(decode.size == 0) break;
         *dptr = decode.codepoint;
         ptr += decode.size;

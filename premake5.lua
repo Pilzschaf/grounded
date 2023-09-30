@@ -32,7 +32,7 @@ workspace "Grounded"
             "_GNU_SOURCE",
         }
     
-    filter "system:window"
+    filter "system:windows"
         -- TODO: Check if we should enable stuff like Werror/Wall for windows
         defines
         { 
@@ -92,10 +92,20 @@ project "DoubleClick"
     }
     links
     {
-        "EGL",
-        "GL",
+        
         --"glew",
     }
+    filter "system:windows"
+        links
+        {
+            "opengl32",
+        }
+    filter "system:linux"
+        links
+        {
+            "GL",
+            "EGL",
+        }
 
 project "GroundedStatic"
     kind "StaticLib"
