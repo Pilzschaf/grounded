@@ -646,6 +646,15 @@ exit:
     }
 }
 
+GROUNDED_FUNCTION void* groundedWindowLoadGlFunction(const char* symbol) {
+    if (!wglLoaded) {
+        wglLoaded = loadWGL();
+    }
+
+    void* result = wglGetProcAddress(symbol);
+    return result;
+}
+
 //TODO: On Windows it seems to be the case that we have to know the pixel format upon at window creation. How to solve this nicely?
 // This is also the case for linux I think. But on windows we acually require the window to set the pixel format. This is the actual problem
 // HDC is required for context creation...
