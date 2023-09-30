@@ -455,6 +455,7 @@ GROUNDED_FUNCTION void groundedStartDragAndDropWithSingleDataType(GroundedWindow
 // ************
 // OpenGL stuff
 #ifdef GROUNDED_OPENGL_SUPPORT
+static void* glLibrary;
 GROUNDED_FUNCTION GroundedOpenGLContext* groundedCreateOpenGLContext(MemoryArena* arena, GroundedOpenGLContext* contextToShareResources) {
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
 
@@ -489,6 +490,27 @@ GROUNDED_FUNCTION GroundedOpenGLContext* groundedCreateOpenGLContext(MemoryArena
         default:break;
     }
     return false;
+}
+
+GROUNDED_FUNCTION void* groundedWindowLoadGlFunction(const char* symbol) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+    void* result = 0;
+
+    if(!glLibrary) {
+        glLibrary = dlopen("libGL.so", RTLD_LAZY | RTLD_LOCAL);
+        if(!glLibrary) {
+            GROUNDED_LOG_ERROR("Could not find libGL.so");
+        }
+    }
+
+    if(glLibrary) {
+        result = dlsym(glLibrary, symbol);
+        if(!result) {
+            GROUNDED_LOG_ERROR("Could not load symbol from GL");
+        }
+    }
+
+    return result;
 }
 
 GROUNDED_FUNCTION void groundedMakeOpenGLContextCurrent(GroundedWindow* window, GroundedOpenGLContext* context) {

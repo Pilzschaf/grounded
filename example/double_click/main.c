@@ -3,7 +3,9 @@
 #include <grounded/memory/grounded_memory.h>
 
 #include <stdio.h>
-#include <GL/gl.h>
+//#include <GL/gl.h>
+
+#define GL_COLOR_BUFFER_BIT 0x00004000
 
 int main() {
     { // Thread context initialization
@@ -29,6 +31,9 @@ int main() {
 
     GroundedOpenGLContext* openGLContext = groundedCreateOpenGLContext(threadContextGetScratch(0), 0);
     groundedMakeOpenGLContextCurrent(window, openGLContext);
+
+    void (*glClearColor)(float, float, float, float) = groundedWindowLoadGlFunction("glClearColor");
+    void (*glClear)(int) = groundedWindowLoadGlFunction("glClear");
 
     // Message loop
     u32 eventCount = 0;

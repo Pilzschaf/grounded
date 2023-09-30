@@ -103,7 +103,7 @@ project "DoubleClick"
     filter "system:linux"
         links
         {
-            "GL",
+            --"GL",
         }
 
 project "GroundedStatic"
