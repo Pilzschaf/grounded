@@ -89,7 +89,7 @@ GROUNDED_FUNCTION bool str8IsPostfixOf(String8 postfix, String8 str) {
             }
         }
     }
-    return true;
+    return result;
 }
 
 GROUNDED_FUNCTION bool str8IsSubstringOf(String8 substring, String8 str) {
