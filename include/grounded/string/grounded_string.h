@@ -89,6 +89,9 @@ GROUNDED_FUNCTION String8 str8Substring(String8 str, u64 first, u64 last);
 GROUNDED_FUNCTION bool str8Compare(String8 a, String8 b);
 GROUNDED_FUNCTION u64 str8GetFirstOccurence(String8 str, char c); // Returns UINT64_MAX if not found
 GROUNDED_FUNCTION u64 str8GetLastOccurence(String8 str, char c); // Returns UINT64_MAX if not found
+GROUNDED_FUNCTION bool str8IsPrefixOf(String8 prefix, String8 str);
+GROUNDED_FUNCTION bool str8IsPostfixOf(String8 postfix, String8 str);
+GROUNDED_FUNCTION bool str8IsSubstringOf(String8 substring, String8 str);
 
 struct MemoryArena;
 GROUNDED_FUNCTION String8 str8FromFormat(struct MemoryArena* arena, const char* format, ...);

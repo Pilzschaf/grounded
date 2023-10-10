@@ -38,6 +38,7 @@
 #define WL_DATA_OFFER_RECEIVE 1
 #define WL_DATA_OFFER_DESTROY 2
 #define WL_DATA_OFFER_FINISH 3
+#define WL_DATA_OFFER_SET_ACTIONS 4
 
 #define WL_DATA_SOURCE_OFFER 0
 #define WL_DATA_SOURCE_DESTROY 1
@@ -352,6 +353,11 @@ static inline void wl_data_offer_receive(struct wl_data_offer *wl_data_offer, co
 static inline void wl_data_offer_finish(struct wl_data_offer *wl_data_offer) {
 	wl_proxy_marshal_flags((struct wl_proxy *) wl_data_offer,
 			 WL_DATA_OFFER_FINISH, NULL, wl_proxy_get_version((struct wl_proxy *) wl_data_offer), 0);
+}
+
+static inline void wl_data_offer_set_actions(struct wl_data_offer *wl_data_offer, uint32_t dnd_actions, uint32_t preferred_action) {
+	wl_proxy_marshal_flags((struct wl_proxy *) wl_data_offer,
+			 WL_DATA_OFFER_SET_ACTIONS, NULL, wl_proxy_get_version((struct wl_proxy *) wl_data_offer), 0, dnd_actions, preferred_action);
 }
 
 static inline void wl_data_offer_destroy(struct wl_data_offer *wl_data_offer) {

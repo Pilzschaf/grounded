@@ -64,6 +64,54 @@ GROUNDED_FUNCTION u64 str8GetLastOccurence(String8 str, char c) {
     return UINT64_MAX;
 }
 
+GROUNDED_FUNCTION bool str8IsPrefixOf(String8 prefix, String8 str) {
+    bool result = false;
+    if(prefix.size <= str.size) {
+        result = true;
+        for(u64 i = 0; i < prefix.size; ++i) {
+            if(prefix.base[i] != str.base[i]) {
+                result = false;
+                break;
+            }
+        }
+    }
+    return result;
+}
+
+GROUNDED_FUNCTION bool str8IsPostfixOf(String8 postfix, String8 str) {
+    bool result = false;
+    if(postfix.size <= str.size) {
+        result = true;
+        for(u64 i = 0; i < postfix.size; ++i) {
+            if(postfix.base[postfix.size-i-1] != str.base[str.size-i-1]) {
+                result = false;
+                break;
+            }
+        }
+    }
+    return true;
+}
+
+GROUNDED_FUNCTION bool str8IsSubstringOf(String8 substring, String8 str) {
+    bool result = false;
+    if(substring.size <= str.size) {
+        for(u64 i = 0; i < (str.size - substring.size + 1); ++i) {
+            result = true;
+            for(u64 j = 0; j < substring.size; ++j) {
+                ASSERT(i+j < str.size);
+                if(substring.base[j] != str.base[i+j]) {
+                    result = false;
+                    break;
+                }
+            }
+            if(result) {
+                break;
+            }
+        }
+    }
+    return result;
+}
+
 static String8 str8FromFormatVaList(struct MemoryArena* arena, const char* format, va_list args) {
     // in case we need to try a second time
     va_list args2;
