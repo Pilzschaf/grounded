@@ -42,10 +42,14 @@ typedef struct GroundedEvent {
 		struct {
 			u32 button;
 			GroundedWindow* window;
+			s32 mousePositionX;
+			s32 mousePositionY;
 		} buttonDown;
 		struct {
 			u32 button;
 			GroundedWindow* window;
+			s32 mousePositionX;
+			s32 mousePositionY;
 		} buttonUp;
     };
 } GroundedEvent;
@@ -148,8 +152,8 @@ struct GroundedWindowCreateParameters {
 GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(MemoryArena* arena, struct GroundedWindowCreateParameters* parameters);
 GROUNDED_FUNCTION void groundedDestroyWindow(GroundedWindow* window);
 
-GROUNDED_FUNCTION u32 groundedGetWindowWidth(GroundedWindow* window);
-GROUNDED_FUNCTION u32 groundedGetWindowHeight(GroundedWindow* window);
+GROUNDED_FUNCTION u32 groundedWindowGetWidth(GroundedWindow* window);
+GROUNDED_FUNCTION u32 groundedWindowGetHeight(GroundedWindow* window);
 
 GROUNDED_FUNCTION void groundedWindowSetSize(GroundedWindow* window, u32 width, u32 height);
 GROUNDED_FUNCTION void groundedWindowSetTitle(GroundedWindow* window, String8 title);
@@ -172,7 +176,7 @@ GROUNDED_FUNCTION void groundedStartDragAndDrop(GroundedWindow* window, u64 mime
 GROUNDED_FUNCTION void groundedStartDragAndDropWithSingleDataType(GroundedWindow* window, String8 mimeType, u8* data, u64 size, GroundedWindowDragPayloadImage* image); // Data can be freed after this call
 GROUNDED_FUNCTION String8 groundedGetDragAndDropDataAsMimeType(struct GroundedDragPayload* payload, String8 mimeType);
 GROUNDED_FUNCTION MemoryArena* groundedGetPayloadMemoryArena(struct GroundedDragPayload* payload);
-GROUNDED_FUNCTION GroundedWindowDragPayloadImage* groundedCreateDragImage(MemoryArena* arena, u8* data, u32 width, u32 height);
+GROUNDED_FUNCTION GroundedWindowDragPayloadImage* groundedWindowCreateDragImage(MemoryArena* arena, u8* data, u32 width, u32 height);
 //TODO: Additional helpers for quick retrieval of text, single file and multiple files
 
 // Retuned array must not be used anymore once get or poll events is called again

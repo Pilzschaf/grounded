@@ -492,8 +492,8 @@ static void pointerHandleMotion(void *data, struct wl_pointer *wl_pointer, uint3
             if(hit == GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_BORDER) {
                 float x = posX;
                 float y = posY;
-                float width = groundedGetWindowWidth((GroundedWindow*)activeWindow);
-                float height = groundedGetWindowHeight((GroundedWindow*)activeWindow);
+                float width = groundedWindowGetWidth((GroundedWindow*)activeWindow);
+                float height = groundedWindowGetHeight((GroundedWindow*)activeWindow);
                 float offset = 27.0f;
                 u32 edges = 0;
                 if(x < offset) {
@@ -551,8 +551,8 @@ static void pointerHandleButton(void *data, struct wl_pointer *wl_pointer, uint3
             u32 edges = 0;
             float x = activeWindow->mouseState.x;
             float y = activeWindow->mouseState.y;
-            float width = groundedGetWindowWidth((GroundedWindow*)activeWindow);
-            float height = groundedGetWindowHeight((GroundedWindow*)activeWindow);
+            float width = groundedWindowGetWidth((GroundedWindow*)activeWindow);
+            float height = groundedWindowGetHeight((GroundedWindow*)activeWindow);
             float offset = 20.0f;
             if(x < offset) {
                 edges |= XDG_TOPLEVEL_RESIZE_EDGE_LEFT;
@@ -578,12 +578,16 @@ static void pointerHandleButton(void *data, struct wl_pointer *wl_pointer, uint3
             .type = GROUNDED_EVENT_TYPE_BUTTON_DOWN,
             .buttonDown.button = buttonCode,
             .buttonDown.window = (GroundedWindow*)activeWindow,
+            .buttonDown.mousePositionX = activeWindow->mouseState.x,
+            .buttonDown.mousePositionY = activeWindow->mouseState.y,
         };
     } else {
         eventQueue[eventQueueIndex++] = (GroundedEvent){
             .type = GROUNDED_EVENT_TYPE_BUTTON_UP,
             .buttonUp.button = buttonCode,
             .buttonUp.window = (GroundedWindow*)activeWindow,
+            .buttonUp.mousePositionX = activeWindow->mouseState.x,
+            .buttonUp.mousePositionY = activeWindow->mouseState.y,
         };
     }
 }
@@ -1892,7 +1896,7 @@ void waylandStartDragAndDrop(MemoryArena* arena, GroundedWaylandWindow* window, 
     setCursorOverwrite(GROUNDED_MOUSE_CURSOR_GRABBING);
 
     struct wl_surface* icon = 0;
-    if(image && false) {
+    if(image) {
         icon = wl_compositor_create_surface(compositor);
         // TODO: Move image into icon
         u64 imageSize = image->width * image->height * sizeof(u32);
@@ -1915,7 +1919,8 @@ void waylandStartDragAndDrop(MemoryArena* arena, GroundedWaylandWindow* window, 
     arenaEndTemp(temp);
 }
 
-GROUNDED_FUNCTION GroundedWindowDragPayloadImage* groundedCreateDragImage(MemoryArena* arena, u8* data, u32 width, u32 height) {
+//TODO: Also implement for xcb!
+GROUNDED_FUNCTION GroundedWindowDragPayloadImage* groundedWindowCreateDragImage(MemoryArena* arena, u8* data, u32 width, u32 height) {
     GroundedWindowDragPayloadImage* result = ARENA_PUSH_STRUCT(arena, GroundedWindowDragPayloadImage);
 
     result->data = data;

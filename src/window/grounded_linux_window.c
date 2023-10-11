@@ -91,7 +91,7 @@ GROUNDED_FUNCTION void groundedDestroyWindow(GroundedWindow* window) {
     }
 }
 
-GROUNDED_FUNCTION u32 groundedGetWindowWidth(GroundedWindow* window) {
+GROUNDED_FUNCTION u32 groundedWindowGetWidth(GroundedWindow* window) {
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
         case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
@@ -105,7 +105,7 @@ GROUNDED_FUNCTION u32 groundedGetWindowWidth(GroundedWindow* window) {
     return 0;
 }
 
-GROUNDED_FUNCTION u32 groundedGetWindowHeight(GroundedWindow* window) {
+GROUNDED_FUNCTION u32 groundedWindowGetHeight(GroundedWindow* window) {
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
         case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
