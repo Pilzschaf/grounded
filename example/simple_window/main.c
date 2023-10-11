@@ -23,7 +23,7 @@ int main() {
     u32 eventCount = 0;
     bool running = true;
     while(running) {
-        GroundedEvent* events = groundedPollEvents(&eventCount);
+        GroundedEvent* events = groundedWindowPollEvents(&eventCount);
         for(u32 i = 0; i < eventCount; ++i) {
             if(events[i].type == GROUNDED_EVENT_TYPE_CLOSE_REQUEST) {
                 running = false;

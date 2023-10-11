@@ -1863,31 +1863,73 @@ static struct wl_data_source_listener dataSourceListener = {
     dataSourceHandleAction,
 };
 
-struct GroundedWindowDragPayloadImage {
-    u8* data;
-    u32 width;
-    u32 height;
+struct GroundedWindowDragPayloadDescription {
+    MemoryArena arena;
+    struct wl_surface* icon;
+    u32 mimeTypeCount;
+    String8* mimeTypes;
 };
 
-void waylandStartDragAndDrop(MemoryArena* arena, GroundedWaylandWindow* window, u64 mimeTypeCount, String8* mimeTypes, GroundedWindowDndSendCallback* callback, GroundedWindowDragPayloadImage* image, void* userData) {
+GROUNDED_FUNCTION GroundedWindowDragPayloadDescription* groundedWindowPrepareDragPayload(GroundedWindow* window) {
+    GroundedWindowDragPayloadDescription* result = ARENA_BOOTSTRAP_PUSH_STRUCT(createGrowingArena(osGetMemorySubsystem(), KB(4)), GroundedWindowDragPayloadDescription, arena);
+    return result;
+}
+
+GROUNDED_FUNCTION MemoryArena* groundedWindowDragPayloadGetArena(GroundedWindowDragPayloadDescription* desc) {
+    return &desc->arena;
+}
+
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetImage(GroundedWindowDragPayloadDescription* desc, u8* data, u32 width, u32 height) {
+    // It is not allowed to set the image twice
+    ASSERT(!desc->icon);
+    
+    if(!desc->icon) {
+        desc->icon = wl_compositor_create_surface(compositor);
+        if(desc->icon) {
+            u64 imageSize = width * height * sizeof(u32);
+            int fd = createSharedMemoryFile(imageSize);
+            u8* poolData = mmap(0, imageSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+            struct wl_shm_pool* pool = wl_shm_create_pool(waylandShm, fd, imageSize);
+
+            struct wl_buffer* wlBuffer = wl_shm_pool_create_buffer(pool, 0, width, height, width * sizeof(u32), WL_SHM_FORMAT_XRGB8888);
+            MEMORY_COPY(poolData, data, imageSize);
+
+            wl_surface_attach(desc->icon, wlBuffer, 0, 0);
+            wl_surface_damage(desc->icon, 0, 0, UINT32_MAX, UINT32_MAX);
+            wl_surface_commit(desc->icon);
+        }
+    }
+}
+
+//TODO: Could create linked list of mime types. This would allow an API where the user can add mime types to a list. 
+// Even different handling functions per mime type would be possible but is this actually desirable?
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetMimeTypes(GroundedWindowDragPayloadDescription* desc, u32 mimeTypeCount, String8* mimeTypes) {
+    // Only allowed to set mime types once
+    ASSERT(!desc->mimeTypeCount);
+    ASSERT(!desc->mimeTypes);
+
+    desc->mimeTypes = ARENA_PUSH_ARRAY_NO_CLEAR(&desc->arena, mimeTypeCount, String8);
+    for(u64 i = 0; i < mimeTypeCount; ++i) {
+        desc->mimeTypes[i] = str8CopyAndNullTerminate(&desc->arena, mimeTypes[i]);
+    }
+}
+
+GROUNDED_FUNCTION void groundedWindowBeginDragAndDrop(GroundedWindowDragPayloadDescription* desc, void* userData) {
     // Serial is the last pointer serial. Should probably be pointer button serial
     MemoryArena* scratch = threadContextGetScratch(0);
     ArenaTempMemory temp = arenaBeginTemp(scratch);
     
-    struct WaylandDataSource* waylandDataSource = ARENA_PUSH_STRUCT(arena, struct WaylandDataSource);
-    waylandDataSource->arena = arena;
-    waylandDataSource->callback = callback;
+    struct WaylandDataSource* waylandDataSource = ARENA_PUSH_STRUCT(&desc->arena, struct WaylandDataSource);
+    waylandDataSource->arena = &desc->arena;
+    //waylandDataSource->callback = callback;
     waylandDataSource->userData = userData;
-    waylandDataSource->mimeTypeCount = mimeTypeCount;
-    waylandDataSource->mimeTypes = ARENA_PUSH_ARRAY_NO_CLEAR(arena, mimeTypeCount, String8);
-    for(u64 i = 0; i < mimeTypeCount; ++i) {
-        waylandDataSource->mimeTypes[i] = str8CopyAndNullTerminate(arena, mimeTypes[i]);
-    }
+    waylandDataSource->mimeTypeCount = desc->mimeTypeCount;
+    waylandDataSource->mimeTypes = desc->mimeTypes;
 
     struct wl_data_source* dataSource = wl_data_device_manager_create_data_source(dataDeviceManager);
     wl_data_source_add_listener(dataSource, &dataSourceListener, waylandDataSource);
-    for(u64 i = 0; i < mimeTypeCount; ++i) {
-        wl_data_source_offer(dataSource, str8GetCstr(scratch, mimeTypes[i]));
+    for(u64 i = 0; i < waylandDataSource->mimeTypeCount; ++i) {
+        wl_data_source_offer(dataSource, str8GetCstr(scratch, waylandDataSource->mimeTypes[i]));
     }
     if(dataDeviceManagerVersion >= 3) {
         wl_data_source_set_actions(dataSource, WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE | WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY);
@@ -1895,37 +1937,11 @@ void waylandStartDragAndDrop(MemoryArena* arena, GroundedWaylandWindow* window, 
 
     setCursorOverwrite(GROUNDED_MOUSE_CURSOR_GRABBING);
 
-    struct wl_surface* icon = 0;
-    if(image) {
-        icon = wl_compositor_create_surface(compositor);
-        // TODO: Move image into icon
-        u64 imageSize = image->width * image->height * sizeof(u32);
-        int fd = createSharedMemoryFile(imageSize);
-        u8* poolData = mmap(0, imageSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-        struct wl_shm_pool* pool = wl_shm_create_pool(waylandShm, fd, imageSize);
+    struct wl_surface* icon = desc->icon;
 
-        struct wl_buffer* wlBuffer = wl_shm_pool_create_buffer(pool, 0, image->width, image->height, image->width * sizeof(u32), WL_SHM_FORMAT_XRGB8888);
-        MEMORY_COPY(poolData, image->data, imageSize);
-
-        wl_surface_attach(icon, wlBuffer, 0, 0);
-        wl_surface_damage(icon, 0, 0, UINT32_MAX, UINT32_MAX);
-        wl_surface_commit(icon);
-    }
-
-    ASSERT(activeWindow == window);
+    //ASSERT(activeWindow == desc->window);
     printf("Drag serial: %u\n", lastPointerSerial);
-    wl_data_device_start_drag(dataDevice, dataSource, window->surface, icon, lastPointerSerial);
+    wl_data_device_start_drag(dataDevice, dataSource, activeWindow->surface, desc->icon, lastPointerSerial);
 
     arenaEndTemp(temp);
-}
-
-//TODO: Also implement for xcb!
-GROUNDED_FUNCTION GroundedWindowDragPayloadImage* groundedWindowCreateDragImage(MemoryArena* arena, u8* data, u32 width, u32 height) {
-    GroundedWindowDragPayloadImage* result = ARENA_PUSH_STRUCT(arena, GroundedWindowDragPayloadImage);
-
-    result->data = data;
-    result->width = width;
-    result->height = height;
-
-    return result;
 }

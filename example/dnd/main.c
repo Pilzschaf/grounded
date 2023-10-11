@@ -121,7 +121,7 @@ int main() {
     u32 eventCount = 0;
     bool running = true;
     while(running) {
-        GroundedEvent* events = groundedPollEvents(&eventCount);
+        GroundedEvent* events = groundedWindowPollEvents(&eventCount);
         for(u32 i = 0; i < eventCount; ++i) {
             if(events[i].type == GROUNDED_EVENT_TYPE_CLOSE_REQUEST) {
                 // Completely close application when one of the window gets closed
@@ -145,8 +145,10 @@ int main() {
                                 for(u32 i = 0; i < (boxes[j].size * boxes[j].size); ++i) {
                                     pixelData[i] = ((u32)(color.a * 255) << 24) | (u32)(color.r * 255) << 16 | (u32)(color.g * 255) << 8 | (u32)(color.b * 255) << 0;
                                 }
-                                GroundedWindowDragPayloadImage* payloadImage = groundedWindowCreateDragImage(scratch, (u8*)pixelData, boxes[j].size, boxes[j].size);
-                                groundedStartDragAndDrop(events[i].buttonDown.window, 1, &mimeType, sendCallback, payloadImage, 0);
+                                GroundedWindowDragPayloadDescription* desc = groundedWindowPrepareDragPayload(boxes[j].associatedWindow);
+                                groundedWindowDragPayloadSetImage(desc, (u8*)pixelData, boxes[j].size, boxes[j].size);
+                                groundedWindowDragPayloadSetMimeTypes(desc, 1, &mimeType);
+                                groundedWindowBeginDragAndDrop(desc, 0);
                                 arenaEndTemp(temp);
                                 boxes[j].associatedWindow = 0;
                             }

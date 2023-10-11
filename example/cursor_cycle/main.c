@@ -31,7 +31,7 @@ int main() {
     u32 cursorType = GROUNDED_MOUSE_CURSOR_DEFAULT;
     groundedSetCursorType(cursorType);
     while(running) {
-        GroundedEvent* events = groundedPollEvents(&eventCount);
+        GroundedEvent* events = groundedWindowPollEvents(&eventCount);
         for(u32 i = 0; i < eventCount; ++i) {
             if(events[i].type == GROUNDED_EVENT_TYPE_CLOSE_REQUEST) {
                 running = false;
