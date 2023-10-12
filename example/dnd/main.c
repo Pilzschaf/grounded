@@ -49,6 +49,8 @@ void updateAndRenderWindow(GroundedWindow* window) {
 
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     glBegin(GL_TRIANGLES);
 
@@ -75,6 +77,11 @@ void updateAndRenderWindow(GroundedWindow* window) {
 
 GROUNDED_WINDOW_DND_SEND_CALLBACK(sendCallback) {
     return STR8_LITERAL("Box");
+}
+
+GROUNDED_WINDOW_DND_CANCEL_CALLBACK(cancelCallback) {
+    struct Box* box = (struct Box*)userData;
+    box->color.a = 1.0f;
 }
 
 int main() {
@@ -148,9 +155,12 @@ int main() {
                                 GroundedWindowDragPayloadDescription* desc = groundedWindowPrepareDragPayload(boxes[j].associatedWindow);
                                 groundedWindowDragPayloadSetImage(desc, (u8*)pixelData, boxes[j].size, boxes[j].size);
                                 groundedWindowDragPayloadSetMimeTypes(desc, 1, &mimeType);
-                                groundedWindowBeginDragAndDrop(desc, 0);
+                                groundedWindowDragPayloadSetSendCallback(desc, sendCallback);
+                                groundedWindowDragPayloadSetCancelCallback(desc, cancelCallback);
+                                groundedWindowBeginDragAndDrop(desc, &boxes[j]);
                                 arenaEndTemp(temp);
-                                boxes[j].associatedWindow = 0;
+                                //boxes[j].associatedWindow = 0;
+                                boxes[j].color.a = 0.5f;
                             }
                         }
                     }

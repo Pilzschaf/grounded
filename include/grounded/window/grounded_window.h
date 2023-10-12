@@ -130,6 +130,8 @@ typedef GROUNDED_WINDOW_DND_DROP_CALLBACK(GroundedWindowDndDropCallback);
 typedef GROUNDED_WINDOW_DND_CALLBACK(GroundedWindowDndCallback);
 #define GROUNDED_WINDOW_DND_SEND_CALLBACK(name) String8 name(MemoryArena* arena, String8 mimeType, u64 mimeIndex, void* userData)
 typedef GROUNDED_WINDOW_DND_SEND_CALLBACK(GroundedWindowDndSendCallback);
+#define GROUNDED_WINDOW_DND_CANCEL_CALLBACK(name) void name(MemoryArena* arena, void* userData)
+typedef GROUNDED_WINDOW_DND_CANCEL_CALLBACK(GroundedWindowDndCancelCallback);
 
 struct GroundedWindowCreateParameters {
 	String8 title;
@@ -176,6 +178,8 @@ GROUNDED_FUNCTION GroundedWindowDragPayloadDescription* groundedWindowPrepareDra
 GROUNDED_FUNCTION MemoryArena* groundedWindowDragPayloadGetArena(GroundedWindowDragPayloadDescription* desc);
 GROUNDED_FUNCTION void groundedWindowDragPayloadSetImage(GroundedWindowDragPayloadDescription* desc, u8* data, u32 width, u32 height);
 GROUNDED_FUNCTION void groundedWindowDragPayloadSetMimeTypes(GroundedWindowDragPayloadDescription* desc, u32 mimeTypeCount, String8* mimeTypes);
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetSendCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndSendCallback* callback);
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetCancelCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndCancelCallback* callback);
 GROUNDED_FUNCTION void groundedWindowBeginDragAndDrop(GroundedWindowDragPayloadDescription* desc, void* userData);
 
 //GROUNDED_FUNCTION void groundedStartDragAndDrop(GroundedWindow* window, u64 mimeTypeCount, String8* mimeTypes, GroundedWindowDndSendCallback* callback, GroundedWindowDragPayloadImage* image, void* userData);

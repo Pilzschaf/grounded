@@ -731,7 +731,7 @@ static void registry_global(void *data, struct wl_registry *registry, uint32_t i
     } else if(strcmp(interface, "wl_data_device_manager") == 0) {
         // For drag and drop and clipboard support
         u32 compositorSupportedVersion = version;
-        u32 requestedVersion = MIN(version, 1); // We support up to version 3
+        u32 requestedVersion = MIN(version, 3); // We support up to version 3
         dataDeviceManager = (struct wl_data_device_manager*)wl_registry_bind(registry, id, wl_data_device_manager_interface, requestedVersion);
         if(dataDeviceManager) {
             dataDeviceManagerVersion = requestedVersion;
@@ -1774,7 +1774,8 @@ struct WaylandDataSource {
     MemoryArena* arena;
     String8* mimeTypes;
     u64 mimeTypeCount;
-    GroundedWindowDndSendCallback* callback;
+    GroundedWindowDndSendCallback* sendCallback;
+    GroundedWindowDndCancelCallback* cancelCallback;
     void* userData;
     //enum wl_data_device_manager_dnd_action last_dnd_action = WL_DATA_DEVICE_MANAGER_DND_ACTION_NONE;
 };
@@ -1792,7 +1793,7 @@ static void dataSourceHandleTarget(void* data, struct wl_data_source* source, co
 static void dataSourceHandleSend(void *data, struct wl_data_source *wl_data_source, const char* _mimeType, int32_t fd) {
     struct WaylandDataSource* waylandDataSource = (struct WaylandDataSource*) data;
     ASSERT(waylandDataSource);
-    ASSERT(waylandDataSource->callback);
+    //ASSERT(waylandDataSource->sendCallback);
     printf("Target requests data\n");
     
     // Get index of mimeType
@@ -1808,9 +1809,9 @@ static void dataSourceHandleSend(void *data, struct wl_data_source *wl_data_sour
         }
     }
 
-    if(mimeTypeIndex < waylandDataSource->mimeTypeCount && waylandDataSource->callback) {
+    if(mimeTypeIndex < waylandDataSource->mimeTypeCount && waylandDataSource->sendCallback) {
         //TODO: Cache data of this mimetype
-        String8 data = waylandDataSource->callback(waylandDataSource->arena, mimeType, mimeTypeIndex, waylandDataSource->userData);
+        String8 data = waylandDataSource->sendCallback(waylandDataSource->arena, mimeType, mimeTypeIndex, waylandDataSource->userData);
         write(fd, data.base, data.size);
     }
 	close(fd);
@@ -1820,6 +1821,10 @@ static void dataSourceHandleSend(void *data, struct wl_data_source *wl_data_sour
 static void dataSourceHandleCancelled(void *data, struct wl_data_source * dataSource) {
     // If version is <= 2 this is only sent when the data source has been replaced by another source
     struct WaylandDataSource* waylandDataSource = (struct WaylandDataSource*) data;
+    if(waylandDataSource->cancelCallback) {
+        waylandDataSource->cancelCallback(waylandDataSource->arena, waylandDataSource->userData);
+    }
+    
     removeCursorOverwrite();
     wl_data_source_destroy(dataSource);
     arenaRelease(waylandDataSource->arena);
@@ -1868,6 +1873,8 @@ struct GroundedWindowDragPayloadDescription {
     struct wl_surface* icon;
     u32 mimeTypeCount;
     String8* mimeTypes;
+    GroundedWindowDndSendCallback* sendCallback;
+    GroundedWindowDndCancelCallback* cancelCallback;
 };
 
 GROUNDED_FUNCTION GroundedWindowDragPayloadDescription* groundedWindowPrepareDragPayload(GroundedWindow* window) {
@@ -1914,6 +1921,14 @@ GROUNDED_FUNCTION void groundedWindowDragPayloadSetMimeTypes(GroundedWindowDragP
     }
 }
 
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetSendCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndSendCallback* callback) {
+    desc->sendCallback = callback;
+}
+
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetCancelCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndCancelCallback* callback) {
+    desc->cancelCallback = callback;
+}
+
 GROUNDED_FUNCTION void groundedWindowBeginDragAndDrop(GroundedWindowDragPayloadDescription* desc, void* userData) {
     // Serial is the last pointer serial. Should probably be pointer button serial
     MemoryArena* scratch = threadContextGetScratch(0);
@@ -1921,7 +1936,8 @@ GROUNDED_FUNCTION void groundedWindowBeginDragAndDrop(GroundedWindowDragPayloadD
     
     struct WaylandDataSource* waylandDataSource = ARENA_PUSH_STRUCT(&desc->arena, struct WaylandDataSource);
     waylandDataSource->arena = &desc->arena;
-    //waylandDataSource->callback = callback;
+    waylandDataSource->sendCallback = desc->sendCallback;
+    waylandDataSource->cancelCallback = desc->cancelCallback;
     waylandDataSource->userData = userData;
     waylandDataSource->mimeTypeCount = desc->mimeTypeCount;
     waylandDataSource->mimeTypes = desc->mimeTypes;
