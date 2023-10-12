@@ -75,6 +75,29 @@ void updateAndRenderWindow(GroundedWindow* window) {
     groundedWindowGlSwapBuffers(window);
 }
 
+GROUNDED_WINDOW_DND_DROP_CALLBACK(boxDropCallback) {
+    //TODO: Now I have to somehow get the box data. Maybe I just want to serialize the pointer into the data and desrialize it again?
+    printf("Box drop\n");
+    for(u32 i = 0; i < ARRAY_COUNT(boxes); ++i) {
+        if(boxes[i].color.a < 1.0f) {
+            boxes[i].associatedWindow = window;
+            boxes[i].position = VEC2(x, groundedWindowGetHeight(window) - y - boxes[i].size);
+            boxes[i].color.a = 1.0f;
+        }
+    }
+}
+
+GROUNDED_WINDOW_DND_CALLBACK(dndCallback) {
+    for(u32 i = 0; i < mimeTypeCount; ++i) {
+        if(str8Compare(mimeTypes[i], STR8_LITERAL("application/box"))) {
+            *onDropCallback = boxDropCallback;
+            return i;
+        }
+    }
+    
+    return 0xFFFFFFFF;
+}
+
 GROUNDED_WINDOW_DND_SEND_CALLBACK(sendCallback) {
     return STR8_LITERAL("Box");
 }
@@ -101,6 +124,7 @@ int main() {
         .minHeight = 240,
         .width = 1240,
         .height = 720,
+        .dndCallback = dndCallback,
     });
 
     // Create window2
@@ -110,6 +134,7 @@ int main() {
         .minHeight = 240,
         .width = 1240,
         .height = 720,
+        .dndCallback = dndCallback,
     });
 
     boxes[0].associatedWindow = window1;

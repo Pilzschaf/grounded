@@ -731,7 +731,7 @@ static void registry_global(void *data, struct wl_registry *registry, uint32_t i
     } else if(strcmp(interface, "wl_data_device_manager") == 0) {
         // For drag and drop and clipboard support
         u32 compositorSupportedVersion = version;
-        u32 requestedVersion = MIN(version, 3); // We support up to version 3
+        u32 requestedVersion = MIN(version, 1); // We support up to version 3
         dataDeviceManager = (struct wl_data_device_manager*)wl_registry_bind(registry, id, wl_data_device_manager_interface, requestedVersion);
         if(dataDeviceManager) {
             dataDeviceManagerVersion = requestedVersion;
@@ -1711,7 +1711,7 @@ static void dataDeviceListenerDrop(void* data, struct wl_data_device* dataDevice
     
     // We should honor last action received from dataOffer.action. If it is copy or move we can do receive requests. End transfer with wl_data_offer_finish()
     
-    /*if(waylandOffer->lastAcceptedMimeIndex < waylandOffer->mimeTypeCount) {
+    if(waylandOffer->lastAcceptedMimeIndex < waylandOffer->mimeTypeCount) {
         int fds[2];
 	    pipe(fds);
         String8 mimeType = waylandOffer->mimeTypes[waylandOffer->lastAcceptedMimeIndex];
@@ -1742,7 +1742,7 @@ static void dataDeviceListenerDrop(void* data, struct wl_data_device* dataDevice
         if(waylandOffer->dropCallback) {
             waylandOffer->dropCallback(0, data, (GroundedWindow*)waylandOffer->window, waylandOffer->x, waylandOffer->y, mimeType);
         }
-    }*/
+    }
 
     if(dataDeviceManagerVersion >= 3) {
         wl_data_offer_finish(waylandOffer->offer);
@@ -1919,6 +1919,7 @@ GROUNDED_FUNCTION void groundedWindowDragPayloadSetMimeTypes(GroundedWindowDragP
     for(u64 i = 0; i < mimeTypeCount; ++i) {
         desc->mimeTypes[i] = str8CopyAndNullTerminate(&desc->arena, mimeTypes[i]);
     }
+    desc->mimeTypeCount = mimeTypeCount;
 }
 
 GROUNDED_FUNCTION void groundedWindowDragPayloadSetSendCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndSendCallback* callback) {
