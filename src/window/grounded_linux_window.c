@@ -241,7 +241,7 @@ GROUNDED_FUNCTION u64 groundedGetCounter() {
     return result;
 }
 
-GROUNDED_FUNCTION void groundedFetchKeyboardState(GroundedKeyboardState* keyboardState) {
+GROUNDED_FUNCTION void groundedWindowFetchKeyboardState(GroundedKeyboardState* keyboardState) {
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
         case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
@@ -254,7 +254,7 @@ GROUNDED_FUNCTION void groundedFetchKeyboardState(GroundedKeyboardState* keyboar
     }
 }
 
-GROUNDED_FUNCTION void groundedFetchMouseState(GroundedWindow* window, MouseState* mouseState) {
+GROUNDED_FUNCTION void groundedWindowFetchMouseState(GroundedWindow* window, MouseState* mouseState) {
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
 
     mouseState->lastX = mouseState->x;
