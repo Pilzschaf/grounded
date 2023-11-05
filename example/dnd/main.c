@@ -29,6 +29,7 @@ Box boxes[] = {
 GroundedOpenGLContext* openGLContext;
 
 void updateAndRenderWindow(GroundedWindow* window) {
+    if(!window) return;
     groundedMakeOpenGLContextCurrent(window, openGLContext);
     u32 windowWidth = groundedWindowGetWidth(window);
     u32 windowHeight = groundedWindowGetHeight(window);
@@ -156,8 +157,17 @@ int main() {
         GroundedEvent* events = groundedWindowPollEvents(&eventCount);
         for(u32 i = 0; i < eventCount; ++i) {
             if(events[i].type == GROUNDED_EVENT_TYPE_CLOSE_REQUEST) {
+                if(events[i].closeRequest.window == window1) {
+                    groundedDestroyWindow(events[i].closeRequest.window);
+                    window1 = 0;
+                } else if(events[i].closeRequest.window == window2) {
+                    groundedDestroyWindow(events[i].closeRequest.window);
+                    window2 = 0;
+                }
                 // Completely close application when one of the window gets closed
-                running = false;
+                if(!window1 && !window2) {
+                    running = false;
+                }
                 break;
             }
             if(events[i].type == GROUNDED_EVENT_TYPE_BUTTON_DOWN) {
@@ -198,8 +208,12 @@ int main() {
     }
 
     // Release resources
-    groundedDestroyWindow(window1);
-    groundedDestroyWindow(window2);
+    if(window1) {
+        groundedDestroyWindow(window1);
+    }
+    if(window2) {
+        groundedDestroyWindow(window2);
+    }
     groundedShutdownWindowSystem();
 
     return 0;

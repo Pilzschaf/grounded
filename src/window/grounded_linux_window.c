@@ -79,6 +79,7 @@ GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(MemoryArena* arena, struc
 }
 
 GROUNDED_FUNCTION void groundedDestroyWindow(GroundedWindow* window) {
+    ASSERT(window);
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
         case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{

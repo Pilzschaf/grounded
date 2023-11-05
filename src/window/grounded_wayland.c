@@ -1075,6 +1075,7 @@ static GroundedWindow* waylandCreateWindow(MemoryArena* arena, struct GroundedWi
 }
 
 static void waylandDestroyWindow(GroundedWaylandWindow* window) {
+    //TODO: Exception here after window close! Surface is probably null
     wl_surface_destroy(window->surface);
     wl_display_roundtrip(waylandDisplay);
 }

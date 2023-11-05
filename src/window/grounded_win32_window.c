@@ -287,6 +287,7 @@ GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(MemoryArena* arena, struc
 }
 
 GROUNDED_FUNCTION void groundedDestroyWindow(GroundedWindow* window) {
+    ASSERT(window);
     GroundedWin32Window* win32Window = (GroundedWin32Window*)window;
     DestroyWindow(win32Window->hWnd);
 }
