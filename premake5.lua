@@ -135,7 +135,7 @@ project "DND"
     filter "system:linux"
         links
         {
-            "GL",
+            --"GL",
         }
 
 project "GroundedStatic"
