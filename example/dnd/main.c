@@ -4,9 +4,15 @@
 #include <grounded/math/grounded_math.h>
 
 #include <stdio.h>
-#include <GL/gl.h>
+//#include <GL/gl.h>
 
-#define GL_COLOR_BUFFER_BIT 0x00004000
+#define GL_COLOR_BUFFER_BIT     0x00004000
+#define GL_MODELVIEW			0x1700
+#define GL_PROJECTION			0x1701
+#define GL_BLEND				0x0BE2
+#define GL_SRC_ALPHA			0x0302
+#define GL_ONE_MINUS_SRC_ALPHA	0x0303
+#define GL_TRIANGLES			0x0004
 
 //TODO: We need a way to know when a drag has been canceled! In this case we have to fill back the window!
 //TODO: We need a major rewrite of DragPayload creation and respecitve memory management.
@@ -25,6 +31,19 @@ Box boxes[] = {
     {.color = VEC4(1.0f, 0.0f, 0.0f, 1.0f), .position = VEC2(100, 100), .size = 150.0f},
     {.color = VEC4(0.0f, 0.0f, 1.0f, 1.0f), .position = VEC2(300, 200), .size = 100.0f},
 };
+
+void (*glClearColor)(float, float, float, float);
+void (*glClear)(int);
+void (*glBegin)(unsigned int mode);
+void (*glEnd)(void);
+void (*glMatrixMode)(unsigned int mode);
+void (*glLoadIdentity)(void);
+void (*glLoadMatrixf)(const float *m);
+void (*glViewport)(int x, int y, int width, int height);
+void (*glEnable)(unsigned int cap);
+void (*glBlendFunc)(unsigned int sfactor, unsigned int dfactor);
+void (*glColor4f)(float red, float green, float blue, float alpha);
+void (*glVertex2i)(int x, int y);
 
 GroundedOpenGLContext* openGLContext;
 
@@ -147,8 +166,18 @@ int main() {
     openGLContext = groundedCreateOpenGLContext(threadContextGetScratch(0), 0);
     groundedMakeOpenGLContextCurrent(window1, openGLContext);
 
-    void (*glClearColor)(float, float, float, float) = groundedWindowLoadGlFunction("glClearColor");
-    void (*glClear)(int) = groundedWindowLoadGlFunction("glClear");
+    glClearColor = groundedWindowLoadGlFunction("glClearColor");
+    glClear = groundedWindowLoadGlFunction("glClear");
+    glBegin = groundedWindowLoadGlFunction("glBegin");
+    glEnd = groundedWindowLoadGlFunction("glEnd");
+    glMatrixMode = groundedWindowLoadGlFunction("glMatrixMode");
+    glLoadIdentity = groundedWindowLoadGlFunction("glMatrixMode");
+    glLoadMatrixf = groundedWindowLoadGlFunction("glLoadMatrixf");
+    glViewport = groundedWindowLoadGlFunction("glViewport");
+    glEnable = groundedWindowLoadGlFunction("glEnable");
+    glBlendFunc = groundedWindowLoadGlFunction("glBlendFunc");
+    glColor4f = groundedWindowLoadGlFunction("glColor4f");
+    glVertex2i = groundedWindowLoadGlFunction("glVertex2i");
 
     // Message loop
     u32 eventCount = 0;
