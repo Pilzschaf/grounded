@@ -133,6 +133,10 @@ static inline struct wl_registry* wl_display_get_registry(struct wl_display *wl_
 	return (struct wl_registry *) registry;
 }
 
+static inline void wl_registry_destroy(struct wl_registry *wl_registry) {
+	wl_proxy_destroy((struct wl_proxy *) wl_registry);
+}
+
 static inline struct wl_surface* wl_compositor_create_surface(struct wl_compositor *wl_compositor) {
 	struct wl_proxy *id;
 
@@ -148,6 +152,10 @@ static inline struct wl_region* wl_compositor_create_region(struct wl_compositor
 			 WL_COMPOSITOR_CREATE_REGION, wl_region_interface, wl_proxy_get_version((struct wl_proxy *) wl_compositor), 0, NULL);
 
 	return (struct wl_region *) id;
+}
+
+static inline void wl_compositor_destroy(struct wl_compositor *wl_compositor) {
+	wl_proxy_destroy((struct wl_proxy *) wl_compositor);
 }
 
 static inline void wl_region_add(struct wl_region *wl_region, int32_t x, int32_t y, int32_t width, int32_t height) {
@@ -241,6 +249,10 @@ static inline int wl_seat_add_listener(struct wl_seat *wl_seat, const struct wl_
 	return wl_proxy_add_listener((struct wl_proxy *) wl_seat, (void (**)(void)) listener, data);
 }
 
+static inline void wl_seat_destroy(struct wl_seat *wl_seat) {
+	wl_proxy_destroy((struct wl_proxy *) wl_seat);
+}
+
 // https://wayland.dpldocs.info/source/wayland.native.util.d.html#L576
 static inline int wl_fixed_to_int(wl_fixed_t f){
     return f / 256;
@@ -306,6 +318,10 @@ static inline struct wl_buffer* wl_shm_pool_create_buffer(struct wl_shm_pool *wl
 
 static inline void wl_shm_pool_destroy(struct wl_shm_pool *wl_shm_pool) {
 	wl_proxy_marshal_flags((struct wl_proxy *) wl_shm_pool, WL_SHM_POOL_DESTROY, NULL, wl_proxy_get_version((struct wl_proxy *) wl_shm_pool), WL_MARSHAL_FLAG_DESTROY);
+}
+
+static inline void wl_shm_destroy(struct wl_shm *wl_shm) {
+	wl_proxy_destroy((struct wl_proxy *) wl_shm);
 }
 
 static inline struct wl_data_source * wl_data_device_manager_create_data_source(struct wl_data_device_manager *wl_data_device_manager) {

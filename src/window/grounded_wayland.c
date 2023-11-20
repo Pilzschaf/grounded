@@ -134,6 +134,7 @@ u32 dataDeviceManagerVersion;
 
 struct wl_compositor* compositor;
 struct wl_display* waylandDisplay;
+struct wl_registry* registry;
 struct xdg_wm_base* xdgWmBase;
 struct wl_keyboard* keyboard;
 struct wl_pointer* pointer;
@@ -741,7 +742,7 @@ static void registry_global(void *data, struct wl_registry *registry, uint32_t i
         ASSERT(xdgWmBase);
         xdg_wm_base_add_listener(xdgWmBase, &xdgWmBaseListener, 0);
     } else if(strcmp(interface,"wl_seat") == 0) {
-        // Seats are input devices like keyboards mice etc.
+        // Seats are input devices like keyboards mice etc. Actually a seat represents a single user
         struct wl_seat* seat = (struct wl_seat*)wl_registry_bind(registry, id, wl_seat_interface, 1);
         ASSERT(seat);
         wl_seat_add_listener(seat, &seatListener, 0);
@@ -954,7 +955,6 @@ static bool initWayland() {
         }
     }
 
-    struct wl_registry* registry;
     if(!error) {
         registry = wl_display_get_registry(waylandDisplay);
         if(!registry) {
@@ -978,9 +978,26 @@ static bool initWayland() {
 }
 
 static void shutdownWayland() {
-    //TODO: Release resources
-    //if(cursorTheme) wl_cursor_theme_destroy
+    //TODO: Release all resources
     //if(cursor) ... free
+    if(cursorTheme) {
+        wl_cursor_theme_destroy(cursorTheme);
+    }
+    if(cursorSurface) {
+        wl_surface_destroy(cursorSurface);
+    }
+    if(compositor) {
+        wl_compositor_destroy(compositor);
+    }
+    if(waylandShm) {
+        wl_shm_destroy(waylandShm);
+    }
+    if(decorationManager) {
+        zxdg_decoration_manager_v1_destroy(decorationManager);
+    }
+    if(xdgWmBase) {
+        xdg_wm_base_destroy(xdgWmBase);
+    }
     if(dragOffer) {
         wl_data_offer_destroy(dragOffer->offer);
         arenaRelease(&dragOffer->arena);
@@ -991,6 +1008,18 @@ static void shutdownWayland() {
     }
     if(dataDeviceManager) {
         wl_data_device_manager_destroy(dataDeviceManager);
+    }
+    if(pointer) {
+        wl_pointer_destroy(pointer);
+    }
+    if(keyboard) {
+        wl_keyboard_destroy(keyboard);
+    }
+    if(pointerSeat) {
+        wl_seat_destroy(pointerSeat);
+    }
+    if(registry) {
+        wl_registry_destroy(registry);
     }
     if(waylandDisplay) {
         wl_display_flush(waylandDisplay);
