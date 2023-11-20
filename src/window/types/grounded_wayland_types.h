@@ -326,6 +326,11 @@ static inline struct wl_data_device * wl_data_device_manager_get_data_device(str
 	return (struct wl_data_device *) id;
 }
 
+static inline void wl_data_device_manager_destroy(struct wl_data_device_manager *wl_data_device_manager) {
+	wl_proxy_destroy((struct wl_proxy *) wl_data_device_manager);
+}
+
+
 static inline void wl_data_device_start_drag(struct wl_data_device *wl_data_device, struct wl_data_source *source, struct wl_surface *origin, struct wl_surface *icon, uint32_t serial) {
 	wl_proxy_marshal_flags((struct wl_proxy *) wl_data_device,
 			 WL_DATA_DEVICE_START_DRAG, NULL, wl_proxy_get_version((struct wl_proxy *) wl_data_device), 0, source, origin, icon, serial);
@@ -334,6 +339,10 @@ static inline void wl_data_device_start_drag(struct wl_data_device *wl_data_devi
 static inline int wl_data_device_add_listener(struct wl_data_device *wl_data_device, const struct wl_data_device_listener *listener, void *data) {
 	return wl_proxy_add_listener((struct wl_proxy *) wl_data_device,
 				     (void (**)(void)) listener, data);
+}
+
+static inline void wl_data_device_destroy(struct wl_data_device *wl_data_device) {
+	wl_proxy_destroy((struct wl_proxy *) wl_data_device);
 }
 
 static inline void wl_data_offer_accept(struct wl_data_offer *wl_data_offer, uint32_t serial, const char *mime_type) {

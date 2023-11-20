@@ -27,6 +27,9 @@
 // Actually path is $XDG_DATA_DIRS/icons
 // Old variant was in ~/.icons
 
+// Because of wayland API design we need to store the current active drag offer. This should be done per datadevice which is per seat eg. per user
+struct WaylandDataOffer* dragOffer;
+
 struct wl_interface {
 	const char *name;
 	int version;
@@ -148,6 +151,25 @@ GroundedMouseCursor waylandCursorTypeOverwrite = GROUNDED_MOUSE_CURSOR_COUNT;
 GroundedWaylandWindow* activeWindow; // The window (if any) the mouse cursor is currently hovering
 
 GroundedKeyboardState waylandKeyState;
+
+struct WaylandDataOffer {
+    String8List availableMimeTypeList;
+    //TODO: Need to create a flat array for the mime types for easier API handling
+    MemoryArena arena;
+    bool dnd; // True for dnd data, false for clipboard data
+    GroundedWaylandWindow* window; // 0 for clipboard data
+    u32 enterSerial;
+    struct wl_data_offer* offer;
+    u32 allowedActions;
+    u32 selectedAction;
+
+    u32 mimeTypeCount;
+    u32 lastAcceptedMimeIndex;
+    String8* mimeTypes;
+    GroundedWindowDndDropCallback* dropCallback;
+    s32 x;
+    s32 y;
+};
 
 #include "types/grounded_wayland_types.h"
 
@@ -957,6 +979,23 @@ static bool initWayland() {
 
 static void shutdownWayland() {
     //TODO: Release resources
+    //if(cursorTheme) wl_cursor_theme_destroy
+    //if(cursor) ... free
+    if(dragOffer) {
+        wl_data_offer_destroy(dragOffer->offer);
+        arenaRelease(&dragOffer->arena);
+        dragOffer = 0;
+    }
+    if(dataDevice) {
+        wl_data_device_destroy(dataDevice);
+    }
+    if(dataDeviceManager) {
+        wl_data_device_manager_destroy(dataDeviceManager);
+    }
+    if(waylandDisplay) {
+        wl_display_flush(waylandDisplay);
+        wl_display_disconnect(waylandDisplay);
+    }
 }
 
 static void waylandSetWindowTitle(GroundedWaylandWindow* window, String8 title) {
@@ -1527,28 +1566,6 @@ static VkSurfaceKHR waylandGetVulkanSurface(GroundedWaylandWindow* window, VkIns
  * application/x-moz-file-promise-dest-filename
  * application/x-kde-suggestedfilename
  */
-
-// Because of wayland API design we need to store the current active drag offer. This should be done per datadevice which is per seat eg. per user
-struct WaylandDataOffer* dragOffer;
-
-struct WaylandDataOffer {
-    String8List availableMimeTypeList;
-    //TODO: Need to create a flat array for the mime types for easier API handling
-    MemoryArena arena;
-    bool dnd; // True for dnd data, false for clipboard data
-    GroundedWaylandWindow* window; // 0 for clipboard data
-    u32 enterSerial;
-    struct wl_data_offer* offer;
-    u32 allowedActions;
-    u32 selectedAction;
-
-    u32 mimeTypeCount;
-    u32 lastAcceptedMimeIndex;
-    String8* mimeTypes;
-    GroundedWindowDndDropCallback* dropCallback;
-    s32 x;
-    s32 y;
-};
 
 static void dataOfferHandleOffer(void* userData, struct wl_data_offer* offer, const char* mimeType) {
     // Sent immediately after creating a wl_data_offer object once for every mime type.
