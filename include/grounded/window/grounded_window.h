@@ -147,6 +147,7 @@ struct GroundedWindowCreateParameters {
 	//bool hidden;
 	//bool transparent;
 	void* userData;
+	bool inhibitIdle;
 	GroundedWindowCustomTitlebarCallback* customTitlebarCallback; //TODO: We should let clients with custom title bars know if they should show a titlebar or not
 	GroundedWindowDndCallback* dndCallback; // Application should return the index of the mime type it wants to accept. UINT32_MAX for none?
 };

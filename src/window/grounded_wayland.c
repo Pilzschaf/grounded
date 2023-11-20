@@ -56,6 +56,7 @@ typedef struct GroundedWaylandWindow {
     struct wl_surface* surface;
     struct xdg_surface* xdgSurface;
     struct xdg_toplevel* xdgToplevel;
+    struct zwp_idle_inhibitor_v1* idleInhibitor;
     u32 width;
     u32 height;
     void* userData;
@@ -142,7 +143,10 @@ u32 lastPointerSerial;
 struct wl_seat* pointerSeat;
 struct wl_data_device* dataDevice; // Data device tied to pointerSeat
 u32 pointerEnterSerial;
+
 struct zxdg_decoration_manager_v1* decorationManager;
+struct zwp_idle_inhibit_manager_v1* idleInhibitManager;
+
 struct wl_shm* waylandShm; // Shared memory interface to compositor
 struct wl_cursor_theme* cursorTheme;
 struct wl_surface* cursorSurface;
@@ -176,6 +180,7 @@ struct WaylandDataOffer {
 
 #include "wayland_protocols/xdg_shell.h"
 #include "wayland_protocols/xdg-decoration-unstable-v1.h"
+#include "wayland_protocols/idle-inhibit-unstable-v1.h"
 
 static void waylandWindowSetMaximized(GroundedWaylandWindow* window, bool maximized);
 GROUNDED_FUNCTION void waylandSetCursorType(enum GroundedMouseCursor cursorType);
@@ -749,6 +754,8 @@ static void registry_global(void *data, struct wl_registry *registry, uint32_t i
     } else if(strcmp(interface, "zxdg_decoration_manager_v1") == 0) {
         // Client and server side decoration negotiation
         decorationManager = (struct zxdg_decoration_manager_v1*)wl_registry_bind(registry, id, &zxdg_decoration_manager_v1_interface, 1);
+    } else if(strcmp(interface, "zwp_idle_inhibitor_v1") == 0) {
+        idleInhibitManager = (struct zwp_idle_inhibit_manager_v1*)wl_registry_bind(registry, id, &zwp_idle_inhibit_manager_v1_interface, 1);
     } else if(strcmp(interface, "wp_cursor_shape_manager_v1") == 0) {
         // Does not seem to be supported right now...
     } else if(strcmp(interface, "wl_data_device_manager") == 0) {
@@ -1082,6 +1089,15 @@ static void* waylandWindowGetUserData(GroundedWaylandWindow* window) {
     return window->userData;
 }
 
+static void waylandSetInhibitIdle(GroundedWaylandWindow* window, bool inhibitIdle) {
+    if(inhibitIdle && !window->idleInhibitor) {
+        window->idleInhibitor = zwp_idle_inhibit_manager_v1_create_inhibitor(idleInhibitManager, window->surface);
+    } else if(!inhibitIdle && window->idleInhibitor) {
+        zwp_idle_inhibitor_v1_destroy(window->idleInhibitor);
+        window->idleInhibitor = 0;
+    }
+}
+
 static GroundedWindow* waylandCreateWindow(MemoryArena* arena, struct GroundedWindowCreateParameters* parameters) {
     if(!parameters) {
         static struct GroundedWindowCreateParameters defaultParameters = {0};
@@ -1130,6 +1146,10 @@ static GroundedWindow* waylandCreateWindow(MemoryArena* arena, struct GroundedWi
     //struct zxdg_toplevel_decoration_v1* decoration = zxdg_decoration_manager_v1_get_toplevel_decoration(decorationManager, window->xdgToplevel);
     //zxdg_toplevel_decoration_v1_add_listener(decoration, &decorationListener, window);
     //zxdg_toplevel_decoration_v1_set_mode(decoration, ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
+
+    if(parameters->inhibitIdle) {
+        waylandSetInhibitIdle(window, true);
+    }
 
     window->dndCallback = parameters->dndCallback;
 
