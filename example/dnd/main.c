@@ -14,12 +14,6 @@
 #define GL_ONE_MINUS_SRC_ALPHA	0x0303
 #define GL_TRIANGLES			0x0004
 
-//TODO: We need a way to know when a drag has been canceled! In this case we have to fill back the window!
-//TODO: We need a major rewrite of DragPayload creation and respecitve memory management.
-//TODO: Some kind of prepare/submit style API might be best so we can reuse the arena that has to be created by the backend for the payload
-//TODO: Something like GroundedPayloadDescription which we initialize and can get a MemoryArena from.
-//TODO: GroundedPayloadDescription is an opque struct and must be passed to startDragAndDrop function
-
 typedef struct Box {
     vec4 color;
     vec2 position;
@@ -28,8 +22,8 @@ typedef struct Box {
 } Box;
 
 Box boxes[] = {
-    ((Box){.color = VEC4(1.0f, 0.0f, 0.0f, 1.0f), .position = VEC2(100, 100), .size = 150.0f}),
-    ((Box){.color = VEC4(0.0f, 0.0f, 1.0f, 1.0f), .position = VEC2(300, 200), .size = 100.0f}),
+    {.color = VEC4(1.0f, 0.0f, 0.0f, 1.0f), .position = VEC2(100, 100), .size = 150.0f},
+    {.color = VEC4(0.0f, 0.0f, 1.0f, 1.0f), .position = VEC2(300, 200), .size = 100.0f},
 };
 
 void (*glClearColor)(float, float, float, float);
