@@ -292,7 +292,7 @@ GROUNDED_FUNCTION void groundedDestroyWindow(GroundedWindow* window) {
     DestroyWindow(win32Window->hWnd);
 }
 
-GROUNDED_FUNCTION void groundedSetWindowTitle(GroundedWindow* window, String8 title) {
+GROUNDED_FUNCTION void groundedWindowSetTitle(GroundedWindow* window, String8 title) {
     GroundedWin32Window* win32Window = (GroundedWin32Window*)window;
     MemoryArena* scratch = threadContextGetScratch(0);
     ArenaTempMemory temp = arenaBeginTemp(scratch);
@@ -304,7 +304,7 @@ GROUNDED_FUNCTION void groundedSetWindowTitle(GroundedWindow* window, String8 ti
     arenaEndTemp(temp);
 }
 
-GROUNDED_FUNCTION GroundedEvent* groundedGetEvents(u32* eventCount, u32 maxWaitingTimeInMs) {
+GROUNDED_FUNCTION GroundedEvent* groundedWindowGetEvents(u32* eventCount, u32 maxWaitingTimeInMs) {
     *eventCount = 0;
     eventQueueIndex = 0;
 
@@ -332,7 +332,7 @@ GROUNDED_FUNCTION GroundedEvent* groundedGetEvents(u32* eventCount, u32 maxWaiti
     return eventQueue;
 }
 
-GROUNDED_FUNCTION GroundedEvent* groundedPollEvents(u32* eventCount) {
+GROUNDED_FUNCTION GroundedEvent* groundedWindowPollEvents(u32* eventCount) {
     *eventCount = 0;
     eventQueueIndex = 0;
 
@@ -352,21 +352,21 @@ GROUNDED_FUNCTION GroundedEvent* groundedPollEvents(u32* eventCount) {
     return eventQueue;
 }
 
-GROUNDED_FUNCTION u32 groundedGetWindowWidth(GroundedWindow* opaqueWindow) {
+GROUNDED_FUNCTION u32 groundedWindowGetWidth(GroundedWindow* opaqueWindow) {
     GroundedWin32Window* window = (GroundedWin32Window*)opaqueWindow;
     RECT size = {0};
     GetWindowRect(window->hWnd, &size);
     return ABS(size.right - size.left);
 }
 
-GROUNDED_FUNCTION u32 groundedGetWindowHeight(GroundedWindow* opaqueWindow) {
+GROUNDED_FUNCTION u32 groundedWindowGetHeight(GroundedWindow* opaqueWindow) {
     GroundedWin32Window* window = (GroundedWin32Window*)opaqueWindow;
     RECT size = {0};
     GetWindowRect(window->hWnd, &size);
     return ABS(size.top - size.bottom);
 }
 
-GROUNDED_FUNCTION void groundedFetchMouseState(GroundedWindow* opaqueWindow, MouseState* mouseState) {
+GROUNDED_FUNCTION void groundedWindowFetchMouseState(GroundedWindow* opaqueWindow, MouseState* mouseState) {
     GroundedWin32Window* window = (GroundedWin32Window*)opaqueWindow;
     mouseState->lastX = mouseState->x;
     mouseState->lastY = mouseState->y;
@@ -403,7 +403,7 @@ GROUNDED_FUNCTION void groundedFetchMouseState(GroundedWindow* opaqueWindow, Mou
     //printf("Mouse delta: %i,%i\n", mouseState->deltaX, mouseState->deltaY);
 }
 
-GROUNDED_FUNCTION void groundedFetchKeyboardState(GroundedKeyboardState* keyState) {
+GROUNDED_FUNCTION void groundedWindowFetchKeyboardState(GroundedKeyboardState* keyState) {
     memcpy(keyState->lastKeys, keyState->keys, sizeof(keyState->lastKeys));
 
     memcpy(keyState->keys, win32KeyboardState.keys, sizeof(keyState->keys));
