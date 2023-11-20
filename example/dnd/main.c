@@ -28,8 +28,8 @@ typedef struct Box {
 } Box;
 
 Box boxes[] = {
-    {.color = VEC4(1.0f, 0.0f, 0.0f, 1.0f), .position = VEC2(100, 100), .size = 150.0f},
-    {.color = VEC4(0.0f, 0.0f, 1.0f, 1.0f), .position = VEC2(300, 200), .size = 100.0f},
+    ((Box){.color = VEC4(1.0f, 0.0f, 0.0f, 1.0f), .position = VEC2(100, 100), .size = 150.0f}),
+    ((Box){.color = VEC4(0.0f, 0.0f, 1.0f, 1.0f), .position = VEC2(300, 200), .size = 100.0f}),
 };
 
 void (*glClearColor)(float, float, float, float);
