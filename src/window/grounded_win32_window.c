@@ -14,6 +14,7 @@
 
 #include <stdio.h>
 #include <grounded/threading/grounded_threading.h>
+#include <grounded/memory/grounded_memory.h>
 
 #ifdef GROUNDED_OPENGL_SUPPORT
 struct GroundedOpenGLContext {
@@ -532,6 +533,63 @@ GROUNDED_FUNCTION void groundedSetCustomCursor(u8* data, u32 width, u32 height) 
         }
     }
 }
+
+// *********
+// DND stuff
+struct GroundedWindowDragPayloadDescription {
+    MemoryArena arena;
+    u32 mimeTypeCount;
+    String8* mimeTypes;
+    GroundedWindowDndSendCallback* sendCallback;
+    GroundedWindowDndCancelCallback* cancelCallback;
+};
+
+GROUNDED_FUNCTION GroundedWindowDragPayloadDescription* groundedWindowPrepareDragPayload(GroundedWindow* window) {
+    GroundedWindowDragPayloadDescription* result = ARENA_BOOTSTRAP_PUSH_STRUCT(createGrowingArena(osGetMemorySubsystem(), KB(4)), GroundedWindowDragPayloadDescription, arena);
+    return result;
+}
+
+GROUNDED_FUNCTION MemoryArena* groundedWindowDragPayloadGetArena(GroundedWindowDragPayloadDescription* desc) {
+    return &desc->arena;
+}
+
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetImage(GroundedWindowDragPayloadDescription* desc, u8* data, u32 width, u32 height) {
+    //TODO: Implement
+}
+
+//TODO: Could create linked list of mime types. This would allow an API where the user can add mime types to a list. 
+// Even different handling functions per mime type would be possible but is this actually desirable?
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetMimeTypes(GroundedWindowDragPayloadDescription* desc, u32 mimeTypeCount, String8* mimeTypes) {
+    // Only allowed to set mime types once
+    ASSERT(!desc->mimeTypeCount);
+    ASSERT(!desc->mimeTypes);
+
+    desc->mimeTypes = ARENA_PUSH_ARRAY_NO_CLEAR(&desc->arena, mimeTypeCount, String8);
+    for (u64 i = 0; i < mimeTypeCount; ++i) {
+        desc->mimeTypes[i] = str8CopyAndNullTerminate(&desc->arena, mimeTypes[i]);
+    }
+    desc->mimeTypeCount = mimeTypeCount;
+}
+
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetSendCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndSendCallback* callback) {
+    desc->sendCallback = callback;
+}
+
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetCancelCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndCancelCallback* callback) {
+    desc->cancelCallback = callback;
+}
+
+GROUNDED_FUNCTION void groundedWindowBeginDragAndDrop(GroundedWindowDragPayloadDescription* desc, void* userData) {
+    // Serial is the last pointer serial. Should probably be pointer button serial
+    MemoryArena* scratch = threadContextGetScratch(0);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
+
+    //TODO: Implement
+
+    arenaEndTemp(temp);
+}
+
+
 
 // ************
 // OpenGL stuff
