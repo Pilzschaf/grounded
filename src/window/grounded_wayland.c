@@ -58,6 +58,7 @@ typedef struct GroundedWaylandWindow {
     struct xdg_surface* xdgSurface;
     struct xdg_toplevel* xdgToplevel;
     struct zwp_idle_inhibitor_v1* idleInhibitor;
+    struct zwp_confined_pointer_v1* confinedPointer;
     u32 width;
     u32 height;
     void* userData;
@@ -147,6 +148,8 @@ u32 pointerEnterSerial;
 
 struct zxdg_decoration_manager_v1* decorationManager;
 struct zwp_idle_inhibit_manager_v1* idleInhibitManager;
+struct zwp_pointer_constraints_v1* pointerConstraints;
+struct zwp_relative_pointer_manager_v1* relativePointerManager;
 
 struct wl_shm* waylandShm; // Shared memory interface to compositor
 struct wl_cursor_theme* cursorTheme;
@@ -200,6 +203,8 @@ STATIC_ASSERT(sizeof(waylandScreens) < KB(4)); // Make sure we require a sane am
 #include "wayland_protocols/xdg_shell.h"
 #include "wayland_protocols/xdg-decoration-unstable-v1.h"
 #include "wayland_protocols/idle-inhibit-unstable-v1.h"
+#include "wayland_protocols/pointer-constraints-unstable-v1.h"
+#include "wayland_protocols/relative-pointer-unstable-v1.h"
 
 static void waylandWindowSetMaximized(GroundedWaylandWindow* window, bool maximized);
 GROUNDED_FUNCTION void waylandSetCursorType(enum GroundedMouseCursor cursorType);
@@ -659,6 +664,44 @@ static const struct wl_pointer_listener pointerListener = {
     pointerHandleAxis,
 };
 
+static void lockedPointerHandleLocked(void* userData,
+                                      struct zwp_confined_pointer_v1* lockedPointer)
+{
+    printf("Lock enabled\n");
+}
+
+static void lockedPointerHandleUnlocked(void* userData,
+                                        struct zwp_confined_pointer_v1* lockedPointer)
+{
+    printf("Lock disabled\n");
+}
+
+static const struct zwp_confined_pointer_v1_listener confinedPointerListener =
+{
+    lockedPointerHandleLocked,
+    lockedPointerHandleUnlocked
+};
+
+// Surface must be focused upon request in order for the constrain to work.
+//TODO:  Should we add a flag and confine upon focus event?
+GROUNDED_FUNCTION void groundedWindowConstrainPointer(GroundedWindow* opaqueWindow, bool constrain) {
+    GroundedWaylandWindow* window = (GroundedWaylandWindow*)opaqueWindow;
+    if(window && pointerConstraints) {
+        if(constrain) {
+            if(!window->confinedPointer) {
+                u32 lifetime = ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_ONESHOT;
+                lifetime = ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_PERSISTENT;
+                window->confinedPointer = zwp_pointer_constraints_v1_confine_pointer(pointerConstraints, window->surface, pointer, 0, lifetime);
+                zwp_confined_pointer_v1_add_listener(window->confinedPointer, &confinedPointerListener, window);
+            }
+        } else {
+            if(window->confinedPointer) {
+                zwp_confined_pointer_v1_destroy(window->confinedPointer);
+                window->confinedPointer = 0;
+            }
+        }
+    }
+}
 
 
 // Read by using two alternating arenas. One persisting the other scratch.
@@ -868,6 +911,12 @@ static void registry_global(void *data, struct wl_registry *registry, uint32_t i
         // Ability to prevent system from going into sleep mode
         idleInhibitManager = (struct zwp_idle_inhibit_manager_v1*)wl_registry_bind(registry, id, &zwp_idle_inhibit_manager_v1_interface, 1);
         ASSERT(idleInhibitManager);
+    } else if(strcmp(interface, "zwp_pointer_constraints_v1") == 0) {
+        pointerConstraints = (struct zwp_pointer_constraints_v1*)wl_registry_bind(registry, id, &zwp_pointer_constraints_v1_interface, 1);
+        ASSERT(pointerConstraints);
+    } else if(strcmp(interface, "zwp_relative_pointer_manager_v1") == 0) {
+        relativePointerManager = (struct zwp_relative_pointer_manager_v1*)wl_registry_bind(registry, id, &zwp_relative_pointer_manager_v1_interface, 1);
+        ASSERT(relativePointerManager);
     } else if(strcmp(interface, "wl_data_device_manager") == 0) {
         // For drag and drop and clipboard support
         u32 compositorSupportedVersion = version;
@@ -1137,6 +1186,15 @@ static void shutdownWayland() {
     }
     if(pointerSeat) {
         wl_seat_destroy(pointerSeat);
+    }
+    if(relativePointerManager) {
+        zwp_relative_pointer_manager_v1_destroy(relativePointerManager);
+    }
+    if(pointerConstraints) {
+        zwp_pointer_constraints_v1_destroy(pointerConstraints);
+    }
+    if(idleInhibitManager) {
+        zwp_idle_inhibit_manager_v1_destroy(idleInhibitManager);
     }
     if(registry) {
         wl_registry_destroy(registry);
