@@ -107,6 +107,15 @@ struct wl_data_source_listener {
 	void (*action)(void *data, struct wl_data_source *wl_data_source, uint32_t dnd_action);
 };
 
+struct wl_output_listener {
+	void (*geometry)(void *data, struct wl_output *wl_output, int32_t x, int32_t y, int32_t physical_width, int32_t physical_height, int32_t subpixel, const char *make, const char *model, int32_t transform);
+	void (*mode)(void *data, struct wl_output *wl_output, uint32_t flags, int32_t width, int32_t height, int32_t refresh);
+	void (*done)(void *data, struct wl_output *wl_output);
+	void (*scale)(void *data, struct wl_output *wl_output, int32_t factor);
+	void (*name)(void *data, struct wl_output *wl_output, const char *name);
+	void (*description)(void *data, struct wl_output *wl_output, const char *description);
+};
+
 enum wl_keyboard_key_state {
 	WL_KEYBOARD_KEY_STATE_RELEASED = 0,
 	WL_KEYBOARD_KEY_STATE_PRESSED = 1,
@@ -203,6 +212,9 @@ static inline void wl_surface_set_input_region(struct wl_surface *wl_surface, st
 			 WL_SURFACE_SET_INPUT_REGION, NULL, wl_proxy_get_version((struct wl_proxy *) wl_surface), 0, region);
 }
 
+static inline int wl_output_add_listener(struct wl_output *wl_output, const struct wl_output_listener *listener, void *data) {
+	return wl_proxy_add_listener((struct wl_proxy *) wl_output, (void (**)(void)) listener, data);
+}
 
 static inline int wl_keyboard_add_listener(struct wl_keyboard *wl_keyboard, const struct wl_keyboard_listener *listener, void *data) {
 	return wl_proxy_add_listener((struct wl_proxy *) wl_keyboard, (void (**)(void)) listener, data);

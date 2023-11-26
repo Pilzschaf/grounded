@@ -90,7 +90,6 @@ void updateAndRenderWindow(GroundedWindow* window) {
 }
 
 GROUNDED_WINDOW_DND_DROP_CALLBACK(boxDropCallback) {
-    //TODO: Now I have to somehow get the box data. Maybe I just want to serialize the pointer into the data and desrialize it again?
     printf("Box drop\n");
     for(u32 i = 0; i < ARRAY_COUNT(boxes); ++i) {
         if(boxes[i].color.a < 1.0f) {

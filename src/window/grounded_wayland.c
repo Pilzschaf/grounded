@@ -51,6 +51,7 @@ struct wl_cursor_image;
 struct wl_region;
 struct wl_data_source;
 struct wl_data_offer;
+struct wl_output;
 
 typedef struct GroundedWaylandWindow {
     struct wl_surface* surface;
@@ -159,7 +160,6 @@ GroundedKeyboardState waylandKeyState;
 
 struct WaylandDataOffer {
     String8List availableMimeTypeList;
-    //TODO: Need to create a flat array for the mime types for easier API handling
     MemoryArena arena;
     bool dnd; // True for dnd data, false for clipboard data
     GroundedWaylandWindow* window; // 0 for clipboard data
@@ -175,6 +175,25 @@ struct WaylandDataOffer {
     s32 x;
     s32 y;
 };
+
+struct WaylandScreen {
+    struct wl_output* output;
+    u32 width, height;
+    s32 virtualX, virtualY;
+    float refreshRate;
+    float scaleFactor;
+    String8 name;
+    String8 manufacturer;
+    String8 description;
+    bool primary;
+    bool active;
+};
+
+#define MAX_WAYLAND_SCREEN_COUNT 16
+struct WaylandScreen waylandScreens[MAX_WAYLAND_SCREEN_COUNT];
+u32 outputVersion; // Version of the wl_output interface
+u32 waylandScreenCount;
+STATIC_ASSERT(sizeof(waylandScreens) < KB(4)); // Make sure we require a sane amount of memory
 
 #include "types/grounded_wayland_types.h"
 
@@ -735,9 +754,75 @@ static const struct xdg_wm_base_listener xdgWmBaseListener = {
     handle_ping_xdg_wm_base
 };
 
+static void outputHandleGeometry(void* data, struct wl_output* wl_output, int32_t x, int32_t y, int32_t physicalWidth, int32_t physicalHeight, int32_t subpixel, const char *make, const char *model, int32_t transform) {
+    struct WaylandScreen* screen = (struct WaylandScreen*) data;
+    ASSERT(screen);
+    if(screen) {
+        screen->virtualX = x;
+        screen->virtualY = y;
+        screen->name = str8FromCstr(model);
+        screen->manufacturer = str8FromCstr(make);
+    }
+}
 
+static void outputHandleMode(void* data, struct wl_output* wl_output, uint32_t flags, int32_t width, int32_t height, int32_t refresh) {
+    struct WaylandScreen* screen = (struct WaylandScreen*) data;
+    ASSERT(screen);
+}
+
+static void outputHandleDone(void* data, struct wl_output* wl_output) {
+    // We now have all current info about this screen
+    struct WaylandScreen* screen = (struct WaylandScreen*) data;
+    ASSERT(screen);
+    if(screen) {
+        // If no scale factor given default to 1.0f
+        if(!screen->scaleFactor) {
+            screen->scaleFactor = 1.0f;
+        }
+    }
+}
+
+static void outputHandleScale(void* data, struct wl_output* wl_output, int32_t factor) {
+    struct WaylandScreen* screen = (struct WaylandScreen*) data;
+    ASSERT(screen);
+    if(screen) {
+        screen->scaleFactor = factor;
+    }
+}
+
+static void outputHandleName(void* data, struct wl_output* wl_output, const char* name) {
+    struct WaylandScreen* screen = (struct WaylandScreen*) data;
+    ASSERT(screen);
+    if(screen && str8IsEmpty(screen->name)) {
+        //TODO: This is more the name the compositor gave this screen. For example DP-1
+        //screen->name = str8FromCstr(name);
+    }
+}
+
+static void outputHandleDescription(void* data, struct wl_output* wl_output, const char* description) {
+    struct WaylandScreen* screen = (struct WaylandScreen*) data;
+    ASSERT(screen);
+    if(screen) {
+        if(str8IsEmpty(screen->description)) {
+            screen->description = str8FromCstr(description);
+        }
+    }
+}
+
+static const struct wl_output_listener outputListener = {
+    outputHandleGeometry,
+    outputHandleMode,
+    outputHandleDone,
+    outputHandleScale,
+    outputHandleName,
+    outputHandleDescription,
+};
+
+//TODO: zwp_pointer_constraints_v1
+//TODO: xdg_output
+//TODO: kde_output_device_v2
 static void registry_global(void *data, struct wl_registry *registry, uint32_t id, const char *interface, uint32_t version) {
-    GROUNDED_LOG_INFO(interface);
+    //GROUNDED_LOG_INFO(interface);
     if (strcmp(interface, "wl_compositor") == 0) {
         // Wayland compositor is required for creating surfaces
         compositor = (struct wl_compositor*)wl_registry_bind(registry, id, wl_compositor_interface, 4);
@@ -745,24 +830,50 @@ static void registry_global(void *data, struct wl_registry *registry, uint32_t i
     } else if(strcmp(interface, "xdg_wm_base") == 0) {
         xdgWmBase = (struct xdg_wm_base*)wl_registry_bind(registry, id, &xdg_wm_base_interface, 3);
         ASSERT(xdgWmBase);
-        xdg_wm_base_add_listener(xdgWmBase, &xdgWmBaseListener, 0);
+        if(xdgWmBase) {
+            xdg_wm_base_add_listener(xdgWmBase, &xdgWmBaseListener, 0);
+        }
     } else if(strcmp(interface,"wl_seat") == 0) {
         // Seats are input devices like keyboards mice etc. Actually a seat represents a single user
         struct wl_seat* seat = (struct wl_seat*)wl_registry_bind(registry, id, wl_seat_interface, 1);
         ASSERT(seat);
-        wl_seat_add_listener(seat, &seatListener, 0);
+        if(seat) {
+            wl_seat_add_listener(seat, &seatListener, 0);
+        }
+    } else if(strcmp(interface, "wl_output") == 0) {
+        // Output can be used to get information about connected monitors and the virtual screen setup
+        // We get one wl_output for each connected screen
+        if(!outputVersion) {
+            outputVersion = version;
+        } else {
+            ASSERT(outputVersion == version);
+        }
+        ASSERT(waylandScreenCount < ARRAY_COUNT(waylandScreens));
+        if(waylandScreenCount < ARRAY_COUNT(waylandScreens)) {
+            struct wl_output* output = (struct wl_output*)wl_registry_bind(registry, id, wl_output_interface, outputVersion);
+            ASSERT(output);
+            if(output) {
+                struct WaylandScreen* screen = &waylandScreens[waylandScreenCount++];
+                MEMORY_CLEAR_STRUCT(screen);
+                screen->output = output;
+                screen->active = true;
+                wl_output_add_listener(output, &outputListener, screen); // Last is custom data
+            }
+        }
     } else if(strcmp(interface, "zxdg_decoration_manager_v1") == 0) {
         // Client and server side decoration negotiation
         decorationManager = (struct zxdg_decoration_manager_v1*)wl_registry_bind(registry, id, &zxdg_decoration_manager_v1_interface, 1);
-    } else if(strcmp(interface, "zwp_idle_inhibitor_v1") == 0) {
+        ASSERT(decorationManager);
+    } else if(strcmp(interface, "zwp_idle_inhibit_manager_v1") == 0) {
+        // Ability to prevent system from going into sleep mode
         idleInhibitManager = (struct zwp_idle_inhibit_manager_v1*)wl_registry_bind(registry, id, &zwp_idle_inhibit_manager_v1_interface, 1);
-    } else if(strcmp(interface, "wp_cursor_shape_manager_v1") == 0) {
-        // Does not seem to be supported right now...
+        ASSERT(idleInhibitManager);
     } else if(strcmp(interface, "wl_data_device_manager") == 0) {
         // For drag and drop and clipboard support
         u32 compositorSupportedVersion = version;
         u32 requestedVersion = MIN(version, 1); // We support up to version 3
         dataDeviceManager = (struct wl_data_device_manager*)wl_registry_bind(registry, id, wl_data_device_manager_interface, requestedVersion);
+        ASSERT(dataDeviceManager);
         if(dataDeviceManager) {
             dataDeviceManagerVersion = requestedVersion;
         }
@@ -790,6 +901,8 @@ static void registry_global(void *data, struct wl_registry *registry, uint32_t i
             cursorSurface = wl_compositor_create_surface(compositor);
         }
         //wl_shm_add_listener(waylandShm, &shmListener, 0);
+    } else {
+        GROUNDED_LOG_INFO(interface);
     }
 }
 
