@@ -175,6 +175,8 @@ GROUNDED_FUNCTION void groundedSetCursorType(enum GroundedMouseCursor cursorType
 // Maybe make custom cursors loadable and applyable. Then the cursors do not have to be recreated when application wants to switch cursors
 GROUNDED_FUNCTION void groundedSetCustomCursor(u8* data, u32 width, u32 height);
 
+GROUNDED_FUNCTION void groundedWindowConstrainPointer(GroundedWindow* window, bool constrain);
+
 GROUNDED_FUNCTION GroundedWindowDragPayloadDescription* groundedWindowPrepareDragPayload(GroundedWindow* window);
 GROUNDED_FUNCTION MemoryArena* groundedWindowDragPayloadGetArena(GroundedWindowDragPayloadDescription* desc);
 GROUNDED_FUNCTION void groundedWindowDragPayloadSetImage(GroundedWindowDragPayloadDescription* desc, u8* data, u32 width, u32 height);
