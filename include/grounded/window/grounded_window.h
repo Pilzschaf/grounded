@@ -18,6 +18,7 @@ typedef enum GroundedEventType {
 	GROUNDED_EVENT_TYPE_KEY_UP,
 	GROUNDED_EVENT_TYPE_BUTTON_DOWN,
 	GROUNDED_EVENT_TYPE_BUTTON_UP,
+	GROUNDED_EVENT_TYPE_DISPLAY,
     GROUNDED_EVENT_TYPE_COUNT,
 } GroundedEventType;
 typedef struct GroundedEvent {
@@ -51,6 +52,10 @@ typedef struct GroundedEvent {
 			s32 mousePositionX;
 			s32 mousePositionY;
 		} buttonUp;
+		struct {
+			struct GroundedWindowDisplay* display;
+			bool connected; // true on connect, false on disconnect
+		} display;
     };
 } GroundedEvent;
 
@@ -83,6 +88,15 @@ typedef struct MouseState {
 	u16 buttonDownTransitions[32];
 	u16 buttonUpTransitions[32];
 } MouseState;
+
+// Monitor, Display, Screen
+typedef struct GroundedWindowDisplay {
+	s32 virtualX, virtualY;
+	u32 width, height;
+	String8 name;
+	String8 manufacturer;
+	bool primary;
+} GroundedWindowDisplay;
 
 typedef struct GroundedWindowDragPayloadDescription GroundedWindowDragPayloadDescription;
 
@@ -150,7 +164,11 @@ struct GroundedWindowCreateParameters {
 	bool inhibitIdle;
 	GroundedWindowCustomTitlebarCallback* customTitlebarCallback; //TODO: We should let clients with custom title bars know if they should show a titlebar or not
 	GroundedWindowDndCallback* dndCallback; // Application should return the index of the mime type it wants to accept. UINT32_MAX for none?
+	GroundedWindowDisplay* displayToStartOn; // 0 means no preference on which display to start on
 };
+
+GROUNDED_FUNCTION GroundedWindowDisplay* groundedGetPrimaryDisplay();
+GROUNDED_FUNCTION GroundedWindowDisplay* groundedGetDisplays(MemoryArena* arena, u32* displayCount); // Result array is allocated on submitted arena
 
 GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(MemoryArena* arena, struct GroundedWindowCreateParameters* parameters);
 GROUNDED_FUNCTION void groundedDestroyWindow(GroundedWindow* window);

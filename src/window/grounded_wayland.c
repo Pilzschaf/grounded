@@ -147,6 +147,7 @@ struct wl_data_device* dataDevice; // Data device tied to pointerSeat
 u32 pointerEnterSerial;
 
 struct zxdg_decoration_manager_v1* decorationManager;
+struct zxdg_output_manager_v1* xdgOutputManager;
 struct zwp_idle_inhibit_manager_v1* idleInhibitManager;
 struct zwp_pointer_constraints_v1* pointerConstraints;
 struct zwp_relative_pointer_manager_v1* relativePointerManager;
@@ -180,28 +181,28 @@ struct WaylandDataOffer {
 };
 
 struct WaylandScreen {
+    GroundedWindowDisplay display;
     struct wl_output* output;
-    u32 width, height;
-    s32 virtualX, virtualY;
+    struct zxdg_output_v1* xdgOutput;
+    u32 registryId;
     float refreshRate;
     float scaleFactor;
-    String8 name;
-    String8 manufacturer;
-    String8 description;
-    bool primary;
     bool active;
+    String8 description;
 };
 
 #define MAX_WAYLAND_SCREEN_COUNT 16
 struct WaylandScreen waylandScreens[MAX_WAYLAND_SCREEN_COUNT];
 u32 outputVersion; // Version of the wl_output interface
+u32 xdgOutputVersion;
 u32 waylandScreenCount;
 STATIC_ASSERT(sizeof(waylandScreens) < KB(4)); // Make sure we require a sane amount of memory
 
 #include "types/grounded_wayland_types.h"
 
-#include "wayland_protocols/xdg_shell.h"
+#include "wayland_protocols/xdg-shell.h"
 #include "wayland_protocols/xdg-decoration-unstable-v1.h"
+#include "wayland_protocols/xdg-output-unstable-v1.h"
 #include "wayland_protocols/idle-inhibit-unstable-v1.h"
 #include "wayland_protocols/pointer-constraints-unstable-v1.h"
 #include "wayland_protocols/relative-pointer-unstable-v1.h"
@@ -683,7 +684,7 @@ static const struct zwp_confined_pointer_v1_listener confinedPointerListener =
 };
 
 // Surface must be focused upon request in order for the constrain to work.
-//TODO:  Should we add a flag and confine upon focus event?
+//TODO: Should we add a flag and confine upon focus event?
 GROUNDED_FUNCTION void groundedWindowConstrainPointer(GroundedWindow* opaqueWindow, bool constrain) {
     GroundedWaylandWindow* window = (GroundedWaylandWindow*)opaqueWindow;
     if(window && pointerConstraints) {
@@ -801,10 +802,14 @@ static void outputHandleGeometry(void* data, struct wl_output* wl_output, int32_
     struct WaylandScreen* screen = (struct WaylandScreen*) data;
     ASSERT(screen);
     if(screen) {
-        screen->virtualX = x;
-        screen->virtualY = y;
-        screen->name = str8FromCstr(model);
-        screen->manufacturer = str8FromCstr(make);
+        screen->display.virtualX = x;
+        screen->display.virtualY = y;
+        screen->display.name = str8FromCstr(model);
+        screen->display.manufacturer = str8FromCstr(make);
+        if(screen == waylandScreens) {
+            // Wayland has no inbuilt mechanism for primary monitors. We assume here that the first wl_output is also the primary one
+            screen->display.primary = true;
+        }
     }
 }
 
@@ -836,9 +841,9 @@ static void outputHandleScale(void* data, struct wl_output* wl_output, int32_t f
 static void outputHandleName(void* data, struct wl_output* wl_output, const char* name) {
     struct WaylandScreen* screen = (struct WaylandScreen*) data;
     ASSERT(screen);
-    if(screen && str8IsEmpty(screen->name)) {
-        //TODO: This is more the name the compositor gave this screen. For example DP-1
-        //screen->name = str8FromCstr(name);
+    if(screen && str8IsEmpty(screen->display.name)) {
+        // This is more the name the compositor gave this screen. For example DP-1
+        screen->display.name = str8FromCstr(name);
     }
 }
 
@@ -861,10 +866,59 @@ static const struct wl_output_listener outputListener = {
     outputHandleDescription,
 };
 
-//TODO: zwp_pointer_constraints_v1
-//TODO: xdg_output
-//TODO: kde_output_device_v2
-static void registry_global(void *data, struct wl_registry *registry, uint32_t id, const char *interface, uint32_t version) {
+static void xdgOutputHandleLogicalPosition(void* data, struct zxdg_output_v1* xdgOutput, int32_t x, int32_t y) {
+    struct WaylandScreen* screen = (struct WaylandScreen*) data;
+    ASSERT(screen);
+    if(screen) {
+        screen->display.virtualX = x;
+        screen->display.virtualY = y;
+    }
+}
+
+static void xdgOutputHandleLogicalSize(void* data, struct zxdg_output_v1* xdgOutput, int32_t width, int32_t height) {
+    struct WaylandScreen* screen = (struct WaylandScreen*) data;
+    ASSERT(screen);
+    // This is the size in the compositor space. So it already accounts for translations and compositor side scaling
+    if(screen) {
+        screen->display.width = width;
+        screen->display.height = height;
+    }
+}
+
+static void xdgOutputHandleDone(void* data, struct zxdg_output_v1* xdgOutput) {
+    // This event is deprecated since version 3. Instead, a wl_output.done event is sent
+    ASSERT(xdgOutputVersion < 3);
+}
+
+static void xdgOutputHandleName(void* data, struct zxdg_output_v1* xdgOutput, const char* name) {
+    // Deprecated as of wl_output v4
+    // This is also the compositor assigned name eg. DP-1
+    struct WaylandScreen* screen = (struct WaylandScreen*) data;
+    ASSERT(screen);
+    if(screen && outputVersion < 4 && str8IsEmpty(screen->display.name)) {
+        // Assign this name if we have nothing else
+        screen->display.name = str8FromCstr(name);
+    }
+}
+
+static void xdgOutputHandleDescription(void* data, struct zxdg_output_v1* xdgOutput, const char* description) {
+    struct WaylandScreen* screen = (struct WaylandScreen*) data;
+    ASSERT(screen);
+    // Deprecated as of wl_output v4. But still sent for compatability
+    if(screen && outputVersion < 4 && str8IsEmpty(screen->description)) {
+        screen->description = str8FromCstr(description);
+    }
+}
+
+static const struct zxdg_output_v1_listener xdgOutputListener = {
+    xdgOutputHandleLogicalPosition,
+    xdgOutputHandleLogicalSize,
+    xdgOutputHandleDone,
+    xdgOutputHandleName,
+    xdgOutputHandleDescription,
+};
+
+static void registry_global(void* data, struct wl_registry* registry, uint32_t id, const char* interface, uint32_t version) {
     //GROUNDED_LOG_INFO(interface);
     if (strcmp(interface, "wl_compositor") == 0) {
         // Wayland compositor is required for creating surfaces
@@ -900,13 +954,32 @@ static void registry_global(void *data, struct wl_registry *registry, uint32_t i
                 MEMORY_CLEAR_STRUCT(screen);
                 screen->output = output;
                 screen->active = true;
+                screen->registryId = id;
                 wl_output_add_listener(output, &outputListener, screen); // Last is custom data
+                if(xdgOutputManager) {
+                    screen->xdgOutput = zxdg_output_manager_v1_get_xdg_output(xdgOutputManager, screen->output);
+                    zxdg_output_v1_add_listener(screen->xdgOutput, &xdgOutputListener, screen);
+                }
             }
         }
     } else if(strcmp(interface, "zxdg_decoration_manager_v1") == 0) {
         // Client and server side decoration negotiation
         decorationManager = (struct zxdg_decoration_manager_v1*)wl_registry_bind(registry, id, &zxdg_decoration_manager_v1_interface, 1);
         ASSERT(decorationManager);
+    } else if(strcmp(interface, "zxdg_output_manager_v1") == 0) {
+        xdgOutputVersion = MIN(version, 3);
+        xdgOutputManager = (struct zxdg_output_manager_v1*)wl_registry_bind(registry, id, &zxdg_output_manager_v1_interface, xdgOutputVersion);
+        ASSERT(xdgOutputManager);
+        // Initialize all existing WaylandScreens
+        if(xdgOutputManager) {
+            for(u32 i = 0; i < waylandScreenCount; ++i) {
+                waylandScreens[i].xdgOutput = zxdg_output_manager_v1_get_xdg_output(xdgOutputManager, waylandScreens[i].output);
+                ASSERT(waylandScreens[i].xdgOutput);
+                if(waylandScreens[i].xdgOutput) {
+                    zxdg_output_v1_add_listener(waylandScreens[i].xdgOutput, &xdgOutputListener, &waylandScreens[i]);
+                }
+            }
+        }
     } else if(strcmp(interface, "zwp_idle_inhibit_manager_v1") == 0) {
         // Ability to prevent system from going into sleep mode
         idleInhibitManager = (struct zwp_idle_inhibit_manager_v1*)wl_registry_bind(registry, id, &zwp_idle_inhibit_manager_v1_interface, 1);
@@ -955,7 +1028,20 @@ static void registry_global(void *data, struct wl_registry *registry, uint32_t i
     }
 }
 
-static void registry_global_remove(void *a, struct wl_registry *b, uint32_t c) {}
+static void registry_global_remove(void* data, struct wl_registry* registry, uint32_t id) {
+    // Event when an interface is removed. For example a wl_output.
+    // Unfortunately we do not know which interface if removed so we have to guess...
+    for(u32 i = 0; i < waylandScreenCount; ++i) {
+        if(waylandScreens[i].registryId == id) {
+            //TODO: Handle screen removal
+            waylandScreens[i].active = false;
+            //TODO: Send screen removal event
+            return;
+        }
+    }
+    // Removal of unknown id
+    ASSERT(false);
+}
 
 static const struct wl_registry_listener registryListener = {
     .global = registry_global,
@@ -1334,7 +1420,6 @@ static GroundedWindow* waylandCreateWindow(MemoryArena* arena, struct GroundedWi
 }
 
 static void waylandDestroyWindow(GroundedWaylandWindow* window) {
-    //TODO: Exception here after window close! Surface is probably null
     wl_surface_destroy(window->surface);
     wl_display_roundtrip(waylandDisplay);
 }
