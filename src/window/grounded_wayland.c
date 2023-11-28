@@ -448,11 +448,17 @@ static void keyboard_handle_key(void *data, struct wl_keyboard *keyboard, uint32
     u8 keycode = translateWaylandKeycode(key);
     if(state == WL_KEYBOARD_KEY_STATE_PRESSED) {
         waylandKeyState.keys[keycode] = true;
+        u32 modifiers = 0;
+        if(waylandKeyState.keys[GROUNDED_KEY_LSHIFT || GROUNDED_KEY_RSHIFT]) {
+            modifiers |= GROUNDED_KEY_MODIFIER_SHIFT;
+        }
+        //TODO: Alt, Alt Gr, Ctrl, Meta
         eventQueue[eventQueueIndex++] = (GroundedEvent){
             .type = GROUNDED_EVENT_TYPE_KEY_DOWN,
             .keyDown.keycode = keycode,
-            .keyDown.modifiers = 0, //TODO: Modifiers
+            .keyDown.modifiers = modifiers,
         };
+        
     } else if(state == WL_KEYBOARD_KEY_STATE_RELEASED) {
         waylandKeyState.keys[keycode] = false;
         eventQueue[eventQueueIndex++] = (GroundedEvent){
