@@ -1858,9 +1858,6 @@ static VkSurfaceKHR waylandGetVulkanSurface(GroundedWaylandWindow* window, VkIns
 
 
 
-
-//#include "wayland_data_device.c"
-
 /*
  * Encountered mime types:
  * text/plain;charset=utf-8
@@ -2254,8 +2251,9 @@ GROUNDED_FUNCTION void groundedWindowDragPayloadSetImage(GroundedWindowDragPaylo
             MEMORY_COPY(poolData, data, imageSize);
 
             wl_surface_attach(desc->icon, wlBuffer, 0, 0);
+            //wl_surface_offset(desc->icon, 100, 100);
             wl_surface_damage(desc->icon, 0, 0, UINT32_MAX, UINT32_MAX);
-            wl_surface_commit(desc->icon);
+            wl_surface_commit(desc->icon); // Commit staged changes to surface
         }
     }
 }

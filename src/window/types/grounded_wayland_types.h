@@ -15,6 +15,7 @@
 #define WL_SURFACE_SET_INPUT_REGION 5
 #define WL_SURFACE_COMMIT 6
 #define WL_SURFACE_SET_BUFFER_SCALE 8
+#define WL_SURFACE_OFFSET 10
 
 #define WL_SEAT_GET_POINTER 0
 #define WL_SEAT_GET_KEYBOARD 1
@@ -312,6 +313,10 @@ static inline void wl_surface_attach(struct wl_surface *wl_surface, struct wl_bu
 
 static inline void wl_surface_damage(struct wl_surface *wl_surface, int32_t x, int32_t y, int32_t width, int32_t height) {
 	wl_proxy_marshal_flags((struct wl_proxy *) wl_surface, WL_SURFACE_DAMAGE, NULL, wl_proxy_get_version((struct wl_proxy *) wl_surface), 0, x, y, width, height);
+}
+
+static inline void wl_surface_offset(struct wl_surface *wl_surface, int32_t x, int32_t y) {
+	wl_proxy_marshal_flags((struct wl_proxy *) wl_surface, WL_SURFACE_OFFSET, NULL, wl_proxy_get_version((struct wl_proxy *) wl_surface), 0, x, y);
 }
 
 static inline struct wl_shm_pool* wl_shm_create_pool(struct wl_shm *wl_shm, int32_t fd, int32_t size) {
