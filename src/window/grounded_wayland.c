@@ -496,7 +496,7 @@ static void pointerHandleEnter(void *data, struct wl_pointer *wl_pointer, uint32
     } else {
         waylandSetCursorType(waylandCurrentCursorType);
     }
-    //printf("Enter\n");
+    //printf("Enter with serial %u\n", serial);
 
     pointerEnterSerial = serial;
 }
@@ -1894,6 +1894,7 @@ static void dataOfferHandleOffer(void* userData, struct wl_data_offer* offer, co
     // Sent immediately after creating a wl_data_offer object once for every mime type.
     
     struct WaylandDataOffer* waylandOffer = (struct WaylandDataOffer*)userData;
+    ASSERT(waylandOffer->offer == offer);
     // Basically mark the data offer with the type it has. Is called once for every available mime type of the offer
     // Typical stuff: text/plain;charset=utf-8, text/uri-list, etc.
 
@@ -1901,6 +1902,9 @@ static void dataOfferHandleOffer(void* userData, struct wl_data_offer* offer, co
 
     // I do not know if a copy is really necessary but it defenitely feels safer
     str8ListPushCopyAndNullTerminate(&waylandOffer->arena, &waylandOffer->availableMimeTypeList, str8FromCstr(mimeType));
+    printf("Mimme: %s offer %p\n", waylandOffer->availableMimeTypeList.last->string.base, waylandOffer);
+    //wl_data_offer_accept(waylandOffer->offer, waylandOffer->enterSerial, mimeType);
+    //str8ListPush(&waylandOffer->arena, &waylandOffer->availableMimeTypeList, str8FromCstr(mimeType));
 }
 
 static void dataOfferHandleSourceActions(void* userData, struct wl_data_offer *wl_data_offer, uint32_t sourceActions) {
@@ -1958,6 +1962,8 @@ static void dataDeviceListenerOffer(void* data, struct wl_data_device* dataDevic
     waylandOffer->offer = offer;
     waylandOffer->lastAcceptedMimeIndex = 0xFFFFFFFF;
 
+    printf("New offer %p\n", waylandOffer);
+
     // Add listener which tells us, what data type the offer contains
     wl_data_offer_add_listener(offer, &dataOfferListener, waylandOffer);
 }
@@ -1965,11 +1971,16 @@ static void dataDeviceListenerOffer(void* data, struct wl_data_device* dataDevic
 static void updateWaylandDragPosition(GroundedWaylandWindow* window, struct WaylandDataOffer* waylandOffer, s32 posX, s32 posY) {
     waylandOffer->x = posX;
     waylandOffer->y = posY;
+    ASSERT(waylandOffer->dnd);
+    ASSERT(waylandOffer->enterSerial);
     u32 newMimeIndex = window->dndCallback(0, (GroundedWindow*)window, posX, posY, waylandOffer->mimeTypeCount, waylandOffer->mimeTypes, &waylandOffer->dropCallback);
     if(newMimeIndex != waylandOffer->lastAcceptedMimeIndex) {
         if(newMimeIndex < waylandOffer->mimeTypeCount) {
-            //TODO: Is this call correct? We must call this opon handleOffer
+            //TODO: Is this call correct? We must call this upon handleOffer
             wl_data_offer_accept(waylandOffer->offer, waylandOffer->enterSerial, (const char*)waylandOffer->mimeTypes[newMimeIndex].base);
+            printf("Allow mime type %s\n", (const char*)waylandOffer->mimeTypes[newMimeIndex].base);
+            //TODO: Hardcoded
+            wl_data_offer_set_actions(waylandOffer->offer, waylandOffer->allowedActions, WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE);
         } else {
             wl_data_offer_accept(waylandOffer->offer, waylandOffer->enterSerial, 0);
         }
@@ -1978,9 +1989,11 @@ static void updateWaylandDragPosition(GroundedWaylandWindow* window, struct Wayl
 }
 
 static void dataDeviceListenerEnter(void* data, struct wl_data_device* dataDevice, u32 serial, struct wl_surface* surface, wl_fixed_t x, wl_fixed_t y, struct wl_data_offer* offer) {
+    printf("Enter with serial %u\n", serial);
     // At this point we know that the data offer is a drag offer
     struct WaylandDataOffer* waylandOffer = (struct WaylandDataOffer*)wl_data_offer_get_user_data(offer);
     ASSERT(waylandOffer);
+    ASSERT(waylandOffer->offer == offer);
     waylandOffer->dnd = true;
     waylandOffer->enterSerial = serial;
 
@@ -2015,7 +2028,8 @@ static void dataDeviceListenerEnter(void* data, struct wl_data_device* dataDevic
 }
 
 static void dataDeviceListenerLeave(void* data, struct wl_data_device* dataDevice) {
-    // We have to estroy the offer
+    printf("Leave\n");
+    // We have to destroy the offer
     ASSERT(dragOffer);
     ASSERT(dragOffer->dnd);
     wl_data_offer_destroy(dragOffer->offer);
@@ -2099,6 +2113,7 @@ static void dataDeviceListenerSelection(void* data, struct wl_data_device* dataD
         
         //TODO: Read in the data
         
+        printf("Data offer %p is selection and gets destroyed\n", waylandOffer);
         wl_data_offer_destroy(waylandOffer->offer);
         arenaRelease(&waylandOffer->arena);
     }
@@ -2131,6 +2146,9 @@ static void dataSourceHandleTarget(void* data, struct wl_data_source* source, co
 		printf("Destination would accept MIME type if dropped: %s\n", mimeType);
         setCursorOverwrite(GROUNDED_MOUSE_CURSOR_GRABBING);
 	} else {
+        if(mimeType) {
+            printf("Empty mime type: %s\n", mimeType);
+        }
 		printf("Destination would reject if dropped\n");
         setCursorOverwrite(GROUNDED_MOUSE_CURSOR_DND_NO_DROP);
 	}
