@@ -369,65 +369,79 @@ static inline void wl_data_device_manager_destroy(struct wl_data_device_manager 
 
 
 static inline void wl_data_device_start_drag(struct wl_data_device *wl_data_device, struct wl_data_source *source, struct wl_surface *origin, struct wl_surface *icon, uint32_t serial) {
+	GROUNDED_WAYLAND_LOG_CALL("dataDevice.startDrag");
 	wl_proxy_marshal_flags((struct wl_proxy *) wl_data_device,
 			 WL_DATA_DEVICE_START_DRAG, NULL, wl_proxy_get_version((struct wl_proxy *) wl_data_device), 0, source, origin, icon, serial);
 }
 
 static inline int wl_data_device_add_listener(struct wl_data_device *wl_data_device, const struct wl_data_device_listener *listener, void *data) {
+	GROUNDED_WAYLAND_LOG_CALL("dataDevice.addListener");
 	return wl_proxy_add_listener((struct wl_proxy *) wl_data_device,
 				     (void (**)(void)) listener, data);
 }
 
 static inline void wl_data_device_destroy(struct wl_data_device *wl_data_device) {
+	GROUNDED_WAYLAND_LOG_CALL("dataDevice.destroy");
 	wl_proxy_destroy((struct wl_proxy *) wl_data_device);
 }
 
 static inline void wl_data_offer_accept(struct wl_data_offer *wl_data_offer, uint32_t serial, const char *mime_type) {
+	GROUNDED_WAYLAND_LOG_CALL("dataOffer.accept");
 	wl_proxy_marshal_flags((struct wl_proxy *) wl_data_offer,
 			 WL_DATA_OFFER_ACCEPT, NULL, wl_proxy_get_version((struct wl_proxy *) wl_data_offer), 0, serial, mime_type);
 }
 
 static inline int wl_data_offer_add_listener(struct wl_data_offer *wl_data_offer, const struct wl_data_offer_listener *listener, void *data) {
+	GROUNDED_WAYLAND_LOG_CALL("dataOffer.addListener");
 	return wl_proxy_add_listener((struct wl_proxy *) wl_data_offer, (void (**)(void)) listener, data);
 }
 
 static inline void wl_data_offer_receive(struct wl_data_offer *wl_data_offer, const char *mime_type, int32_t fd) {
+	GROUNDED_WAYLAND_LOG_CALL("dataOffer.receive");
 	wl_proxy_marshal_flags((struct wl_proxy *) wl_data_offer,
 			 WL_DATA_OFFER_RECEIVE, NULL, wl_proxy_get_version((struct wl_proxy *) wl_data_offer), 0, mime_type, fd);
 }
 
 static inline void wl_data_offer_finish(struct wl_data_offer *wl_data_offer) {
+	GROUNDED_WAYLAND_LOG_CALL("dataOffer.finish");
 	wl_proxy_marshal_flags((struct wl_proxy *) wl_data_offer,
 			 WL_DATA_OFFER_FINISH, NULL, wl_proxy_get_version((struct wl_proxy *) wl_data_offer), 0);
 }
 
 static inline void wl_data_offer_set_actions(struct wl_data_offer *wl_data_offer, uint32_t dnd_actions, uint32_t preferred_action) {
+	GROUNDED_WAYLAND_LOG_CALL("dataOffer.setActions");
 	wl_proxy_marshal_flags((struct wl_proxy *) wl_data_offer,
 			 WL_DATA_OFFER_SET_ACTIONS, NULL, wl_proxy_get_version((struct wl_proxy *) wl_data_offer), 0, dnd_actions, preferred_action);
 }
 
 static inline void wl_data_offer_destroy(struct wl_data_offer *wl_data_offer) {
+	GROUNDED_WAYLAND_LOG_CALL("dataOffer.destroy");
 	wl_proxy_marshal_flags((struct wl_proxy *) wl_data_offer, WL_DATA_OFFER_DESTROY, NULL, wl_proxy_get_version((struct wl_proxy *) wl_data_offer), WL_MARSHAL_FLAG_DESTROY);
 }
 
 static inline void * wl_data_offer_get_user_data(struct wl_data_offer *wl_data_offer) {
+	GROUNDED_WAYLAND_LOG_CALL("dataOffer.getUserData");
 	return wl_proxy_get_user_data((struct wl_proxy *) wl_data_offer);
 }
 
 
 static inline int wl_data_source_add_listener(struct wl_data_source *wl_data_source, const struct wl_data_source_listener *listener, void *data) {
+	GROUNDED_WAYLAND_LOG_CALL("dataSource.addListener");
 	return wl_proxy_add_listener((struct wl_proxy *) wl_data_source, (void (**)(void)) listener, data);
 }
 
 static inline void wl_data_source_offer(struct wl_data_source *wl_data_source, const char *mime_type) {
+	GROUNDED_WAYLAND_LOG_CALL("dataSource.offer");
 	wl_proxy_marshal_flags((struct wl_proxy *) wl_data_source, WL_DATA_SOURCE_OFFER, NULL, wl_proxy_get_version((struct wl_proxy *) wl_data_source), 0, mime_type);
 }
 
 static inline void wl_data_source_destroy(struct wl_data_source *wl_data_source) {
+	GROUNDED_WAYLAND_LOG_CALL("dataSource.destroy");
 	wl_proxy_marshal_flags((struct wl_proxy *) wl_data_source, WL_DATA_SOURCE_DESTROY, NULL, wl_proxy_get_version((struct wl_proxy *) wl_data_source), WL_MARSHAL_FLAG_DESTROY);
 }
 
 static inline void wl_data_source_set_actions(struct wl_data_source *wl_data_source, uint32_t dnd_actions) {
+	GROUNDED_WAYLAND_LOG_CALL("dataSource.setActions");
 	wl_proxy_marshal_flags((struct wl_proxy *) wl_data_source, WL_DATA_SOURCE_SET_ACTIONS, NULL, wl_proxy_get_version((struct wl_proxy *) wl_data_source), 0, dnd_actions);
 }
 
