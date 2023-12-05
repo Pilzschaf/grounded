@@ -540,8 +540,8 @@ struct GroundedWindowDragPayloadDescription {
     MemoryArena arena;
     u32 mimeTypeCount;
     String8* mimeTypes;
-    GroundedWindowDndSendCallback* sendCallback;
-    GroundedWindowDndCancelCallback* cancelCallback;
+    GroundedWindowDndDataCallback* dataCallback;
+    GroundedWindowDndDragFinishCallback* dragFinishCallback;
 };
 
 GROUNDED_FUNCTION GroundedWindowDragPayloadDescription* groundedWindowPrepareDragPayload(GroundedWindow* window) {
@@ -571,12 +571,12 @@ GROUNDED_FUNCTION void groundedWindowDragPayloadSetMimeTypes(GroundedWindowDragP
     desc->mimeTypeCount = mimeTypeCount;
 }
 
-GROUNDED_FUNCTION void groundedWindowDragPayloadSetSendCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndSendCallback* callback) {
-    desc->sendCallback = callback;
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetDataCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndDataCallback* callback) {
+    desc->dataCallback = callback;
 }
 
-GROUNDED_FUNCTION void groundedWindowDragPayloadSetCancelCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndCancelCallback* callback) {
-    desc->cancelCallback = callback;
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetDragFinishCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndDragFinishCallback* callback) {
+    desc->dragFinishCallback = callback;
 }
 
 GROUNDED_FUNCTION void groundedWindowBeginDragAndDrop(GroundedWindowDragPayloadDescription* desc, void* userData) {
