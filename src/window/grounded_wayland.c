@@ -17,6 +17,14 @@
 //#include <EGL/egl.h>
 #endif
 
+#if 0
+#define GROUNDED_WAYLAND_LOG_CALL(name)
+#define GROUNDED_WAYLAND_LOG_HANDLER(name)
+#else
+#define GROUNDED_WAYLAND_LOG_CALL(name) GROUNDED_LOG_VERBOSE("> " name)
+#define GROUNDED_WAYLAND_LOG_HANDLER(name) GROUNDED_LOG_VERBOSE("< " name)
+#endif
+
 //#include <wayland-cursor.h>
 //#include <wayland-client.h>
 
@@ -1000,7 +1008,7 @@ static void registry_global(void* data, struct wl_registry* registry, uint32_t i
     } else if(strcmp(interface, "wl_data_device_manager") == 0) {
         // For drag and drop and clipboard support
         u32 compositorSupportedVersion = version;
-        u32 requestedVersion = MIN(version, 3); // We support up to version 3
+        u32 requestedVersion = MIN(version, 1); // We support up to version 3
         dataDeviceManager = (struct wl_data_device_manager*)wl_registry_bind(registry, id, wl_data_device_manager_interface, requestedVersion);
         ASSERT(dataDeviceManager);
         if(dataDeviceManager) {
@@ -1269,7 +1277,7 @@ static void shutdownWayland() {
     }
 
     if(dragOffer) {
-        printf("Drag offer: %p, %p\n", dragOffer, dragOffer->offer);
+        printf("Leftover drag offer: %p, %p\n", dragOffer, dragOffer->offer);
         wl_data_offer_destroy(dragOffer->offer);
         arenaRelease(&dragOffer->arena);
         dragOffer = 0;
@@ -1891,7 +1899,8 @@ static VkSurfaceKHR waylandGetVulkanSurface(GroundedWaylandWindow* window, VkIns
  */
 
 static void dataOfferHandleOffer(void* userData, struct wl_data_offer* offer, const char* mimeType) {
-    printf("> dataOffer.offer\n");
+    GROUNDED_WAYLAND_LOG_HANDLER("dataOffer.offer");
+
     // Sent immediately after creating a wl_data_offer object once for every mime type.
     
     struct WaylandDataOffer* waylandOffer = (struct WaylandDataOffer*)userData;
@@ -1905,7 +1914,8 @@ static void dataOfferHandleOffer(void* userData, struct wl_data_offer* offer, co
 }
 
 static void dataOfferHandleSourceActions(void* userData, struct wl_data_offer *wl_data_offer, uint32_t sourceActions) {
-    printf("> dataOffer.sourceActions\n");
+    GROUNDED_WAYLAND_LOG_HANDLER("dataOffer.sourceActions");
+
     ASSERT(dataDeviceManagerVersion >= 3);
     // This gives the actions that are supported by the source side. Called directly after the mime types and when source changes available actions
     // We only receive this for dnd data offers
@@ -1930,7 +1940,8 @@ static void dataOfferHandleSourceActions(void* userData, struct wl_data_offer *w
 }
 
 static void dataOfferHandleAction(void* userData, struct wl_data_offer* dataOffer, uint32_t dndAction) {
-    printf("> dataOffer.action\n");
+    GROUNDED_WAYLAND_LOG_HANDLER("dataOffer.action");
+
     // The action the compositor selected for us based on source and destination preferences. We simply ignore it for now...
     // Most recent action received is always the valid one
     //printf("Data offer action\n");
@@ -1957,10 +1968,9 @@ static const struct wl_data_offer_listener dataOfferListener = {
 
 
 static void dataDeviceListenerOffer(void* data, struct wl_data_device* dataDevice, struct wl_data_offer* offer) {
-    // Compositor announces a new data offer. Can be dnd or clipboard
-    //printf("DataDevice offer\n");
-    printf("> dataDevice.offer\n");
+    GROUNDED_WAYLAND_LOG_HANDLER("dataDevice.offer");
 
+    // Compositor announces a new data offer. Can be dnd or clipboard
     struct WaylandDataOffer* waylandOffer = ARENA_BOOTSTRAP_PUSH_STRUCT(createGrowingArena(osGetMemorySubsystem(), KB(4)), struct WaylandDataOffer, arena);
     waylandOffer->offer = offer;
     waylandOffer->lastAcceptedMimeIndex = 0xFFFFFFFF;
@@ -1977,6 +1987,9 @@ static void updateWaylandDragPosition(GroundedWaylandWindow* window, struct Wayl
         if(newMimeIndex < waylandOffer->mimeTypeCount) {
             //TODO: Is this call correct? We must call this opon handleOffer
             wl_data_offer_accept(waylandOffer->offer, waylandOffer->enterSerial, (const char*)waylandOffer->mimeTypes[newMimeIndex].base);
+            if(dataDeviceManagerVersion >= 3) {
+                wl_data_offer_set_actions(waylandOffer->offer, waylandOffer->allowedActions, WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY);
+            }
         } else {
             wl_data_offer_accept(waylandOffer->offer, waylandOffer->enterSerial, 0);
         }
@@ -1985,7 +1998,8 @@ static void updateWaylandDragPosition(GroundedWaylandWindow* window, struct Wayl
 }
 
 static void dataDeviceListenerEnter(void* data, struct wl_data_device* dataDevice, u32 serial, struct wl_surface* surface, wl_fixed_t x, wl_fixed_t y, struct wl_data_offer* offer) {
-    printf("> dataDevice.enter\n");
+    GROUNDED_WAYLAND_LOG_HANDLER("dataDevice.enter");
+
     // At this point we know that the data offer is a drag offer
     struct WaylandDataOffer* waylandOffer = (struct WaylandDataOffer*)wl_data_offer_get_user_data(offer);
     ASSERT(waylandOffer);
@@ -2025,7 +2039,8 @@ static void dataDeviceListenerEnter(void* data, struct wl_data_device* dataDevic
 }
 
 static void dataDeviceListenerLeave(void* data, struct wl_data_device* dataDevice) {
-    printf("> dataDevice.leave\n");
+    GROUNDED_WAYLAND_LOG_HANDLER("dataDevice.leave");
+
     // We have to estroy the offer
     ASSERT(dragOffer);
     ASSERT(dragOffer->dnd);
@@ -2037,8 +2052,8 @@ static void dataDeviceListenerLeave(void* data, struct wl_data_device* dataDevic
 }
 
 static void dataDeviceListenerMotion(void* data, struct wl_data_device* dataDevice, u32 time, wl_fixed_t x, wl_fixed_t y) {
-    printf("> dataDevice.move\n");
-    //printf("Data offer move\n");
+    GROUNDED_WAYLAND_LOG_HANDLER("dataDevice.move");
+
     struct WaylandDataOffer* waylandOffer = dragOffer;
     GroundedWaylandWindow* window = 0;
     if(waylandOffer != 0) {
@@ -2053,8 +2068,7 @@ static void dataDeviceListenerMotion(void* data, struct wl_data_device* dataDevi
 }
 
 static void dataDeviceListenerDrop(void* data, struct wl_data_device* dataDevice) {
-    printf("> dataDevice.drop\n");
-    //printf("Data offer drop\n");
+    GROUNDED_WAYLAND_LOG_HANDLER("dataDevice.drop");
 
     struct WaylandDataOffer* waylandOffer = dragOffer;
     ASSERT(waylandOffer);
@@ -2108,7 +2122,8 @@ static void dataDeviceListenerDrop(void* data, struct wl_data_device* dataDevice
 }
 
 static void dataDeviceListenerSelection(void* data, struct wl_data_device* dataDevice, struct wl_data_offer* dataOffer) {
-    printf("> dataDevice.selection\n");
+    GROUNDED_WAYLAND_LOG_HANDLER("dataDevice.selection");
+
     // Can happen if the clipboard is empty
     if(dataOffer != 0) {
         // This is for copy and paste
@@ -2146,7 +2161,8 @@ struct WaylandDataSource {
 };
 
 static void dataSourceHandleTarget(void* data, struct wl_data_source* source, const char* mimeType) {
-    printf("> dataSource.target\n");
+    GROUNDED_WAYLAND_LOG_HANDLER("dataSource.target");
+
 	if (mimeType && *mimeType) {
 		printf("Destination would accept MIME type if dropped: %s\n", mimeType);
         setCursorOverwrite(GROUNDED_MOUSE_CURSOR_GRABBING);
@@ -2157,7 +2173,8 @@ static void dataSourceHandleTarget(void* data, struct wl_data_source* source, co
 }
 
 static void dataSourceHandleSend(void *data, struct wl_data_source *wl_data_source, const char* _mimeType, int32_t fd) {
-    printf("> dataSource.send\n");
+    GROUNDED_WAYLAND_LOG_HANDLER("dataSource.send");
+
     struct WaylandDataSource* waylandDataSource = (struct WaylandDataSource*) data;
     ASSERT(waylandDataSource);
     //ASSERT(waylandDataSource->sendCallback);
@@ -2186,7 +2203,8 @@ static void dataSourceHandleSend(void *data, struct wl_data_source *wl_data_sour
 
 // Drop has been cancelled. Now we can release resources. Only gets called when replaced by a new data source
 static void dataSourceHandleCancelled(void *data, struct wl_data_source * dataSource) {
-    printf("> dataSource.cancelled\n");
+    GROUNDED_WAYLAND_LOG_HANDLER("dataSource.cancelled");
+
     // If version is <= 2 this is only sent when the data source has been replaced by another source
     struct WaylandDataSource* waylandDataSource = (struct WaylandDataSource*) data;
     if(waylandDataSource->cancelCallback) {
@@ -2202,11 +2220,14 @@ static void dataSourceHandleCancelled(void *data, struct wl_data_source * dataSo
 }
 
 // Since version 3: Basically no useful information for us so we do nothing
-static void dataSourceHandleDndDropPerformed(void *data, struct wl_data_source *wl_data_source) {}
+static void dataSourceHandleDndDropPerformed(void *data, struct wl_data_source *wl_data_source) {
+    GROUNDED_WAYLAND_LOG_HANDLER("dataSource.dropPerformed");
+}
 
 // Since version 3: We are now allowed to free all resources as drop was successful
 static void dataSourceHandleDndFinished(void *data, struct wl_data_source* dataSource) {
-    printf("> dataSource.finished\n");
+    GROUNDED_WAYLAND_LOG_HANDLER("dataSource.finished");
+
     struct WaylandDataSource* waylandDataSource = (struct WaylandDataSource*) data;
     removeCursorOverwrite();
     if(dragDataSource->dataSource == dataSource) {
@@ -2217,7 +2238,8 @@ static void dataSourceHandleDndFinished(void *data, struct wl_data_source* dataS
 }
 
 static void dataSourceHandleAction(void *data, struct wl_data_source *source, u32 dnd_action) {
-	printf("> dataSource.action\n");
+    GROUNDED_WAYLAND_LOG_HANDLER("dataSource.action");
+
     //last_dnd_action = dnd_action;
 	switch (dnd_action) {
 	case WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE:
