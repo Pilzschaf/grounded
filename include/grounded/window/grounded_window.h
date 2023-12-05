@@ -137,15 +137,21 @@ typedef GROUNDED_WINDOW_CUSTOM_TITLEBAR_CALLBACK(GroundedWindowCustomTitlebarCal
 //typedef GROUNDED_WINDOW_MIME_TYPE_CALLBACK(GroundedWindowMimeTypeCallback);
 
 struct GroundedDragPayload;
+typedef enum GroundedDragFinishType {
+	GROUNDED_DRAG_FINISH_TYPE_CANCEL,
+	GROUNDED_DRAG_FINISH_TYPE_COPY,
+	GROUNDED_DRAG_FINISH_TYPE_MOVE,
+} GroundedDragFinishType;
 
 #define GROUNDED_WINDOW_DND_DROP_CALLBACK(name) void name(struct GroundedDragPayload* payload, String8 data, GroundedWindow* window, s32 x, s32 y, String8 mimeType)
 typedef GROUNDED_WINDOW_DND_DROP_CALLBACK(GroundedWindowDndDropCallback);
 #define GROUNDED_WINDOW_DND_CALLBACK(name) u32 name(struct GroundedDragPayload* payload, GroundedWindow* window, s32 x, s32 y, u32 mimeTypeCount, String8* mimeTypes, GroundedWindowDndDropCallback** onDropCallback)
 typedef GROUNDED_WINDOW_DND_CALLBACK(GroundedWindowDndCallback);
-#define GROUNDED_WINDOW_DND_SEND_CALLBACK(name) String8 name(MemoryArena* arena, String8 mimeType, u64 mimeIndex, void* userData)
-typedef GROUNDED_WINDOW_DND_SEND_CALLBACK(GroundedWindowDndSendCallback);
-#define GROUNDED_WINDOW_DND_CANCEL_CALLBACK(name) void name(MemoryArena* arena, void* userData)
-typedef GROUNDED_WINDOW_DND_CANCEL_CALLBACK(GroundedWindowDndCancelCallback);
+
+#define GROUNDED_WINDOW_DND_DATA_CALLBACK(name) String8 name(MemoryArena* arena, String8 mimeType, u64 mimeIndex, void* userData)
+typedef GROUNDED_WINDOW_DND_DATA_CALLBACK(GroundedWindowDndDataCallback);
+#define GROUNDED_WINDOW_DND_DRAG_FINISH_CALLBACK(name) void name(MemoryArena* arena, void* userData, GroundedDragFinishType finishType)
+typedef GROUNDED_WINDOW_DND_DRAG_FINISH_CALLBACK(GroundedWindowDndDragFinishCallback);
 
 struct GroundedWindowCreateParameters {
 	String8 title;
@@ -199,8 +205,8 @@ GROUNDED_FUNCTION GroundedWindowDragPayloadDescription* groundedWindowPrepareDra
 GROUNDED_FUNCTION MemoryArena* groundedWindowDragPayloadGetArena(GroundedWindowDragPayloadDescription* desc);
 GROUNDED_FUNCTION void groundedWindowDragPayloadSetImage(GroundedWindowDragPayloadDescription* desc, u8* data, u32 width, u32 height);
 GROUNDED_FUNCTION void groundedWindowDragPayloadSetMimeTypes(GroundedWindowDragPayloadDescription* desc, u32 mimeTypeCount, String8* mimeTypes);
-GROUNDED_FUNCTION void groundedWindowDragPayloadSetSendCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndSendCallback* callback);
-GROUNDED_FUNCTION void groundedWindowDragPayloadSetCancelCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndCancelCallback* callback);
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetDataCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndDataCallback* callback);
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetDragFinishCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndDragFinishCallback* callback);
 GROUNDED_FUNCTION void groundedWindowBeginDragAndDrop(GroundedWindowDragPayloadDescription* desc, void* userData);
 
 //GROUNDED_FUNCTION void groundedStartDragAndDrop(GroundedWindow* window, u64 mimeTypeCount, String8* mimeTypes, GroundedWindowDndSendCallback* callback, GroundedWindowDragPayloadImage* image, void* userData);

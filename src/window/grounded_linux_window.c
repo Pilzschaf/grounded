@@ -437,7 +437,7 @@ GROUNDED_FUNCTION void groundedStartDragAndDrop(GroundedWindow* window, u64 mime
     _groundedStartDragAndDrop(arena, window, mimeTypeCount, mimeTypes, callback, image, userData);
 }*/
 
-GROUNDED_WINDOW_DND_SEND_CALLBACK(simpleDragAndDropSend) {
+GROUNDED_WINDOW_DND_DATA_CALLBACK(simpleDragAndDropSend) {
     ASSERT(mimeIndex == 0);
     ASSERT(userData);
     String8* payload = (String8*) userData;

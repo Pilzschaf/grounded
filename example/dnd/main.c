@@ -111,11 +111,11 @@ GROUNDED_WINDOW_DND_CALLBACK(dndCallback) {
     return 0xFFFFFFFF;
 }
 
-GROUNDED_WINDOW_DND_SEND_CALLBACK(sendCallback) {
+GROUNDED_WINDOW_DND_DATA_CALLBACK(dataCallback) {
     return STR8_LITERAL("Box");
 }
 
-GROUNDED_WINDOW_DND_CANCEL_CALLBACK(cancelCallback) {
+GROUNDED_WINDOW_DND_DRAG_FINISH_CALLBACK(dragFinishCallback) {
     struct Box* box = (struct Box*)userData;
     box->color.a = 1.0f;
 }
@@ -212,8 +212,8 @@ int main() {
                                 GroundedWindowDragPayloadDescription* desc = groundedWindowPrepareDragPayload(boxes[j].associatedWindow);
                                 groundedWindowDragPayloadSetImage(desc, (u8*)pixelData, boxes[j].size, boxes[j].size);
                                 groundedWindowDragPayloadSetMimeTypes(desc, 1, &mimeType);
-                                groundedWindowDragPayloadSetSendCallback(desc, sendCallback);
-                                groundedWindowDragPayloadSetCancelCallback(desc, cancelCallback);
+                                groundedWindowDragPayloadSetDataCallback(desc, dataCallback);
+                                groundedWindowDragPayloadSetDragFinishCallback(desc, dragFinishCallback);
                                 groundedWindowBeginDragAndDrop(desc, &boxes[j]);
                                 arenaEndTemp(temp);
                                 //boxes[j].associatedWindow = 0;

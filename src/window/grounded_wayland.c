@@ -2155,11 +2155,11 @@ struct WaylandDataSource {
     MemoryArena* arena;
     String8* mimeTypes;
     u64 mimeTypeCount;
-    GroundedWindowDndSendCallback* sendCallback;
-    GroundedWindowDndCancelCallback* cancelCallback;
+    GroundedWindowDndDataCallback* dataCallback;
+    GroundedWindowDndDragFinishCallback* dragFinishCallback;
     void* userData;
     struct wl_data_source* dataSource;
-    //enum wl_data_device_manager_dnd_action last_dnd_action = WL_DATA_DEVICE_MANAGER_DND_ACTION_NONE;
+    enum wl_data_device_manager_dnd_action last_dnd_action;
 };
 
 static void dataSourceHandleTarget(void* data, struct wl_data_source* source, const char* mimeType) {
@@ -2198,9 +2198,9 @@ static void dataSourceHandleSend(void *data, struct wl_data_source *wl_data_sour
         }
     }
 
-    if(mimeTypeIndex < waylandDataSource->mimeTypeCount && waylandDataSource->sendCallback) {
+    if(mimeTypeIndex < waylandDataSource->mimeTypeCount && waylandDataSource->dataCallback) {
         //TODO: Cache data of this mimetype
-        String8 data = waylandDataSource->sendCallback(waylandDataSource->arena, mimeType, mimeTypeIndex, waylandDataSource->userData);
+        String8 data = waylandDataSource->dataCallback(waylandDataSource->arena, mimeType, mimeTypeIndex, waylandDataSource->userData);
         write(fd, data.base, data.size);
     }
 	close(fd);
@@ -2212,8 +2212,8 @@ static void dataSourceHandleCancelled(void *data, struct wl_data_source * dataSo
 
     // If version is <= 2 this is only sent when the data source has been replaced by another source
     struct WaylandDataSource* waylandDataSource = (struct WaylandDataSource*) data;
-    if(waylandDataSource->cancelCallback) {
-        waylandDataSource->cancelCallback(waylandDataSource->arena, waylandDataSource->userData);
+    if(waylandDataSource->dragFinishCallback) {
+        waylandDataSource->dragFinishCallback(waylandDataSource->arena, waylandDataSource->userData, GROUNDED_DRAG_FINISH_TYPE_CANCEL);
     }
     
     removeCursorOverwrite();
@@ -2234,6 +2234,15 @@ static void dataSourceHandleDndFinished(void *data, struct wl_data_source* dataS
     GROUNDED_WAYLAND_LOG_HANDLER("dataSource.finished");
 
     struct WaylandDataSource* waylandDataSource = (struct WaylandDataSource*) data;
+    if(waylandDataSource->dragFinishCallback) {
+        // We default to move action
+        GroundedDragFinishType finishType = GROUNDED_DRAG_FINISH_TYPE_MOVE;
+        ASSERT(waylandDataSource->last_dnd_action != WL_DATA_DEVICE_MANAGER_DND_ACTION_NONE);
+        if(waylandDataSource->last_dnd_action == WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY) {
+            finishType = GROUNDED_DRAG_FINISH_TYPE_COPY;
+        }
+        waylandDataSource->dragFinishCallback(waylandDataSource->arena, waylandDataSource->userData, finishType);
+    }
     removeCursorOverwrite();
     if(dragDataSource->dataSource == dataSource) {
         dragDataSource = 0;
@@ -2245,7 +2254,10 @@ static void dataSourceHandleDndFinished(void *data, struct wl_data_source* dataS
 static void dataSourceHandleAction(void *data, struct wl_data_source *source, u32 dnd_action) {
     GROUNDED_WAYLAND_LOG_HANDLER("dataSource.action");
 
-    //last_dnd_action = dnd_action;
+    struct WaylandDataSource* waylandDataSource = (struct WaylandDataSource*) data;
+    if(data) {
+        waylandDataSource->last_dnd_action = dnd_action;
+    }
 	switch (dnd_action) {
 	case WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE:
 		printf("Destination would perform a move action if dropped\n");
@@ -2276,8 +2288,8 @@ struct GroundedWindowDragPayloadDescription {
     struct wl_surface* icon;
     u32 mimeTypeCount;
     String8* mimeTypes;
-    GroundedWindowDndSendCallback* sendCallback;
-    GroundedWindowDndCancelCallback* cancelCallback;
+    GroundedWindowDndDataCallback* dataCallback;
+    GroundedWindowDndDragFinishCallback* dragFinishCallback;
 };
 
 GROUNDED_FUNCTION GroundedWindowDragPayloadDescription* groundedWindowPrepareDragPayload(GroundedWindow* window) {
@@ -2326,12 +2338,12 @@ GROUNDED_FUNCTION void groundedWindowDragPayloadSetMimeTypes(GroundedWindowDragP
     desc->mimeTypeCount = mimeTypeCount;
 }
 
-GROUNDED_FUNCTION void groundedWindowDragPayloadSetSendCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndSendCallback* callback) {
-    desc->sendCallback = callback;
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetDataCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndDataCallback* callback) {
+    desc->dataCallback = callback;
 }
 
-GROUNDED_FUNCTION void groundedWindowDragPayloadSetCancelCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndCancelCallback* callback) {
-    desc->cancelCallback = callback;
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetDragFinishCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndDragFinishCallback* callback) {
+    desc->dragFinishCallback = callback;
 }
 
 GROUNDED_FUNCTION void groundedWindowBeginDragAndDrop(GroundedWindowDragPayloadDescription* desc, void* userData) {
@@ -2345,7 +2357,7 @@ GROUNDED_FUNCTION void groundedWindowBeginDragAndDrop(GroundedWindowDragPayloadD
         // However this seems to also cancel the second drag at least if we use the same dragSerial.
         // We could completely ignore the request when the same dragSerial is going to be used and just keep
         // the first drag
-        dragDataSource->cancelCallback(dragDataSource->arena, dragDataSource->userData);
+        dragDataSource->dragFinishCallback(dragDataSource->arena, dragDataSource->userData, GROUNDED_DRAG_FINISH_TYPE_CANCEL);
         removeCursorOverwrite();
         wl_data_source_destroy(dragDataSource->dataSource);
         arenaRelease(dragDataSource->arena);
@@ -2354,8 +2366,8 @@ GROUNDED_FUNCTION void groundedWindowBeginDragAndDrop(GroundedWindowDragPayloadD
 
     dragDataSource = ARENA_PUSH_STRUCT(&desc->arena, struct WaylandDataSource);
     dragDataSource->arena = &desc->arena;
-    dragDataSource->sendCallback = desc->sendCallback;
-    dragDataSource->cancelCallback = desc->cancelCallback;
+    dragDataSource->dataCallback = desc->dataCallback;
+    dragDataSource->dragFinishCallback = desc->dragFinishCallback;
     dragDataSource->userData = userData;
     dragDataSource->mimeTypeCount = desc->mimeTypeCount;
     dragDataSource->mimeTypes = desc->mimeTypes;
