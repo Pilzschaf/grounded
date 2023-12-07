@@ -1008,7 +1008,7 @@ static void registry_global(void* data, struct wl_registry* registry, uint32_t i
     } else if(strcmp(interface, "wl_data_device_manager") == 0) {
         // For drag and drop and clipboard support
         u32 compositorSupportedVersion = version;
-        u32 requestedVersion = MIN(version, 1); // We support up to version 3
+        u32 requestedVersion = MIN(version, 3); // We support up to version 3
         dataDeviceManager = (struct wl_data_device_manager*)wl_registry_bind(registry, id, wl_data_device_manager_interface, requestedVersion);
         ASSERT(dataDeviceManager);
         if(dataDeviceManager) {
