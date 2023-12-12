@@ -17,7 +17,7 @@
 //#include <EGL/egl.h>
 #endif
 
-#if 0
+#if 1
 #define GROUNDED_WAYLAND_LOG_CALL(name)
 #define GROUNDED_WAYLAND_LOG_HANDLER(name)
 #else
@@ -504,7 +504,7 @@ static void pointerHandleEnter(void *data, struct wl_pointer *wl_pointer, uint32
     } else {
         waylandSetCursorType(waylandCurrentCursorType);
     }
-    //printf("Enter with serial %u\n", serial);
+    printf("Enter with serial %u\n", serial);
 
     pointerEnterSerial = serial;
 }
@@ -512,7 +512,7 @@ static void pointerHandleEnter(void *data, struct wl_pointer *wl_pointer, uint32
 static void pointerHandleLeave(void *data, struct wl_pointer *wl_pointer, uint32_t serial, struct wl_surface *surface) {
     //printf("Pointer Leave\n");
     if(activeWindow) {
-        // Make sure mouse position is outisde screen
+        // Make sure mouse position is outside screen
         activeWindow->mouseState.x = -1;
         activeWindow->mouseState.y = -1;
 
@@ -562,7 +562,7 @@ static void pointerHandleMotion(void *data, struct wl_pointer *wl_pointer, uint3
                 float y = posY;
                 float width = groundedWindowGetWidth((GroundedWindow*)activeWindow);
                 float height = groundedWindowGetHeight((GroundedWindow*)activeWindow);
-                float offset = 27.0f;
+                float offset = 10.0f;
                 u32 edges = 0;
                 if(x < offset) {
                     edges |= XDG_TOPLEVEL_RESIZE_EDGE_LEFT;
@@ -1434,6 +1434,10 @@ static GroundedWindow* waylandCreateWindow(MemoryArena* arena, struct GroundedWi
         waylandSetInhibitIdle(window, true);
     }
 
+    // Make sure mouse position is outside screen
+    window->mouseState.x = -1;
+    window->mouseState.y = -1;
+
     window->dndCallback = parameters->dndCallback;
 
     wl_surface_commit(window->surface);
@@ -1909,7 +1913,7 @@ static void dataOfferHandleOffer(void* userData, struct wl_data_offer* offer, co
 
     // I do not know if a copy is really necessary but it defenitely feels safer
     str8ListPushCopyAndNullTerminate(&waylandOffer->arena, &waylandOffer->availableMimeTypeList, str8FromCstr(mimeType));
-    printf("Mimme: %s offer %p\n", waylandOffer->availableMimeTypeList.last->string.base, waylandOffer);
+    //printf("Mimme: %s offer %p\n", waylandOffer->availableMimeTypeList.last->string.base, waylandOffer);
     //wl_data_offer_accept(waylandOffer->offer, waylandOffer->enterSerial, mimeType);
     //str8ListPush(&waylandOffer->arena, &waylandOffer->availableMimeTypeList, str8FromCstr(mimeType));
 }
@@ -1975,17 +1979,21 @@ static void dataDeviceListenerOffer(void* data, struct wl_data_device* dataDevic
     waylandOffer->offer = offer;
     waylandOffer->lastAcceptedMimeIndex = 0xFFFFFFFF;
 
-    printf("New offer %p\n", waylandOffer);
+    //printf("New offer %p\n", waylandOffer);
 
     // Add listener which tells us, what data type the offer contains
     wl_data_offer_add_listener(offer, &dataOfferListener, waylandOffer);
 }
 
 static void updateWaylandDragPosition(GroundedWaylandWindow* window, struct WaylandDataOffer* waylandOffer, s32 posX, s32 posY) {
-    waylandOffer->x = posX;
-    waylandOffer->y = posY;
     ASSERT(waylandOffer->dnd);
     ASSERT(waylandOffer->enterSerial);
+    waylandOffer->x = posX;
+    waylandOffer->y = posY;
+    if(activeWindow) {
+        activeWindow->mouseState.x = posX;
+        activeWindow->mouseState.y = posY;
+    }
     u32 newMimeIndex = window->dndCallback(0, (GroundedWindow*)window, posX, posY, waylandOffer->mimeTypeCount, waylandOffer->mimeTypes, &waylandOffer->dropCallback);
     if(newMimeIndex != waylandOffer->lastAcceptedMimeIndex) {
         if(newMimeIndex < waylandOffer->mimeTypeCount) {
@@ -2020,6 +2028,8 @@ static void dataDeviceListenerEnter(void* data, struct wl_data_device* dataDevic
     }
 
     if(window && window->dndCallback) {
+        activeWindow = window;
+
         u32 mimeCount = 0;
         for(String8Node* node = waylandOffer->availableMimeTypeList.first; node != 0; node = node->next) {
             mimeCount++;
@@ -2043,10 +2053,20 @@ static void dataDeviceListenerEnter(void* data, struct wl_data_device* dataDevic
 
 static void dataDeviceListenerLeave(void* data, struct wl_data_device* dataDevice) {
     GROUNDED_WAYLAND_LOG_HANDLER("dataDevice.leave");
-
-    // We have to estroy the offer
     ASSERT(dragOffer);
     ASSERT(dragOffer->dnd);
+
+    if(activeWindow && activeWindow == dragOffer->window) {
+        // Make sure mouse position is outside screen
+        activeWindow->mouseState.x = -1;
+        activeWindow->mouseState.y = -1;
+
+        // Reset buttons to non-pressed state
+        MEMORY_CLEAR_ARRAY(activeWindow->mouseState.buttons);
+        //TODO: Should probably also send button up events for all buttons that were pressed upon leave. Or maybe we send a cursor leave event and let the applicatio handle it
+    }
+
+    // We have to destroy the offer
     wl_data_offer_destroy(dragOffer->offer);
     arenaRelease(&dragOffer->arena);
     dragOffer = 0;
@@ -2134,7 +2154,7 @@ static void dataDeviceListenerSelection(void* data, struct wl_data_device* dataD
         
         //TODO: Read in the data
         
-        printf("Data offer %p is selection and gets destroyed\n", waylandOffer);
+        //printf("Data offer %p is selection and gets destroyed\n", waylandOffer);
         wl_data_offer_destroy(waylandOffer->offer);
         arenaRelease(&waylandOffer->arena);
     }
@@ -2317,6 +2337,8 @@ GROUNDED_FUNCTION void groundedWindowDragPayloadSetImage(GroundedWindowDragPaylo
             MEMORY_COPY(poolData, data, imageSize);
 
             wl_surface_attach(desc->icon, wlBuffer, 0, 0);
+            //TODO: Do we always want to set this or only when the user requests this via a flag or similar?
+            wl_surface_set_buffer_transform(desc->icon, WL_OUTPUT_TRANSFORM_FLIPPED_180);
             //wl_surface_offset(desc->icon, 100, 100);
             wl_surface_damage(desc->icon, 0, 0, UINT32_MAX, UINT32_MAX);
             wl_surface_commit(desc->icon); // Commit staged changes to surface

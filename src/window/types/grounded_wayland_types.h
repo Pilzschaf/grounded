@@ -14,6 +14,7 @@
 #define WL_SURFACE_DAMAGE 2
 #define WL_SURFACE_SET_INPUT_REGION 5
 #define WL_SURFACE_COMMIT 6
+#define WL_SURFACE_SET_BUFFER_TRANSFORM 7 // Since version 2
 #define WL_SURFACE_SET_BUFFER_SCALE 8
 #define WL_SURFACE_OFFSET 10
 
@@ -117,6 +118,17 @@ struct wl_output_listener {
 	void (*description)(void *data, struct wl_output *wl_output, const char *description);
 };
 
+enum wl_output_transform {
+	WL_OUTPUT_TRANSFORM_NORMAL = 0,
+	WL_OUTPUT_TRANSFORM_90 = 1,
+	WL_OUTPUT_TRANSFORM_180 = 2,
+	WL_OUTPUT_TRANSFORM_270 = 3,
+	WL_OUTPUT_TRANSFORM_FLIPPED = 4,
+	WL_OUTPUT_TRANSFORM_FLIPPED_90 = 5,
+	WL_OUTPUT_TRANSFORM_FLIPPED_180 = 6,
+	WL_OUTPUT_TRANSFORM_FLIPPED_270 = 7,
+};
+
 enum wl_keyboard_key_state {
 	WL_KEYBOARD_KEY_STATE_RELEASED = 0,
 	WL_KEYBOARD_KEY_STATE_PRESSED = 1,
@@ -198,6 +210,11 @@ static inline void wl_surface_destroy(struct wl_surface *wl_surface) {
 
 static inline void wl_surface_commit(struct wl_surface *wl_surface) {
 	wl_proxy_marshal((struct wl_proxy *) wl_surface, WL_SURFACE_COMMIT);
+}
+
+static inline void wl_surface_set_buffer_transform(struct wl_surface *wl_surface, int32_t transform) {
+	wl_proxy_marshal_flags((struct wl_proxy *) wl_surface,
+			 WL_SURFACE_SET_BUFFER_TRANSFORM, NULL, wl_proxy_get_version((struct wl_proxy *) wl_surface), 0, transform);
 }
 
 static inline void wl_surface_set_user_data(struct wl_surface *wl_surface, void *user_data) {
