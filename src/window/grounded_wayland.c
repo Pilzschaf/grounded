@@ -1742,7 +1742,7 @@ GROUNDED_FUNCTION GroundedOpenGLContext* waylandCreateOpenGLContext(MemoryArena*
     return result;
 }
 
-static bool createEglSurface(GroundedWaylandWindow* window) {
+static bool waylandCreateEglSurface(GroundedWaylandWindow* window) {
     // if config is 0 the total number of configs is returned
     EGLConfig config;
     int numConfigs = 0;
@@ -1775,7 +1775,7 @@ static void waylandResizeEglSurface(GroundedWaylandWindow* window) {
 
 GROUNDED_FUNCTION void waylandOpenGLMakeCurrent(GroundedWaylandWindow* window, GroundedOpenGLContext* context) {
     if(!window->eglWindow || !window->eglSurface) {
-        createEglSurface(window);
+        waylandCreateEglSurface(window);
     }
     if(!eglMakeCurrent(waylandEglDisplay, window->eglSurface, window->eglSurface, context->eglContext)) {
         //LOG_INFO("Error: ", eglGetError());
@@ -2303,31 +2303,13 @@ static struct wl_data_source_listener dataSourceListener = {
     dataSourceHandleAction,
 };
 
-struct GroundedWindowDragPayloadDescription {
-    MemoryArena arena;
-    struct wl_surface* icon;
-    u32 mimeTypeCount;
-    String8* mimeTypes;
-    GroundedWindowDndDataCallback* dataCallback;
-    GroundedWindowDndDragFinishCallback* dragFinishCallback;
-};
-
-GROUNDED_FUNCTION GroundedWindowDragPayloadDescription* groundedWindowPrepareDragPayload(GroundedWindow* window) {
-    GroundedWindowDragPayloadDescription* result = ARENA_BOOTSTRAP_PUSH_STRUCT(createGrowingArena(osGetMemorySubsystem(), KB(4)), GroundedWindowDragPayloadDescription, arena);
-    return result;
-}
-
-GROUNDED_FUNCTION MemoryArena* groundedWindowDragPayloadGetArena(GroundedWindowDragPayloadDescription* desc) {
-    return &desc->arena;
-}
-
-GROUNDED_FUNCTION void groundedWindowDragPayloadSetImage(GroundedWindowDragPayloadDescription* desc, u8* data, u32 width, u32 height) {
+GROUNDED_FUNCTION void groundedWaylandDragPayloadSetImage(GroundedWindowDragPayloadDescription* desc, u8* data, u32 width, u32 height) {
     // It is not allowed to set the image twice
-    ASSERT(!desc->icon);
+    ASSERT(!desc->waylandIcon);
     
-    if(!desc->icon) {
-        desc->icon = wl_compositor_create_surface(compositor);
-        if(desc->icon) {
+    if(!desc->waylandIcon) {
+        desc->waylandIcon = wl_compositor_create_surface(compositor);
+        if(desc->waylandIcon) {
             u64 imageSize = width * height * sizeof(u32);
             int fd = createSharedMemoryFile(imageSize);
             u8* poolData = mmap(0, imageSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
@@ -2336,39 +2318,17 @@ GROUNDED_FUNCTION void groundedWindowDragPayloadSetImage(GroundedWindowDragPaylo
             struct wl_buffer* wlBuffer = wl_shm_pool_create_buffer(pool, 0, width, height, width * sizeof(u32), WL_SHM_FORMAT_XRGB8888);
             MEMORY_COPY(poolData, data, imageSize);
 
-            wl_surface_attach(desc->icon, wlBuffer, 0, 0);
+            wl_surface_attach(desc->waylandIcon, wlBuffer, 0, 0);
             //TODO: Do we always want to set this or only when the user requests this via a flag or similar?
-            wl_surface_set_buffer_transform(desc->icon, WL_OUTPUT_TRANSFORM_FLIPPED_180);
+            wl_surface_set_buffer_transform(desc->waylandIcon, WL_OUTPUT_TRANSFORM_FLIPPED_180);
             //wl_surface_offset(desc->icon, 100, 100);
-            wl_surface_damage(desc->icon, 0, 0, UINT32_MAX, UINT32_MAX);
-            wl_surface_commit(desc->icon); // Commit staged changes to surface
+            wl_surface_damage(desc->waylandIcon, 0, 0, UINT32_MAX, UINT32_MAX);
+            wl_surface_commit(desc->waylandIcon); // Commit staged changes to surface
         }
     }
 }
 
-//TODO: Could create linked list of mime types. This would allow an API where the user can add mime types to a list. 
-// Even different handling functions per mime type would be possible but is this actually desirable?
-GROUNDED_FUNCTION void groundedWindowDragPayloadSetMimeTypes(GroundedWindowDragPayloadDescription* desc, u32 mimeTypeCount, String8* mimeTypes) {
-    // Only allowed to set mime types once
-    ASSERT(!desc->mimeTypeCount);
-    ASSERT(!desc->mimeTypes);
-
-    desc->mimeTypes = ARENA_PUSH_ARRAY_NO_CLEAR(&desc->arena, mimeTypeCount, String8);
-    for(u64 i = 0; i < mimeTypeCount; ++i) {
-        desc->mimeTypes[i] = str8CopyAndNullTerminate(&desc->arena, mimeTypes[i]);
-    }
-    desc->mimeTypeCount = mimeTypeCount;
-}
-
-GROUNDED_FUNCTION void groundedWindowDragPayloadSetDataCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndDataCallback* callback) {
-    desc->dataCallback = callback;
-}
-
-GROUNDED_FUNCTION void groundedWindowDragPayloadSetDragFinishCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndDragFinishCallback* callback) {
-    desc->dragFinishCallback = callback;
-}
-
-GROUNDED_FUNCTION void groundedWindowBeginDragAndDrop(GroundedWindowDragPayloadDescription* desc, void* userData) {
+GROUNDED_FUNCTION void groundedWaylandBeginDragAndDrop(GroundedWindowDragPayloadDescription* desc, void* userData) {
     // Serial is the last pointer serial. Should probably be pointer button serial
     MemoryArena* scratch = threadContextGetScratch(0);
     ArenaTempMemory temp = arenaBeginTemp(scratch);
@@ -2406,9 +2366,8 @@ GROUNDED_FUNCTION void groundedWindowBeginDragAndDrop(GroundedWindowDragPayloadD
     setCursorOverwrite(GROUNDED_MOUSE_CURSOR_GRABBING);
 
     printf("Drag serial: %u\n", lastPointerSerial);
-    struct wl_surface* icon = desc->icon;
     dragDataSource->dataSource = dataSource;
-    wl_data_device_start_drag(dataDevice, dataSource, activeWindow->surface, desc->icon, lastPointerSerial);
+    wl_data_device_start_drag(dataDevice, dataSource, activeWindow->surface, desc->waylandIcon, lastPointerSerial);
 
     arenaEndTemp(temp);
 }

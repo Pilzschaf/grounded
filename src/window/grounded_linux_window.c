@@ -5,6 +5,17 @@ u32 eventQueueIndex;
 
 static const char** getCursorNameCandidates(enum GroundedMouseCursor cursorType, u64* candidateCount);
 
+struct GroundedWindowDragPayloadDescription {
+    MemoryArena arena;
+	union {
+    	struct wl_surface* waylandIcon;
+	};
+    u32 mimeTypeCount;
+    String8* mimeTypes;
+    GroundedWindowDndDataCallback* dataCallback;
+    GroundedWindowDndDragFinishCallback* dragFinishCallback;
+};
+
 #ifdef GROUNDED_OPENGL_SUPPORT
 //#include <EGL/egl.h>
 #include "types/grounded_egl_types.h"
@@ -38,7 +49,7 @@ typedef enum WindowBackend {
 WindowBackend linuxWindowBackend = GROUNDED_LINUX_WINDOW_BACKEND_NONE;
 
 GROUNDED_FUNCTION void groundedInitWindowSystem() {
-    bool skipWayland = false;
+    bool skipWayland = true;
     if(!skipWayland && initWayland()) {
         linuxWindowBackend = GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND;
     } else {
@@ -437,11 +448,68 @@ GROUNDED_FUNCTION void groundedStartDragAndDrop(GroundedWindow* window, u64 mime
     _groundedStartDragAndDrop(arena, window, mimeTypeCount, mimeTypes, callback, image, userData);
 }*/
 
+//TODO: Could create linked list of mime types. This would allow an API where the user can add mime types to a list. 
+// Even different handling functions per mime type would be possible but is this actually desirable?
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetMimeTypes(GroundedWindowDragPayloadDescription* desc, u32 mimeTypeCount, String8* mimeTypes) {
+    // Only allowed to set mime types once
+    ASSERT(!desc->mimeTypeCount);
+    ASSERT(!desc->mimeTypes);
+
+    desc->mimeTypes = ARENA_PUSH_ARRAY_NO_CLEAR(&desc->arena, mimeTypeCount, String8);
+    for(u64 i = 0; i < mimeTypeCount; ++i) {
+        desc->mimeTypes[i] = str8CopyAndNullTerminate(&desc->arena, mimeTypes[i]);
+    }
+    desc->mimeTypeCount = mimeTypeCount;
+}
+
+GROUNDED_FUNCTION MemoryArena* groundedWindowDragPayloadGetArena(GroundedWindowDragPayloadDescription* desc) {
+    return &desc->arena;
+}
+
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetDataCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndDataCallback* callback) {
+    desc->dataCallback = callback;
+}
+
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetDragFinishCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndDragFinishCallback* callback) {
+    desc->dragFinishCallback = callback;
+}
+
+GROUNDED_FUNCTION GroundedWindowDragPayloadDescription* groundedWindowPrepareDragPayload(GroundedWindow* window) {
+    GroundedWindowDragPayloadDescription* result = ARENA_BOOTSTRAP_PUSH_STRUCT(createGrowingArena(osGetMemorySubsystem(), KB(4)), GroundedWindowDragPayloadDescription, arena);
+    return result;
+}
+
 GROUNDED_WINDOW_DND_DATA_CALLBACK(simpleDragAndDropSend) {
     ASSERT(mimeIndex == 0);
     ASSERT(userData);
     String8* payload = (String8*) userData;
     return *payload;
+}
+
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetImage(GroundedWindowDragPayloadDescription* desc, u8* data, u32 width, u32 height) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            groundedWaylandDragPayloadSetImage(desc, data, width, height);
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            groundedXcbDragPayloadSetImage(desc, data, width, height);
+        } break;
+        default:break;
+    }
+}
+
+GROUNDED_FUNCTION void groundedWindowBeginDragAndDrop(GroundedWindowDragPayloadDescription* desc, void* userData) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            groundedWaylandBeginDragAndDrop(desc, userData);
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            groundedXcbBeginDragAndDrop(desc, userData);
+        } break;
+        default:break;
+    }
 }
 
 /*GROUNDED_FUNCTION void groundedStartDragAndDropWithSingleDataType(GroundedWindow* window, String8 mimeType, u8* data, u64 size, GroundedWindowDragPayloadImage* image) {

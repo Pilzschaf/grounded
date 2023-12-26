@@ -9,15 +9,15 @@
 #define XCB_MOTION_NOTIFY 6
 // #define XCB_ENTER_NOTIFY 7
 // #define XCB_LEAVE_NOTIFY 8
-// #define XCB_FOCUS_IN 9
-// #define XCB_FOCUS_OUT 10
+#define XCB_FOCUS_IN 9
+#define XCB_FOCUS_OUT 10
 // #define XCB_KEYMAP_NOTIFY 11
 // #define XCB_EXPOSE 12
 // #define XCB_GRAPHICS_EXPOSURE 13
 // #define XCB_NO_EXPOSURE 14
 #define XCB_VISIBILITY_NOTIFY 15
 #define XCB_CREATE_NOTIFY 16
-// #define XCB_DESTROY_NOTIFY 17
+#define XCB_DESTROY_NOTIFY 17
 #define XCB_UNMAP_NOTIFY 18
 #define XCB_MAP_NOTIFY 19
 // #define XCB_MAP_REQUEST 20
@@ -30,8 +30,8 @@
 // #define XCB_CIRCULATE_REQUEST 27
 // #define XCB_PROPERTY_NOTIFY 28
 // #define XCB_SELECTION_CLEAR 29
-// #define XCB_SELECTION_REQUEST 30
-// #define XCB_SELECTION_NOTIFY 31
+#define XCB_SELECTION_REQUEST 30
+#define XCB_SELECTION_NOTIFY 31
 // #define XCB_COLORMAP_NOTIFY 32
 #define XCB_CLIENT_MESSAGE 33
 #define XCB_MAPPING_NOTIFY 34
@@ -162,6 +162,17 @@ typedef struct xcb_configure_notify_event_t {
     uint8_t      override_redirect;
     uint8_t      pad1;
 } xcb_configure_notify_event_t;
+
+typedef struct xcb_focus_in_event_t {
+    uint8_t      response_type;
+    uint8_t      detail;
+    uint16_t     sequence;
+    xcb_window_t event;
+    uint8_t      mode;
+    uint8_t      pad0[3];
+} xcb_focus_in_event_t;
+
+typedef xcb_focus_in_event_t xcb_focus_out_event_t;
 
 typedef struct xcb_mapping_notify_event_t {
     uint8_t       response_type;
@@ -553,6 +564,158 @@ typedef enum xcb_event_mask_t {
     XCB_EVENT_MASK_COLOR_MAP_CHANGE = 8388608,
     XCB_EVENT_MASK_OWNER_GRAB_BUTTON = 16777216
 } xcb_event_mask_t;
+
+typedef struct xcb_get_atom_name_cookie_t {
+    unsigned int sequence;
+} xcb_get_atom_name_cookie_t;
+
+typedef struct xcb_get_atom_name_reply_t {
+    uint8_t  response_type;
+    uint8_t  pad0;
+    uint16_t sequence;
+    uint32_t length;
+    uint16_t name_len;
+    uint8_t  pad1[22];
+} xcb_get_atom_name_reply_t;
+
+typedef struct xcb_get_property_cookie_t {
+    unsigned int sequence;
+} xcb_get_property_cookie_t;
+
+typedef struct xcb_get_property_reply_t {
+    uint8_t    response_type;
+    uint8_t    format;
+    uint16_t   sequence;
+    uint32_t   length;
+    xcb_atom_t type;
+    uint32_t   bytes_after;
+    uint32_t   value_len;
+    uint8_t    pad0[12];
+} xcb_get_property_reply_t;
+
+typedef enum xcb_get_property_type_t {
+    XCB_GET_PROPERTY_TYPE_ANY = 0
+} xcb_get_property_type_t;
+
+typedef struct xcb_translate_coordinates_cookie_t {
+    unsigned int sequence;
+} xcb_translate_coordinates_cookie_t;
+
+typedef struct xcb_translate_coordinates_reply_t {
+    uint8_t      response_type;
+    uint8_t      same_screen;
+    uint16_t     sequence;
+    uint32_t     length;
+    xcb_window_t child;
+    int16_t      dst_x;
+    int16_t      dst_y;
+} xcb_translate_coordinates_reply_t;
+
+typedef struct xcb_query_tree_cookie_t {
+    unsigned int sequence;
+} xcb_query_tree_cookie_t;
+
+typedef struct xcb_query_tree_reply_t {
+    uint8_t      response_type;
+    uint8_t      pad0;
+    uint16_t     sequence;
+    uint32_t     length;
+    xcb_window_t root;
+    xcb_window_t parent;
+    uint16_t     children_len;
+    uint8_t      pad1[14];
+} xcb_query_tree_reply_t;
+
+typedef struct xcb_selection_request_event_t {
+    uint8_t         response_type;
+    uint8_t         pad0;
+    uint16_t        sequence;
+    xcb_timestamp_t time;
+    xcb_window_t    owner;
+    xcb_window_t    requestor;
+    xcb_atom_t      selection;
+    xcb_atom_t      target;
+    xcb_atom_t      property;
+} xcb_selection_request_event_t;
+
+typedef struct xcb_selection_notify_event_t {
+    uint8_t         response_type;
+    uint8_t         pad0;
+    uint16_t        sequence;
+    xcb_timestamp_t time;
+    xcb_window_t    requestor;
+    xcb_atom_t      selection;
+    xcb_atom_t      target;
+    xcb_atom_t      property;
+} xcb_selection_notify_event_t;
+
+typedef struct xcb_get_window_attributes_cookie_t {
+    unsigned int sequence;
+} xcb_get_window_attributes_cookie_t;
+
+typedef struct xcb_get_window_attributes_request_t {
+    uint8_t      major_opcode;
+    uint8_t      pad0;
+    uint16_t     length;
+    xcb_window_t window;
+} xcb_get_window_attributes_request_t;
+
+typedef struct xcb_get_window_attributes_reply_t {
+    uint8_t        response_type;
+    uint8_t        backing_store;
+    uint16_t       sequence;
+    uint32_t       length;
+    xcb_visualid_t visual;
+    uint16_t       _class;
+    uint8_t        bit_gravity;
+    uint8_t        win_gravity;
+    uint32_t       backing_planes;
+    uint32_t       backing_pixel;
+    uint8_t        save_under;
+    uint8_t        map_is_installed;
+    uint8_t        map_state;
+    uint8_t        override_redirect;
+    xcb_colormap_t colormap;
+    uint32_t       all_event_masks;
+    uint32_t       your_event_mask;
+    uint16_t       do_not_propagate_mask;
+    uint8_t        pad0[2];
+} xcb_get_window_attributes_reply_t;
+
+typedef struct xcb_get_geometry_cookie_t {
+    unsigned int sequence;
+} xcb_get_geometry_cookie_t;
+
+typedef struct xcb_get_geometry_reply_t {
+    uint8_t      response_type;
+    uint8_t      depth;
+    uint16_t     sequence;
+    uint32_t     length;
+    xcb_window_t root;
+    int16_t      x;
+    int16_t      y;
+    uint16_t     width;
+    uint16_t     height;
+    uint16_t     border_width;
+    uint8_t      pad0[2];
+} xcb_get_geometry_reply_t;
+
+typedef struct xcb_motion_notify_event_t {
+    uint8_t         response_type;
+    uint8_t         detail;
+    uint16_t        sequence;
+    xcb_timestamp_t time;
+    xcb_window_t    root;
+    xcb_window_t    event;
+    xcb_window_t    child;
+    int16_t         root_x;
+    int16_t         root_y;
+    int16_t         event_x;
+    int16_t         event_y;
+    uint16_t        state;
+    uint8_t         same_screen;
+    uint8_t         pad0;
+} xcb_motion_notify_event_t;
 
 typedef union xcb_client_message_data_t {
     uint8_t  data8[20];
