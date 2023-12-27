@@ -11,10 +11,10 @@
 // #define XCB_LEAVE_NOTIFY 8
 #define XCB_FOCUS_IN 9
 #define XCB_FOCUS_OUT 10
-// #define XCB_KEYMAP_NOTIFY 11
+//#define XCB_KEYMAP_NOTIFY 11
 // #define XCB_EXPOSE 12
 // #define XCB_GRAPHICS_EXPOSURE 13
-// #define XCB_NO_EXPOSURE 14
+#define XCB_NO_EXPOSURE 14
 #define XCB_VISIBILITY_NOTIFY 15
 #define XCB_CREATE_NOTIFY 16
 #define XCB_DESTROY_NOTIFY 17
@@ -87,6 +87,16 @@ typedef struct xcb_intern_atom_cookie_t {
     unsigned int sequence;
 } xcb_intern_atom_cookie_t;
 
+typedef enum xcb_config_window_t {
+    XCB_CONFIG_WINDOW_X = 1,
+    XCB_CONFIG_WINDOW_Y = 2,
+    XCB_CONFIG_WINDOW_WIDTH = 4,
+    XCB_CONFIG_WINDOW_HEIGHT = 8,
+    XCB_CONFIG_WINDOW_BORDER_WIDTH = 16,
+    XCB_CONFIG_WINDOW_SIBLING = 32,
+    XCB_CONFIG_WINDOW_STACK_MODE = 64
+} xcb_config_window_t;
+
 typedef struct {
     uint8_t   response_type;  /**< Type of the response */
     uint8_t   error_code;     /**< Error code */
@@ -110,6 +120,16 @@ typedef enum xcb_window_class_t {
     XCB_WINDOW_CLASS_INPUT_OUTPUT = 1,
     XCB_WINDOW_CLASS_INPUT_ONLY = 2
 } xcb_window_class_t;
+
+typedef struct xcb_value_error_t {
+    uint8_t  response_type;
+    uint8_t  error_code;
+    uint16_t sequence;
+    uint32_t bad_value;
+    uint16_t minor_opcode;
+    uint8_t  major_opcode;
+    uint8_t  pad0;
+} xcb_value_error_t;
 
 typedef struct {
     uint8_t   response_type;  /**< Type of the response */
@@ -564,6 +584,15 @@ typedef enum xcb_event_mask_t {
     XCB_EVENT_MASK_COLOR_MAP_CHANGE = 8388608,
     XCB_EVENT_MASK_OWNER_GRAB_BUTTON = 16777216
 } xcb_event_mask_t;
+
+#define XCB_COPY_AREA 62
+
+typedef struct xcb_rectangle_t {
+    int16_t  x;
+    int16_t  y;
+    uint16_t width;
+    uint16_t height;
+} xcb_rectangle_t;
 
 typedef struct xcb_get_atom_name_cookie_t {
     unsigned int sequence;

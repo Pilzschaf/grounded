@@ -66,6 +66,8 @@ struct {
     ArenaMarker offerArenaResetMarker;
 
     GroundedWindowDndDropCallback* currentDropCallback;
+    //xcb_pixmap_t dragImage;
+    xcb_window_t dragImageWindow;
 } xdndDragData;
 
 // xcb function types
@@ -173,6 +175,9 @@ static void reportXcbError(const char* message) {
 
 static GroundedXcbWindow* groundedWindowFromXcb(xcb_window_t window) {
     xcb_get_property_reply_t* reply = xcb_get_property_reply(xcbConnection, xcb_get_property(xcbConnection, 0, window, xcbCustomDataAtom->atom, XCB_ATOM_CARDINAL, 0, sizeof(void*)/4), 0);
+    if(!reply) {
+        return 0;
+    }
     void* customData = xcb_get_property_value(reply);
     GroundedXcbWindow* result = *(GroundedXcbWindow**)customData;
     return result;
@@ -416,6 +421,28 @@ static void shutdownXcb() {
         xcbConnection = 0;
     }
     //TODO: Should techincally dlclose(xcb)
+}
+
+static void drawPayloadInRootWindow(xcb_connection_t *connection, xcb_pixmap_t pixmap, int x, int y) {
+    xcb_gcontext_t gc = xcb_generate_id(connection);
+    xcb_create_gc(connection, gc, pixmap, 0, NULL);
+
+    // Draw the payload onto the pixmap
+    xcb_rectangle_t rect = {0, 0, 64, 64};
+    xcb_poly_fill_rectangle(connection, pixmap, gc, 1, &rect);
+
+    // Copy the pixmap to the root window
+    xcb_copy_area(connection, pixmap, xcbScreen->root, gc, 0, 0, x, y, 64, 64);
+
+    xcb_free_gc(connection, gc);
+}
+
+void moveGhostWindow(xcb_connection_t *connection, xcb_window_t window, int x, int y) {
+    xcb_configure_window(
+        connection, window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
+        (uint32_t[]) {x, y}
+    );
+    xcb_flush(connection);
 }
 
 static void xcbSetWindowTitle(GroundedXcbWindow* window, String8 title, bool flush) {
@@ -968,6 +995,9 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                     /*if(xdndDragData.desc->dragFinishCallback) {
                         xdndDragData.desc->dragFinishCallback(&xdndDragData.desc->arena, xdndDragData.userData, finishType);
                     }*/
+                    xcb_destroy_window(xcbConnection, xdndDragData.dragImageWindow);
+                    xcb_flush(xcbConnection);
+
                     printf("Stopping drag\n");
                     xdndDragData.dragActive = false;
                 }
@@ -999,6 +1029,9 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             result.type = GROUNDED_EVENT_TYPE_KEY_UP;
             result.keyUp.keycode = keycode;
         } break;
+        case XCB_NO_EXPOSURE:{
+            // We ignore for now
+        } break;
         case XCB_CONFIGURE_NOTIFY:{
             xcb_configure_notify_event_t* configureEvent = (xcb_configure_notify_event_t*)event;
             GroundedXcbWindow* window = groundedWindowFromXcb(configureEvent->window);
@@ -1027,7 +1060,9 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                 //xcb_query_pointer_reply_t* queryReply = xcb_query_pointer_reply(xcbConnection, queryCookie, 0);
                 //xcb_window_t hoveredWindow = queryReply->child;
                 //xcb_window_t hoveredWindow = xcbGetHoveredWindow(motionEvent->root, motionEvent->root_x, motionEvent->root_y, 0, 0);
+                //drawPayloadInRootWindow(xcbConnection, xdndDragData.desc->xcbIcon, motionEvent->root_x, motionEvent->root_y);
                 xcb_window_t hoveredWindow = getXdndAwareTarget(motionEvent->root_x, motionEvent->root_y);
+                moveGhostWindow(xcbConnection, xdndDragData.dragImageWindow, motionEvent->root_x, motionEvent->root_y);
                 if(hoveredWindow != 0 && xcbIsWindowDndAware(hoveredWindow)) {
                     //printf("Hovered window: %u\n", hoveredWindow);
                     if(!xdndDragData.target) {
@@ -1136,7 +1171,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             // response_type 0 means error
             GROUNDED_LOG_ERROR("Received error from xcb");
             xcb_generic_error_t* error = (xcb_generic_error_t*)event;
-            printf("XCB errorcode: %d\n", error->error_code);
+            printf("XCB errorcode: %d sequence:%i\n", error->error_code, error->sequence);
             ASSERT(false);
         } break;
         default:{
@@ -1307,6 +1342,24 @@ GROUNDED_FUNCTION void xcbSetCursorType(GroundedMouseCursor cursorType) {
 
 GROUNDED_FUNCTION void xcbSetIcon(u8* data, u32 width, u32 height) {
 
+}
+
+xcb_pixmap_t xcbCreateDragPixmap(u8* data, u32 width, u32 height) {
+    xcb_pixmap_t result = 0;
+    if(rgbaFormat && xcb_render_create_picture) {
+        u64 imageSize = width * height * 4;
+        int depth = xcbDepth->depth;
+        depth = 24;
+
+        result = xcb_generate_id(xcbConnection);
+        xcb_create_pixmap(xcbConnection, depth, result, xcbScreen->root, width, height);
+
+        xcb_gcontext_t gc = xcb_generate_id(xcbConnection);
+        xcb_create_gc(xcbConnection, gc, result, 0, 0);
+        xcb_void_cookie_t error = xcb_put_image(xcbConnection, XCB_IMAGE_FORMAT_Z_PIXMAP, result, gc, width, height, 0, 0, 0, depth, imageSize, data);
+        xcb_free_gc(xcbConnection, gc);
+    }
+    return result;
 }
 
 GROUNDED_FUNCTION void xcbSetCustomCursor(u8* data, u32 width, u32 height) {
@@ -1514,7 +1567,7 @@ static void xcbSendDndDrop(xcb_window_t source, xcb_window_t target) {
 }
 
 static void groundedXcbDragPayloadSetImage(GroundedWindowDragPayloadDescription* desc, u8* data, u32 width, u32 height) {
-    //TODO: Implement
+    desc->xcbIcon = xcbCreateDragPixmap(data, width, height);
 }
 
 static void groundedXcbBeginDragAndDrop(GroundedWindowDragPayloadDescription* desc, void* userData) {
@@ -1533,6 +1586,56 @@ static void groundedXcbBeginDragAndDrop(GroundedWindowDragPayloadDescription* de
             xdndDragData.atoms[i] = atomReply->atom;
         }
         free(atomReply);
+    }
+    if(desc->xcbIcon) {
+        xcb_get_geometry_cookie_t geometryCookie = xcb_get_geometry(xcbConnection, desc->xcbIcon);
+        xcb_get_geometry_reply_t* geometryReply = xcb_get_geometry_reply(xcbConnection, geometryCookie, 0);
+        int width = geometryReply->width;
+        int height = geometryReply->height;
+        xdndDragData.dragImageWindow = xcb_generate_id(xcbConnection);
+        uint32_t valueMask = XCB_CW_BACK_PIXEL | XCB_CW_OVERRIDE_REDIRECT;
+        // One entry for each bit in the value mask. Correct sort is important!
+        uint32_t valueList[] = {
+            xcbScreen->black_pixel, 1, 0
+        };
+        xcb_void_cookie_t windowCookie = xcb_create_window_checked(xcbConnection, XCB_COPY_FROM_PARENT, xdndDragData.dragImageWindow, xcbScreen->root,
+         0, 0, width, height, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, 
+         xcbScreen->root_visual, valueMask, valueList);
+        xcb_generic_error_t* windowError = xcb_request_check(xcbConnection, windowCookie);
+        {
+            xcb_get_geometry_cookie_t geometryCookie = xcb_get_geometry(xcbConnection, xdndDragData.dragImageWindow);
+            xcb_get_geometry_reply_t* geometryReply = xcb_get_geometry_reply(xcbConnection, geometryCookie, 0);
+            //int x = 0;
+        }
+        /*xcb_change_property(
+            xcbConnection,
+            XCB_PROP_MODE_REPLACE,
+            xdndDragData.dragImageWindow,
+            XCB_ATOM_NET_WM_WINDOW_OPACITY,
+            XCB_ATOM_CARDINAL,
+            32,
+            1,
+            (uint32_t[]) {0xffffffff}
+        );*/
+        xcb_map_window(xcbConnection, xdndDragData.dragImageWindow);
+        xcb_flush(xcbConnection);
+
+        xcb_gcontext_t gc = xcb_generate_id(xcbConnection);
+        xcb_create_gc(xcbConnection, gc, xdndDragData.dragImageWindow, 0, 0);
+
+        // Draw the existing pixmap onto the ghost window
+        //xcb_copy_area(xcbConnection, xdndDragData.desc->xcbIcon, xdndDragData.dragImageWindow, gc, 0, 0, 0, 0, 16, 16);
+        xcb_void_cookie_t copyCheck = xcb_copy_area_checked(xcbConnection, desc->xcbIcon, xdndDragData.dragImageWindow, gc, 0, 0, 0, 0, width, height);
+        xcb_generic_error_t* error = xcb_request_check(xcbConnection, copyCheck);
+        xcb_value_error_t* valueError = (xcb_value_error_t*)error;
+        printf("Copy sequence: %i\n", copyCheck.sequence);
+
+        xcb_free_gc(xcbConnection, gc);
+        xcb_flush(xcbConnection);
+
+        
+
+        
     }
 
     if(desc->mimeTypeCount > 3) {

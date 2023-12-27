@@ -9,6 +9,7 @@ struct GroundedWindowDragPayloadDescription {
     MemoryArena arena;
 	union {
     	struct wl_surface* waylandIcon;
+        u32 xcbIcon;
 	};
     u32 mimeTypeCount;
     String8* mimeTypes;
