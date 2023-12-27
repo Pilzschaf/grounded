@@ -13,6 +13,7 @@ X(xcb_create_window_checked, xcb_void_cookie_t, (xcb_connection_t *c,uint8_t dep
 X(xcb_map_window, xcb_void_cookie_t, (xcb_connection_t *c, xcb_window_t window))
 X(xcb_change_property, xcb_void_cookie_t, (xcb_connection_t *c, uint8_t mode, xcb_window_t window, xcb_atom_t property, xcb_atom_t type, uint8_t format, uint32_t data_len, const void *data))
 X(xcb_get_property_value, void*, (const xcb_get_property_reply_t *R))
+X(xcb_get_property_value_length, int,(const xcb_get_property_reply_t *R))
 X(xcb_get_property_reply, xcb_get_property_reply_t*, (xcb_connection_t *c, xcb_get_property_cookie_t cookie, xcb_generic_error_t **e))
 X(xcb_get_property, xcb_get_property_cookie_t, (xcb_connection_t *c, uint8_t _delete, xcb_window_t window, xcb_atom_t  property, xcb_atom_t type, uint32_t long_offset, uint32_t long_length))
 X(xcb_get_file_descriptor, int, (xcb_connection_t *c))

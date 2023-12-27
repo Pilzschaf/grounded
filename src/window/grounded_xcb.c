@@ -1,6 +1,7 @@
 #include <grounded/window/grounded_window.h>
 #include <grounded/logger/grounded_logger.h>
 #include <grounded/threading/grounded_threading.h>
+#include <grounded/memory/grounded_memory.h>
 
 #include <dlfcn.h>
 #include <stdio.h> // Required for printf
@@ -28,6 +29,10 @@
 
 #include "types/grounded_xcb_types.h"
 
+#ifndef GROUNDED_XCB_MAX_MIMETYPES
+#define GROUNDED_XCB_MAX_MIMETYPES 256
+#endif
+
 //#include <xcb/xcb_cursor.h>
 //#include <xcb/xcb.h>
 
@@ -48,6 +53,8 @@ typedef struct GroundedXcbWindow {
 //TODO: Divide up into source and destination data
 struct {
     xcb_atom_t atoms[3];
+    xcb_atom_t* mimeTypes;
+    u64 mimeTypeCount;
     xcb_window_t target;
     xcb_window_t source;
     bool exchangeStarted;
@@ -55,6 +62,8 @@ struct {
     bool dragActive;
     GroundedWindowDragPayloadDescription* desc;
     void* userData;
+    MemoryArena offerArena;
+    ArenaMarker offerArenaResetMarker;
 
     GroundedWindowDndDropCallback* currentDropCallback;
 } xdndDragData;
@@ -121,6 +130,7 @@ xcb_font_t xcbCursorFont; // Could be used as a fallback when xcb_cursor is not 
 xcb_cursor_t xcbDefaultCursor; // Not really used right now and probably also does not contain correct default cursor
 xcb_cursor_context_t* xcbCursorContext;
 xcb_cursor_t xcbCurrentCursor;
+xcb_cursor_t xcbCursorOverwrite;
 GroundedMouseCursor currentCursorType = GROUNDED_MOUSE_CURSOR_DEFAULT;
 xcb_render_pictforminfo_t* rgbaFormat;
 //TODO: In xcb, the cursor is a property of the window. We could store current cursor and only enable it on pointer enter. However this should also work in the window the cursor is already inside of
@@ -145,7 +155,9 @@ GroundedKeyboardState xcbKeyboardState;
 bool xcbShmAvailable;
 
 GROUNDED_FUNCTION void xcbSetCursorType(GroundedMouseCursor cursorType);
-static void xcbSetCursor(GroundedXcbWindow* window, xcb_cursor_t cursor);
+static void xcbSetCursor(xcb_cursor_t cursor);
+static void xcbSetOverwriteCursor(xcb_cursor_t cursor);
+static void xcbApplyCurrentCursor(GroundedXcbWindow* window);
 static xcb_window_t xcbGetHoveredWindow(xcb_window_t startingWindow, int rootX, int rootY, int originX, int originY);
 static bool xcbIsWindowDndAware(xcb_window_t window);
 static void xcbSendDndStatus(xcb_window_t source, xcb_window_t target);
@@ -343,6 +355,9 @@ static void initXcb() {
         xdndProxyAtom = xcb_intern_atom_reply(xcbConnection, xdndProxyAtomCookie, 0);
         xcb_intern_atom_cookie_t xdndSelectionAtomCookie = xcb_intern_atom(xcbConnection, 0, 13, "XdndSelection");
         xdndSelectionAtom = xcb_intern_atom_reply(xcbConnection, xdndSelectionAtomCookie, 0);
+
+        xdndDragData.offerArena = createGrowingArena(osGetMemorySubsystem(), KB(4));
+        xdndDragData.offerArenaResetMarker = arenaCreateMarker(&xdndDragData.offerArena);
     }
 
     if(error) {
@@ -509,7 +524,7 @@ static void xcbSetCursorVisibility(GroundedXcbWindow* window, bool visible) {
     if(!visible) {
         u32 cursorId = xcb_generate_id(xcbConnection);
         xcb_create_glyph_cursor(xcbConnection, cursorId, xcbCursorFont, xcbCursorFont, ' ', 0, 0, 0, 0, 0, 0, 0);
-        xcbSetCursor(window, cursorId);
+        xcbSetCursor(cursorId);
     }
 }
 
@@ -841,13 +856,47 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                 } else if(clientMessageEvent->type == xdndEnterAtom->atom) {
                     printf("DND Enter\n");
                     if(window->dndCallback) {
+                        arenaResetToMarker(xdndDragData.offerArenaResetMarker);
+                        u32 version = clientMessageEvent->data.data32[1] >> 24;
+                        xcb_window_t source = clientMessageEvent->data.data32[0];
+                        u64 mimeTypeCount = 0;
+                        String8* mimeTypes = 0;
+                        if (clientMessageEvent->data.data32[1] & 1) {
+                            // More than 3 mime types so get types from xdndtypelist
+                            xcb_get_property_cookie_t propertyCookie = xcb_get_property(xcbConnection, 0, source, xdndTypeListAtom->atom, XCB_ATOM_ATOM, 0, GROUNDED_XCB_MAX_MIMETYPES);
+                            xcb_get_property_reply_t* propertyReply = xcb_get_property_reply(xcbConnection, propertyCookie, 0);
+                            if(propertyReply && propertyReply->type != XCB_NONE && propertyReply->format == 32) {
+                                int length = xcb_get_property_value_length(propertyReply) / 4;
+                                xcb_atom_t* atoms = (xcb_atom_t*)xcb_get_property_value(propertyReply);
+                                mimeTypeCount = length;
+                                mimeTypes = ARENA_PUSH_ARRAY(&xdndDragData.offerArena, mimeTypeCount, String8);
+                                for(int i = 0; i < length; ++i) {
+                                    xcb_get_atom_name_cookie_t nameCookie = xcb_get_atom_name(xcbConnection, atoms[i]);
+                                    xcb_get_atom_name_reply_t* nameReply = xcb_get_atom_name_reply(xcbConnection, nameCookie, 0);
+                                    String8 mimeType = str8FromBlock((u8*)xcb_get_atom_name_name(nameReply), nameReply->name_len);
+                                    mimeTypes[i] = str8CopyAndNullTerminate(&xdndDragData.offerArena, mimeType);
+                                }
+                                free(propertyReply);
+                            }
+                        } else {
+                            // Take up to 3 mime types from event data
+                            mimeTypes = ARENA_PUSH_ARRAY(&xdndDragData.offerArena, 3, String8);
+                            int i = 0;
+                            for(;i < 3; ++i) {
+                                xcb_atom_t atom = clientMessageEvent->data.data32[2+i];
+                                if(!atom) {
+                                    break;
+                                }
+                                xcb_get_atom_name_cookie_t nameCookie = xcb_get_atom_name(xcbConnection, atom);
+                                xcb_get_atom_name_reply_t* nameReply = xcb_get_atom_name_reply(xcbConnection, nameCookie, 0);
+                                String8 mimeType = str8FromBlock((u8*)xcb_get_atom_name_name(nameReply), nameReply->name_len);
+                                mimeTypes[i] = str8CopyAndNullTerminate(&xdndDragData.offerArena, mimeType);
+                            }
+                            mimeTypeCount = i;
+                        }
                         s32 x = 0;
                         s32 y = 0;
-                        xcb_get_atom_name_cookie_t nameCookie = xcb_get_atom_name(xcbConnection, clientMessageEvent->data.data32[2]);
-                        xcb_get_atom_name_reply_t* nameReply = xcb_get_atom_name_reply(xcbConnection, nameCookie, 0);
-                        u64 mimeTypeCount = 1;
-                        String8 mimeType = str8FromBlock((u8*)xcb_get_atom_name_name(nameReply), nameReply->name_len);
-                        u32 newMimeIndex = window->dndCallback(0, (GroundedWindow*)window, x, y, mimeTypeCount, &mimeType, &xdndDragData.currentDropCallback);
+                        u32 newMimeIndex = window->dndCallback(0, (GroundedWindow*)window, x, y, mimeTypeCount, mimeTypes, &xdndDragData.currentDropCallback);
                     }
                 } else if(clientMessageEvent->type == xdndPositionAtom->atom) {
                     printf("DND Move\n");
@@ -913,6 +962,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                     if(xdndDragData.target) {
                         xcbSendDndDrop(window->window, xdndDragData.target);
                         finishType = GROUNDED_DRAG_FINISH_TYPE_COPY;
+                        xcbSetOverwriteCursor(0);
                     }
                     
                     /*if(xdndDragData.desc->dragFinishCallback) {
@@ -1042,6 +1092,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             xcb_focus_in_event_t* focusEvent = (xcb_focus_in_event_t*)event;
             GroundedXcbWindow* window = groundedWindowFromXcb(focusEvent->event);
             activeXcbWindow = window;
+            xcbApplyCurrentCursor(window);
         } break;
         case XCB_FOCUS_OUT:{
             activeXcbWindow = 0;
@@ -1179,40 +1230,53 @@ static void xcbFetchKeyboardState(GroundedKeyboardState* keyboard) {
 	memset(xcbKeyboardState.keyUpTransitions, 0, sizeof(xcbKeyboardState.keyUpTransitions));
 }
 
-static void xcbSetCursor(GroundedXcbWindow* window, xcb_cursor_t cursor) {
+static void xcbApplyCurrentCursor(GroundedXcbWindow* window) {
     u32 mask = XCB_CW_CURSOR;
+    xcb_cursor_t cursor = xcbCurrentCursor;
+    if(xcbCursorOverwrite) {
+        cursor = xcbCursorOverwrite;
+    }
     u32 value_list[1] = {cursor};
     xcb_change_window_attributes (xcbConnection, window->window, mask, (const u32*)&value_list);
+}
+
+static void xcbSetCursor(xcb_cursor_t cursor) {
     if(xcbCurrentCursor) {
         xcb_free_cursor(xcbConnection, xcbCurrentCursor);
     }
     xcbCurrentCursor = cursor;
+
+    if(activeXcbWindow) {
+        xcbApplyCurrentCursor(activeXcbWindow);
+    }
 }
 
-GROUNDED_FUNCTION void xcbSetCursorType(GroundedMouseCursor cursorType) {
+static void xcbSetOverwriteCursor(xcb_cursor_t cursor) {
+    if(xcbCursorOverwrite) {
+        xcb_free_cursor(xcbConnection, xcbCursorOverwrite);
+    }
+    xcbCursorOverwrite = cursor;
+
+    if(activeXcbWindow) {
+        xcbApplyCurrentCursor(activeXcbWindow);
+    }
+}
+
+static xcb_cursor_t xcbGetCursorOfType(GroundedMouseCursor cursorType) {
     ASSERT(cursorType != GROUNDED_MOUSE_CURSOR_CUSTOM);
     ASSERT(cursorType < GROUNDED_MOUSE_CURSOR_COUNT);
 
     const char* error = 0;
+    xcb_cursor_t result = 0;
 
     if(xcbCursorContext) {
         u64 cursorCandidateCount;
         const char** cursorCandidates = getCursorNameCandidates(cursorType, &cursorCandidateCount);
-        xcb_cursor_t cursor = 0;
         for(u32 i = 0; i < cursorCandidateCount; ++i) {
-            cursor = xcb_cursor_load_cursor(xcbCursorContext, cursorCandidates[i]);
-            if(cursor) {
+            result = xcb_cursor_load_cursor(xcbCursorContext, cursorCandidates[i]);
+            if(result) {
                 break;
             }
-        }
-        if(cursor) {
-            // Apply cursor to window
-            //ASSERT(false);
-            //xcbSetCursor(window, cursor);
-            xcb_flush(xcbConnection);
-            currentCursorType = cursorType;
-        } else {
-            error = "Could not find suitable cursor type";
         }
     } else {
         // We could techincally still use X default glyph cursors.
@@ -1220,7 +1284,7 @@ GROUNDED_FUNCTION void xcbSetCursorType(GroundedMouseCursor cursorType) {
         error = "No cursor context available. Cursor support limited";
     }
 
-    if(error) {
+    if(error || !result) {
         // Fallback to xcbDefaultCursor
         if(xcbDefaultCursor) {
             ASSERT(false);
@@ -1229,6 +1293,16 @@ GROUNDED_FUNCTION void xcbSetCursorType(GroundedMouseCursor cursorType) {
         }
         GROUNDED_LOG_WARNING(error);
     }
+
+    return result;
+}
+
+GROUNDED_FUNCTION void xcbSetCursorType(GroundedMouseCursor cursorType) {
+    ASSERT(cursorType != GROUNDED_MOUSE_CURSOR_CUSTOM);
+    ASSERT(cursorType < GROUNDED_MOUSE_CURSOR_COUNT);
+
+    xcbSetCursor(xcbGetCursorOfType(cursorType));
+    currentCursorType = cursorType;
 }
 
 GROUNDED_FUNCTION void xcbSetIcon(u8* data, u32 width, u32 height) {
@@ -1257,8 +1331,7 @@ GROUNDED_FUNCTION void xcbSetCustomCursor(u8* data, u32 width, u32 height) {
         xcb_free_pixmap(xcbConnection, pixmap);
         xcb_render_free_picture(xcbConnection, picture);
 
-        ASSERT(false);
-        //xcbSetCursor(&xcbWindowSlots[0], cursor);
+        xcbSetCursor(cursor);
         xcb_flush(xcbConnection);
         
         currentCursorType = GROUNDED_MOUSE_CURSOR_CUSTOM;
@@ -1369,6 +1442,10 @@ static bool xcbIsWindowDndAware(xcb_window_t window) {
 
 static void xcbSendDndEnter(xcb_window_t source, xcb_window_t target) {
     printf("Sending enter from %u to %u\n", source, target);
+    u32 flags = (5 << 24);
+    if(xdndDragData.mimeTypeCount > 3) {
+        flags |= 0x01;
+    }
     xcb_client_message_event_t enterEvent = {
         .response_type = XCB_CLIENT_MESSAGE,
         .format = 32,
@@ -1376,7 +1453,7 @@ static void xcbSendDndEnter(xcb_window_t source, xcb_window_t target) {
         .window = target,
         .type = xdndEnterAtom->atom,
         //.data.data32 = { XCB_CURRENT_TIME, XCB_NONE, XCB_NONE, XCB_NONE, XCB_NONE },
-        .data.data32 = {source, 5 << 24, xdndDragData.atoms[0], xdndDragData.atoms[1], xdndDragData.atoms[2]},
+        .data.data32 = {source, flags, xdndDragData.atoms[0], xdndDragData.atoms[1], xdndDragData.atoms[2]},
     };
     xcb_send_event(xcbConnection, 0, target, XCB_EVENT_MASK_NO_EVENT, (const char *)&enterEvent);
     xcb_flush(xcbConnection);
@@ -1445,14 +1522,24 @@ static void groundedXcbBeginDragAndDrop(GroundedWindowDragPayloadDescription* de
     xdndDragData.desc = desc;
     xdndDragData.userData = userData;
     xcb_set_selection_owner(xcbConnection, activeXcbWindow->window, xdndSelectionAtom->atom, XCB_CURRENT_TIME);
+    xdndDragData.mimeTypes = ARENA_PUSH_ARRAY(&desc->arena, desc->mimeTypeCount, xcb_atom_t);
+    xdndDragData.mimeTypeCount = desc->mimeTypeCount;
+    MEMORY_CLEAR_ARRAY(xdndDragData.atoms);
     for(u64 i = 0; i < desc->mimeTypeCount; ++i) {
+        xcb_intern_atom_cookie_t atomCookie = xcb_intern_atom(xcbConnection, 0, desc->mimeTypes[i].size, (const char*)desc->mimeTypes[i].base);
+        xcb_intern_atom_reply_t* atomReply = xcb_intern_atom_reply(xcbConnection, atomCookie, 0);
+        xdndDragData.mimeTypes[i] = atomReply->atom;
         if(i < 3) {
-            xcb_intern_atom_cookie_t atomCookie = xcb_intern_atom(xcbConnection, 0, desc->mimeTypes[i].size, (const char*)desc->mimeTypes[i].base);
-            xcb_intern_atom_reply_t* atomReply = xcb_intern_atom_reply(xcbConnection, atomCookie, 0);
             xdndDragData.atoms[i] = atomReply->atom;
-            free(atomReply);
         }
+        free(atomReply);
     }
+
+    if(desc->mimeTypeCount > 3) {
+        xcb_change_property(xcbConnection, XCB_PROP_MODE_REPLACE, activeXcbWindow->window, xdndTypeListAtom->atom, XCB_ATOM_ATOM, 32, desc->mimeTypeCount, (const char*)xdndDragData.mimeTypes);
+    }
+
+    xcbSetOverwriteCursor(xcbGetCursorOfType(GROUNDED_MOUSE_CURSOR_GRABBING));
 
     //TODO: We use xdnd for this
     /*xcb_intern_atom_reply_t* xdndVersionAtom = 0;
