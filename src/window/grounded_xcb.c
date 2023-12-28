@@ -64,6 +64,7 @@ struct {
     void* userData;
     MemoryArena offerArena;
     ArenaMarker offerArenaResetMarker;
+    GroundedDragFinishType finishType;
 
     GroundedWindowDndDropCallback* currentDropCallback;
     //xcb_pixmap_t dragImage;
@@ -946,9 +947,9 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                     printf("Drop possible\n");
                 } else if(clientMessageEvent->type == xdndFinishedAtom->atom) {
                     printf("DND Finished\n");
-                    /*if(xdndDragData.desc->dragFinishCallback) {
-                        xdndDragData.desc->dragFinishCallback(&xdndDragData.desc->arena, xdndDragData.userData, finishType);
-                    }*/
+                    if(xdndDragData.desc->dragFinishCallback) {
+                        xdndDragData.desc->dragFinishCallback(&xdndDragData.desc->arena, xdndDragData.userData, xdndDragData.finishType);
+                    }
                 }
             } else {
                 reportXcbError("Xcb client message for unknown window");
@@ -985,10 +986,10 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             if(mouseButtonReleaseEvent->detail == 1) {
                 mouseState->buttons[GROUNDED_MOUSE_BUTTON_LEFT] = false;
                 if(xdndDragData.dragActive) {
-                    GroundedDragFinishType finishType = GROUNDED_DRAG_FINISH_TYPE_CANCEL;
+                    xdndDragData.finishType = GROUNDED_DRAG_FINISH_TYPE_CANCEL;
                     if(xdndDragData.target) {
                         xcbSendDndDrop(window->window, xdndDragData.target);
-                        finishType = GROUNDED_DRAG_FINISH_TYPE_COPY;
+                        xdndDragData.finishType = GROUNDED_DRAG_FINISH_TYPE_COPY;
                         xcbSetOverwriteCursor(0);
                     }
                     
@@ -1344,6 +1345,27 @@ GROUNDED_FUNCTION void xcbSetIcon(u8* data, u32 width, u32 height) {
 
 }
 
+static void flipImage(u32 width, u32 height, u8* data) {
+    int rowSize = width * 4;  // Assuming 32-bit (4 bytes) per pixel
+    MemoryArena* scratch = threadContextGetScratch(0);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
+
+    uint8_t *tempRow = ARENA_PUSH_ARRAY(scratch, rowSize, u8);
+
+    for (int row = 0; row < height / 2; row++) {
+        uint8_t *rowStart = data + row * rowSize;
+        uint8_t *oppositeRow = data + (height - row - 1) * rowSize;
+
+        // Swap rows
+        memcpy(tempRow, rowStart, rowSize);
+        memcpy(rowStart, oppositeRow, rowSize);
+        memcpy(oppositeRow, tempRow, rowSize);
+    }
+    
+    arenaEndTemp(temp);
+    
+}
+
 xcb_pixmap_t xcbCreateDragPixmap(u8* data, u32 width, u32 height) {
     xcb_pixmap_t result = 0;
     if(rgbaFormat && xcb_render_create_picture) {
@@ -1567,7 +1589,17 @@ static void xcbSendDndDrop(xcb_window_t source, xcb_window_t target) {
 }
 
 static void groundedXcbDragPayloadSetImage(GroundedWindowDragPayloadDescription* desc, u8* data, u32 width, u32 height) {
-    desc->xcbIcon = xcbCreateDragPixmap(data, width, height);
+    MemoryArena* scratch = threadContextGetScratch(0);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
+    
+    // Flip y axis
+    u8* tempData = ARENA_PUSH_ARRAY(scratch, width * height * 4, u8);
+    MEMORY_COPY(tempData, data, width * height * 4);
+    flipImage(width, height, tempData);
+
+    desc->xcbIcon = xcbCreateDragPixmap(tempData, width, height);
+
+    arenaEndTemp(temp);
 }
 
 static void groundedXcbBeginDragAndDrop(GroundedWindowDragPayloadDescription* desc, void* userData) {
