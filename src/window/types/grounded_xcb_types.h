@@ -7,8 +7,8 @@
 #define XCB_BUTTON_PRESS 4
 #define XCB_BUTTON_RELEASE 5
 #define XCB_MOTION_NOTIFY 6
-// #define XCB_ENTER_NOTIFY 7
-// #define XCB_LEAVE_NOTIFY 8
+#define XCB_ENTER_NOTIFY 7
+#define XCB_LEAVE_NOTIFY 8
 #define XCB_FOCUS_IN 9
 #define XCB_FOCUS_OUT 10
 //#define XCB_KEYMAP_NOTIFY 11
@@ -695,6 +695,25 @@ typedef struct xcb_query_tree_reply_t {
     uint16_t     children_len;
     uint8_t      pad1[14];
 } xcb_query_tree_reply_t;
+
+typedef struct xcb_enter_notify_event_t {
+    uint8_t         response_type;
+    uint8_t         detail;
+    uint16_t        sequence;
+    xcb_timestamp_t time;
+    xcb_window_t    root;
+    xcb_window_t    event;
+    xcb_window_t    child;
+    int16_t         root_x;
+    int16_t         root_y;
+    int16_t         event_x;
+    int16_t         event_y;
+    uint16_t        state;
+    uint8_t         mode;
+    uint8_t         same_screen_focus;
+} xcb_enter_notify_event_t;
+
+typedef xcb_enter_notify_event_t xcb_leave_notify_event_t;
 
 typedef struct xcb_selection_request_event_t {
     uint8_t         response_type;

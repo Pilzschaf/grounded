@@ -40,6 +40,7 @@ typedef struct GroundedXcbWindow {
     xcb_window_t window;
     u32 width;
     u32 height;
+    bool pointerInside; // True when cursor is currently over this window
     void* userData;
     GroundedWindowCustomTitlebarCallback* customTitlebarCallback;
     MouseState xcbMouseState;
@@ -417,26 +418,11 @@ static void shutdownXcb() {
     }
 }
 
-static void drawPayloadInRootWindow(xcb_connection_t *connection, xcb_pixmap_t pixmap, int x, int y) {
-    xcb_gcontext_t gc = xcb_generate_id(connection);
-    xcb_create_gc(connection, gc, pixmap, 0, NULL);
-
-    // Draw the payload onto the pixmap
-    xcb_rectangle_t rect = {0, 0, 64, 64};
-    xcb_poly_fill_rectangle(connection, pixmap, gc, 1, &rect);
-
-    // Copy the pixmap to the root window
-    xcb_copy_area(connection, pixmap, xcbScreen->root, gc, 0, 0, x, y, 64, 64);
-
-    xcb_free_gc(connection, gc);
-}
-
-void moveGhostWindow(xcb_connection_t *connection, xcb_window_t window, int x, int y) {
-    xcb_configure_window(
-        connection, window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
-        (uint32_t[]) {x, y}
-    );
-    xcb_flush(connection);
+static void xcbMoveDragImageWindow(int x, int y) {
+    if(xdndSourceData.dragImageWindow) {
+        xcb_configure_window(xcbConnection, xdndSourceData.dragImageWindow, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,(uint32_t[]) {x, y});
+        xcb_flush(xcbConnection);
+    }
 }
 
 static void xcbSetWindowTitle(GroundedXcbWindow* window, String8 title, bool flush) {
@@ -617,7 +603,7 @@ static GroundedWindow* xcbCreateWindow(MemoryArena* arena, struct GroundedWindow
         uint32_t valueMask = XCB_CW_EVENT_MASK;
         // One entry for each bit in the value mask. Correct sort is important!
         uint32_t valueList[] = {
-            XCB_EVENT_MASK_KEY_PRESS | XCB_EVENT_MASK_KEY_RELEASE | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_FOCUS_CHANGE,
+            XCB_EVENT_MASK_KEY_PRESS | XCB_EVENT_MASK_KEY_RELEASE | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_LEAVE_WINDOW,
         };
         if(!error) {
             windowCheckCookie = xcb_create_window_checked(xcbConnection, depth, result->window, parent,
@@ -880,6 +866,9 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                 } else if(clientMessageEvent->type == xcbAtoms.xdndEnterAtom) {
                     printf("DND Enter\n");
                     if(window->dndCallback) {
+                        // We override pointer inside as we want to receive mouse position during drag
+                        window->pointerInside = true;
+                        
                         arenaResetToMarker(xdndTargetData.offerArenaResetMarker);
                         u32 version = clientMessageEvent->data.data32[1] >> 24;
                         xcb_window_t source = clientMessageEvent->data.data32[0];
@@ -928,6 +917,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                     xcbSendDndStatus(window->window, clientMessageEvent->data.data32[0]);
                 } else if(clientMessageEvent->type == xcbAtoms.xdndLeaveAtom) {
                     printf("DND Leave\n");
+                    window->pointerInside = false;
                 } else if(clientMessageEvent->type == xcbAtoms.xdndDropAtom) {
                     printf("DND Drop\n");
                     if(window->dndCallback && xdndTargetData.currentDropCallback) {
@@ -975,6 +965,20 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             // Button mapping seems to be the same for xcb and our definition
             result.buttonDown.button = mouseButtonEvent->detail;
         } break;
+        case XCB_ENTER_NOTIFY:{
+            xcb_enter_notify_event_t* enterEvent = (xcb_enter_notify_event_t*)event;
+            GroundedXcbWindow* window = groundedWindowFromXcb(enterEvent->event);
+            if(window) {
+                window->pointerInside = true;
+            }
+        } break;
+        case XCB_LEAVE_NOTIFY:{
+            xcb_leave_notify_event_t* leaveEvent = (xcb_leave_notify_event_t*)event;
+            GroundedXcbWindow* window = groundedWindowFromXcb(leaveEvent->event);
+            if(window) {
+                window->pointerInside = false;
+            }
+        } break;
         case XCB_BUTTON_RELEASE:{
             xcb_button_release_event_t* mouseButtonReleaseEvent = (xcb_button_release_event_t*) event;
             GroundedXcbWindow* window = groundedWindowFromXcb(mouseButtonReleaseEvent->event);
@@ -992,7 +996,9 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                     /*if(xdndDragData.desc->dragFinishCallback) {
                         xdndDragData.desc->dragFinishCallback(&xdndDragData.desc->arena, xdndDragData.userData, finishType);
                     }*/
-                    xcb_destroy_window(xcbConnection, xdndSourceData.dragImageWindow);
+                    if(xdndSourceData.dragImageWindow) {
+                        xcb_destroy_window(xcbConnection, xdndSourceData.dragImageWindow);
+                    }
                     xcb_flush(xcbConnection);
 
                     printf("Stopping drag\n");
@@ -1053,13 +1059,8 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             xcb_motion_notify_event_t* motionEvent = (xcb_motion_notify_event_t*) event;
             GroundedXcbWindow* window = groundedWindowFromXcb(motionEvent->event);
             if(xdndSourceData.dragActive) {
-                //xcb_query_pointer_cookie_t queryCookie = xcb_query_pointer(xcbConnection, motionEvent->root);
-                //xcb_query_pointer_reply_t* queryReply = xcb_query_pointer_reply(xcbConnection, queryCookie, 0);
-                //xcb_window_t hoveredWindow = queryReply->child;
-                //xcb_window_t hoveredWindow = xcbGetHoveredWindow(motionEvent->root, motionEvent->root_x, motionEvent->root_y, 0, 0);
-                //drawPayloadInRootWindow(xcbConnection, xdndDragData.desc->xcbIcon, motionEvent->root_x, motionEvent->root_y);
                 xcb_window_t hoveredWindow = getXdndAwareTarget(motionEvent->root_x, motionEvent->root_y);
-                moveGhostWindow(xcbConnection, xdndSourceData.dragImageWindow, motionEvent->root_x, motionEvent->root_y);
+                xcbMoveDragImageWindow(motionEvent->root_x, motionEvent->root_y);
                 if(hoveredWindow != 0 && xcbIsWindowDndAware(hoveredWindow)) {
                     //printf("Hovered window: %u\n", hoveredWindow);
                     if(!xdndSourceData.target) {
@@ -1189,8 +1190,8 @@ static void xcbFetchMouseState(GroundedXcbWindow* window, MouseState* mouseState
     xcb_generic_error_t * error = 0;
     xcb_flush(xcbConnection);
     xcb_query_pointer_reply_t* pointerReply = xcb_query_pointer_reply(xcbConnection, pointerCookie, &error);
-    if(pointerReply && pointerReply->same_screen) {
-        // Pointer is on same screen as window
+    if(pointerReply && window->pointerInside) {
+        // Pointer is on this window
         mouseState->x = pointerReply->win_x;
         mouseState->y = pointerReply->win_y;
         mouseState->mouseInWindow = true;
@@ -1623,7 +1624,7 @@ static void groundedXcbBeginDragAndDrop(GroundedWindowDragPayloadDescription* de
         xdndSourceData.mimeTypes[i] = atomReply->atom;
         free(atomReply);
     }
-    if(desc->xcbIcon) {
+    if(false && desc->xcbIcon) {
         xcb_get_geometry_cookie_t geometryCookie = xcb_get_geometry(xcbConnection, desc->xcbIcon);
         xcb_get_geometry_reply_t* geometryReply = xcb_get_geometry_reply(xcbConnection, geometryCookie, 0);
         int width = geometryReply->width;
