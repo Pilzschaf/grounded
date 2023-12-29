@@ -51,13 +51,11 @@ typedef struct GroundedXcbWindow {
 } GroundedXcbWindow;
 
 struct {
-    xcb_atom_t atoms[3];
     xcb_atom_t* mimeTypes;
     u64 mimeTypeCount;
     xcb_window_t target;
     xcb_window_t source;
-    bool exchangeStarted;
-    bool statusReceived;
+    bool statusPending;
     bool dragActive;
     GroundedWindowDragPayloadDescription* desc;
     void* userData;
@@ -127,7 +125,9 @@ struct {
 void* xcbLibrary;
 xcb_connection_t* xcbConnection;
 xcb_screen_t* xcbScreen;
-xcb_depth_t* xcbDepth;
+xcb_depth_t* xcbTransparentDepth; // 32bit depth used for transparent windows
+xcb_visualtype_t* xcbTransparentVisual;
+xcb_colormap_t xcbTransparentColormap;
 
 xcb_font_t xcbCursorFont; // Could be used as a fallback when xcb_cursor is not available
 xcb_cursor_t xcbDefaultCursor; // Not really used right now and probably also does not contain correct default cursor
@@ -154,12 +154,12 @@ struct {
     xcb_atom_t xdndSelectionAtom;
 } xcbAtoms;
 
-GroundedXcbWindow* activeXcbWindow = 0;
+GroundedXcbWindow* activeXcbWindow;
 GroundedKeyboardState xcbKeyboardState;
 bool xcbShmAvailable;
 
 static void shutdownXcb();
-GROUNDED_FUNCTION void xcbSetCursorType(GroundedMouseCursor cursorType);
+static void xcbSetCursorType(GroundedMouseCursor cursorType);
 static void xcbSetCursor(xcb_cursor_t cursor);
 static void xcbSetOverwriteCursor(xcb_cursor_t cursor);
 static void xcbApplyCurrentCursor(GroundedXcbWindow* window);
@@ -310,17 +310,39 @@ static void initXcb() {
     }
 
     if(!error) {
-        xcb_depth_iterator_t depth_iter = xcb_screen_allowed_depths_iterator(xcbScreen);
-        while (depth_iter.rem) {
-            if (depth_iter.data->depth == 32 && depth_iter.data->visuals_len) {
-                xcbDepth = depth_iter.data;
+        xcb_depth_iterator_t depthIterator = xcb_screen_allowed_depths_iterator(xcbScreen);
+        while (depthIterator.rem) {
+            if (depthIterator.data->depth == 32 && depthIterator.data->visuals_len) {
+                xcbTransparentDepth = depthIterator.data;
                 break;
             }
-            xcb_depth_next(&depth_iter);
+            xcb_depth_next(&depthIterator);
         }
-        if (!xcbDepth) {
+        if (!xcbTransparentDepth) {
             error = "ERROR: screen does not support 32 bit color depth";
-            xcb_disconnect(xcbConnection);
+        }
+    }
+
+    if(!error) {
+        xcb_visualtype_iterator_t visual_iter = xcb_depth_visuals_iterator(xcbTransparentDepth);
+        while (visual_iter.rem) {
+            if (visual_iter.data->_class == XCB_VISUAL_CLASS_TRUE_COLOR) {
+                xcbTransparentVisual = visual_iter.data;
+                break;
+            }
+            xcb_visualtype_next(&visual_iter);
+        }
+        if (!xcbTransparentVisual) {
+            error = "ERROR: screen does not support True Color";
+        }
+    }
+    
+    if(!error) {
+        xcbTransparentColormap = xcb_generate_id(xcbConnection);
+        xcb_void_cookie_t cookie = xcb_create_colormap_checked(xcbConnection, XCB_COLORMAP_ALLOC_NONE, xcbTransparentColormap, xcbScreen->root, xcbTransparentVisual->visual_id);
+        xcb_generic_error_t* requestError = xcb_request_check(xcbConnection, cookie);
+        if(requestError) {
+            error = "ERROR: could not retrieve colormap";
         }
     }
 
@@ -916,7 +938,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                     }
                 } else if(clientMessageEvent->type == xcbAtoms.xdndStatusAtom) {
                     printf("DND Status\n");
-                    xdndSourceData.statusReceived = true;
+                    xdndSourceData.statusPending = false;
                     bool dropPossible = clientMessageEvent->data.data32[1];
                     printf("Drop possible\n");
                 } else if(clientMessageEvent->type == xcbAtoms.xdndFinishedAtom) {
@@ -1043,24 +1065,24 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                     if(!xdndSourceData.target) {
                         // Send enter event to hovered window
                         xcbSendDndEnter(window->window, hoveredWindow);
-                        xdndSourceData.statusReceived = true;
+                        xdndSourceData.statusPending = false;
                     } else if(xdndSourceData.target != hoveredWindow) {
                         // Window switch so send leave to old and enter to new window
                         xcbSendDndLeave(window->window, xdndSourceData.target);
                         xcbSendDndEnter(window->window, hoveredWindow);
-                        xdndSourceData.statusReceived = true;
+                        xdndSourceData.statusPending = false;
                     }
-                    if(xdndSourceData.statusReceived) {
+                    if(!xdndSourceData.statusPending) {
                         // Send current position
                         xcbSendDndPosition(window->window, hoveredWindow, motionEvent->root_x, motionEvent->root_y);
-                        xdndSourceData.statusReceived = false;
+                        xdndSourceData.statusPending = true;
                     }
                     xdndSourceData.target = hoveredWindow;
                 } else {
                     if(xdndSourceData.target) {
                         // Send leave event
                         xcbSendDndLeave(window->window, hoveredWindow);
-                        xdndSourceData.statusReceived = false;
+                        xdndSourceData.statusPending = false;
                     }
                     xdndSourceData.target = 0;
                 }
@@ -1312,7 +1334,7 @@ static xcb_cursor_t xcbGetCursorOfType(GroundedMouseCursor cursorType) {
     return result;
 }
 
-GROUNDED_FUNCTION void xcbSetCursorType(GroundedMouseCursor cursorType) {
+static void xcbSetCursorType(GroundedMouseCursor cursorType) {
     ASSERT(cursorType != GROUNDED_MOUSE_CURSOR_CUSTOM);
     ASSERT(cursorType < GROUNDED_MOUSE_CURSOR_COUNT);
 
@@ -1320,7 +1342,7 @@ GROUNDED_FUNCTION void xcbSetCursorType(GroundedMouseCursor cursorType) {
     currentCursorType = cursorType;
 }
 
-GROUNDED_FUNCTION void xcbSetIcon(u8* data, u32 width, u32 height) {
+static void xcbSetIcon(u8* data, u32 width, u32 height) {
 
 }
 
@@ -1345,12 +1367,11 @@ static void flipImage(u32 width, u32 height, u8* data) {
     
 }
 
-xcb_pixmap_t xcbCreateDragPixmap(u8* data, u32 width, u32 height) {
+static xcb_pixmap_t xcbCreateDragPixmap(u8* data, u32 width, u32 height) {
     xcb_pixmap_t result = 0;
     if(rgbaFormat && xcb_render_create_picture) {
         u64 imageSize = width * height * 4;
-        int depth = xcbDepth->depth;
-        depth = 24;
+        int depth = xcbTransparentDepth->depth;
 
         result = xcb_generate_id(xcbConnection);
         xcb_create_pixmap(xcbConnection, depth, result, xcbScreen->root, width, height);
@@ -1363,11 +1384,11 @@ xcb_pixmap_t xcbCreateDragPixmap(u8* data, u32 width, u32 height) {
     return result;
 }
 
-GROUNDED_FUNCTION void xcbSetCustomCursor(u8* data, u32 width, u32 height) {
+static void xcbSetCustomCursor(u8* data, u32 width, u32 height) {
     const char* error = 0;
     if(rgbaFormat && xcb_render_create_picture) {
         u64 imageSize = width * height * 4;
-        int depth = xcbDepth->depth;
+        int depth = xcbTransparentDepth->depth;
 
         xcb_pixmap_t pixmap = xcb_generate_id(xcbConnection);
         xcb_create_pixmap(xcbConnection, depth, pixmap, xcbScreen->root, width, height);
@@ -1500,13 +1521,16 @@ static void xcbSendDndEnter(xcb_window_t source, xcb_window_t target) {
     if(xdndSourceData.mimeTypeCount > 3) {
         flags |= 0x01;
     }
+    xcb_atom_t mimeType0 = xdndSourceData.mimeTypeCount > 0 ? xdndSourceData.mimeTypes[0] : 0;
+    xcb_atom_t mimeType1 = xdndSourceData.mimeTypeCount > 1 ? xdndSourceData.mimeTypes[1] : 0;
+    xcb_atom_t mimeType2 = xdndSourceData.mimeTypeCount > 2 ? xdndSourceData.mimeTypes[2] : 0;
     xcb_client_message_event_t enterEvent = {
         .response_type = XCB_CLIENT_MESSAGE,
         .format = 32,
         .sequence = 0,
         .window = target,
         .type = xcbAtoms.xdndEnterAtom,
-        .data.data32 = {source, flags, xdndSourceData.atoms[0], xdndSourceData.atoms[1], xdndSourceData.atoms[2]},
+        .data.data32 = {source, flags, mimeType0, mimeType1, mimeType2},
     };
     xcb_send_event(xcbConnection, 0, target, XCB_EVENT_MASK_NO_EVENT, (const char *)&enterEvent);
     xcb_flush(xcbConnection);
@@ -1582,19 +1606,21 @@ static void groundedXcbDragPayloadSetImage(GroundedWindowDragPayloadDescription*
 
 static void groundedXcbBeginDragAndDrop(GroundedWindowDragPayloadDescription* desc, void* userData) {
     ASSERT(activeXcbWindow);
+    ASSERT(!xdndSourceData.dragActive);
+    if(xdndSourceData.dragActive) {
+        return;
+    }
+
+    MEMORY_CLEAR_STRUCT(&xdndSourceData);
     xdndSourceData.desc = desc;
     xdndSourceData.userData = userData;
     xcb_set_selection_owner(xcbConnection, activeXcbWindow->window, xcbAtoms.xdndSelectionAtom, XCB_CURRENT_TIME);
     xdndSourceData.mimeTypes = ARENA_PUSH_ARRAY(&desc->arena, desc->mimeTypeCount, xcb_atom_t);
     xdndSourceData.mimeTypeCount = desc->mimeTypeCount;
-    MEMORY_CLEAR_ARRAY(xdndSourceData.atoms);
     for(u64 i = 0; i < desc->mimeTypeCount; ++i) {
         xcb_intern_atom_cookie_t atomCookie = xcb_intern_atom(xcbConnection, 0, desc->mimeTypes[i].size, (const char*)desc->mimeTypes[i].base);
         xcb_intern_atom_reply_t* atomReply = xcb_intern_atom_reply(xcbConnection, atomCookie, 0);
         xdndSourceData.mimeTypes[i] = atomReply->atom;
-        if(i < 3) {
-            xdndSourceData.atoms[i] = atomReply->atom;
-        }
         free(atomReply);
     }
     if(desc->xcbIcon) {
@@ -1602,20 +1628,26 @@ static void groundedXcbBeginDragAndDrop(GroundedWindowDragPayloadDescription* de
         xcb_get_geometry_reply_t* geometryReply = xcb_get_geometry_reply(xcbConnection, geometryCookie, 0);
         int width = geometryReply->width;
         int height = geometryReply->height;
-        xdndSourceData.dragImageWindow = xcb_generate_id(xcbConnection);
-        uint32_t valueMask = XCB_CW_BACK_PIXEL | XCB_CW_OVERRIDE_REDIRECT;
+        
+        // Obviously we have to set the border pixel in order to get a transparent window. WTF???
+        uint32_t valueMask = XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL| XCB_CW_OVERRIDE_REDIRECT | XCB_CW_COLORMAP;
         // One entry for each bit in the value mask. Correct sort is important!
         uint32_t valueList[] = {
-            xcbScreen->black_pixel, 1, 0
+            xcbScreen->black_pixel, 0, 1, xcbTransparentColormap,
         };
-        xcb_void_cookie_t windowCookie = xcb_create_window_checked(xcbConnection, XCB_COPY_FROM_PARENT, xdndSourceData.dragImageWindow, xcbScreen->root,
+        u8 depth = xcbTransparentDepth->depth;
+        xcb_window_t parent = xcbScreen->root;
+        xcb_visualid_t visual = xcbTransparentVisual->visual_id;
+        xdndSourceData.dragImageWindow = xcb_generate_id(xcbConnection);
+        xcb_void_cookie_t windowCookie = xcb_create_window_checked(xcbConnection, depth, xdndSourceData.dragImageWindow, parent,
          0, 0, width, height, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, 
-         xcbScreen->root_visual, valueMask, valueList);
+         visual, valueMask, valueList);
         xcb_generic_error_t* windowError = xcb_request_check(xcbConnection, windowCookie);
         {
+            xcb_request_error_t* matchError = (xcb_request_error_t*)windowError;
             xcb_get_geometry_cookie_t geometryCookie = xcb_get_geometry(xcbConnection, xdndSourceData.dragImageWindow);
             xcb_get_geometry_reply_t* geometryReply = xcb_get_geometry_reply(xcbConnection, geometryCookie, 0);
-            //int x = 0;
+            int x = 0;
         }
         /*xcb_change_property(
             xcbConnection,
@@ -1659,7 +1691,7 @@ static void groundedXcbBeginDragAndDrop(GroundedWindowDragPayloadDescription* de
 #ifdef GROUNDED_OPENGL_SUPPORT
 EGLDisplay xcbEglDisplay;
 
-GROUNDED_FUNCTION GroundedOpenGLContext* xcbCreateOpenGLContext(MemoryArena* arena, GroundedOpenGLContext* contextToShareResources) {
+static GroundedOpenGLContext* xcbCreateOpenGLContext(MemoryArena* arena, GroundedOpenGLContext* contextToShareResources) {
     GroundedOpenGLContext* result = ARENA_PUSH_STRUCT(arena, GroundedOpenGLContext);
 
     //display = eglGetDisplay((NativeDisplayType) xcbConnection);
@@ -1726,7 +1758,7 @@ static bool xcbCreateEglSurface(GroundedXcbWindow* window) {
     return true;
 }
 
-GROUNDED_FUNCTION void xcbOpenGLMakeCurrent(GroundedXcbWindow* window, GroundedOpenGLContext* context) {
+static void xcbOpenGLMakeCurrent(GroundedXcbWindow* window, GroundedOpenGLContext* context) {
     if(!window->eglSurface) {
         xcbCreateEglSurface(window);
     }
@@ -1737,11 +1769,11 @@ GROUNDED_FUNCTION void xcbOpenGLMakeCurrent(GroundedXcbWindow* window, GroundedO
     }
 }
 
-GROUNDED_FUNCTION void xcbWindowGlSwapBuffers(GroundedXcbWindow* window) {
+static void xcbWindowGlSwapBuffers(GroundedXcbWindow* window) {
     eglSwapBuffers(xcbEglDisplay, window->eglSurface);
 }
 
-GROUNDED_FUNCTION void xcbWindowSetGlSwapInterval(int interval) {
+static void xcbWindowSetGlSwapInterval(int interval) {
     eglSwapInterval(xcbEglDisplay, interval);
 }
 #endif // GROUNDED_OPENGL_SUPPORT

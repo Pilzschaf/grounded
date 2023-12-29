@@ -39,6 +39,9 @@ X(xcb_create_gc, xcb_void_cookie_t, (xcb_connection_t *c, xcb_gcontext_t cid, xc
 X(xcb_create_cursor, xcb_void_cookie_t, (xcb_connection_t *c,xcb_cursor_t      cid,xcb_pixmap_t      source,xcb_pixmap_t      mask,uint16_t          fore_red,uint16_t          fore_green,uint16_t          fore_blue,uint16_t          back_red,uint16_t          back_green,uint16_t          back_blue,uint16_t          x,uint16_t          y))
 X(xcb_screen_allowed_depths_iterator, xcb_depth_iterator_t, (const xcb_screen_t *R))
 X(xcb_depth_next, void, (xcb_depth_iterator_t *i))
+X(xcb_depth_visuals_iterator, xcb_visualtype_iterator_t, (const xcb_depth_t *R))
+X(xcb_visualtype_next, void, (xcb_visualtype_iterator_t *i))
+X(xcb_create_colormap_checked, xcb_void_cookie_t, (xcb_connection_t *c,uint8_t           alloc,xcb_colormap_t    mid,xcb_window_t      window,xcb_visualid_t    visual))
 X(xcb_free_pixmap, xcb_void_cookie_t, (xcb_connection_t *c, xcb_pixmap_t pixmap))
 X(xcb_put_image, xcb_void_cookie_t, (xcb_connection_t *c,uint8_t format,xcb_drawable_t drawable,xcb_gcontext_t    gc,uint16_t          width,uint16_t          height,int16_t           dst_x,int16_t           dst_y,uint8_t           left_pad,uint8_t           depth,uint32_t          data_len,const uint8_t    *data));
 X(xcb_create_pixmap, xcb_void_cookie_t, (xcb_connection_t *c,uint8_t depth,xcb_pixmap_t pid,xcb_drawable_t    drawable,uint16_t          width,uint16_t          height))

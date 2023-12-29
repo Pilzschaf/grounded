@@ -60,6 +60,16 @@ typedef uint32_t xcb_pixmap_t;
 typedef uint32_t xcb_cursor_t;
 typedef uint32_t xcb_font_t;
 
+typedef struct xcb_request_error_t {
+    uint8_t  response_type;
+    uint8_t  error_code;
+    uint16_t sequence;
+    uint32_t bad_value;
+    uint16_t minor_opcode;
+    uint8_t  major_opcode;
+    uint8_t  pad0;
+} xcb_request_error_t;
+
 typedef struct xcb_screen_t {
     xcb_window_t   root;
     xcb_colormap_t default_colormap;
@@ -309,6 +319,37 @@ typedef struct xcb_depth_iterator_t {
     int          rem;
     int          index;
 } xcb_depth_iterator_t;
+
+typedef struct xcb_visualtype_t {
+    xcb_visualid_t visual_id;
+    uint8_t        _class;
+    uint8_t        bits_per_rgb_value;
+    uint16_t       colormap_entries;
+    uint32_t       red_mask;
+    uint32_t       green_mask;
+    uint32_t       blue_mask;
+    uint8_t        pad0[4];
+} xcb_visualtype_t;
+
+typedef struct xcb_visualtype_iterator_t {
+    xcb_visualtype_t *data;
+    int               rem;
+    int               index;
+} xcb_visualtype_iterator_t;
+
+typedef enum xcb_visual_class_t {
+    XCB_VISUAL_CLASS_STATIC_GRAY = 0,
+    XCB_VISUAL_CLASS_GRAY_SCALE = 1,
+    XCB_VISUAL_CLASS_STATIC_COLOR = 2,
+    XCB_VISUAL_CLASS_PSEUDO_COLOR = 3,
+    XCB_VISUAL_CLASS_TRUE_COLOR = 4,
+    XCB_VISUAL_CLASS_DIRECT_COLOR = 5
+} xcb_visual_class_t;
+
+typedef enum xcb_colormap_alloc_t {
+    XCB_COLORMAP_ALLOC_NONE = 0,
+    XCB_COLORMAP_ALLOC_ALL = 1
+} xcb_colormap_alloc_t;
 
 typedef enum xcb_image_format_t {
     XCB_IMAGE_FORMAT_XY_BITMAP = 0,
