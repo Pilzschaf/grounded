@@ -715,6 +715,18 @@ typedef struct xcb_enter_notify_event_t {
 
 typedef xcb_enter_notify_event_t xcb_leave_notify_event_t;
 
+typedef struct xcb_get_selection_owner_cookie_t {
+    unsigned int sequence;
+} xcb_get_selection_owner_cookie_t;
+
+typedef struct xcb_get_selection_owner_reply_t {
+    uint8_t      response_type;
+    uint8_t      pad0;
+    uint16_t     sequence;
+    uint32_t     length;
+    xcb_window_t owner;
+} xcb_get_selection_owner_reply_t;
+
 typedef struct xcb_selection_request_event_t {
     uint8_t         response_type;
     uint8_t         pad0;

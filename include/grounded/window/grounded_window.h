@@ -148,6 +148,7 @@ typedef GROUNDED_WINDOW_DND_DROP_CALLBACK(GroundedWindowDndDropCallback);
 #define GROUNDED_WINDOW_DND_CALLBACK(name) u32 name(struct GroundedDragPayload* payload, GroundedWindow* window, s32 x, s32 y, u32 mimeTypeCount, String8* mimeTypes, GroundedWindowDndDropCallback** onDropCallback)
 typedef GROUNDED_WINDOW_DND_CALLBACK(GroundedWindowDndCallback);
 
+// There is no guarantee when the data callback is called. It can happen async to the main loop and also does not indicate whether a drop has occured or will occur
 #define GROUNDED_WINDOW_DND_DATA_CALLBACK(name) String8 name(MemoryArena* arena, String8 mimeType, u64 mimeIndex, void* userData)
 typedef GROUNDED_WINDOW_DND_DATA_CALLBACK(GroundedWindowDndDataCallback);
 #define GROUNDED_WINDOW_DND_DRAG_FINISH_CALLBACK(name) void name(MemoryArena* arena, void* userData, GroundedDragFinishType finishType)
