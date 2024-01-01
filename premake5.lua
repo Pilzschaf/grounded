@@ -138,6 +138,29 @@ project "DND"
             --"GL",
         }
 
+project "DNDDrop"
+    defines
+    {
+        "GROUNDED_OPENGL_SUPPORT",
+    }
+    files
+    {
+        "example/dnd_drop/main.c",
+        "src/threading/grounded_threading.c",
+        "src/memory/grounded_arena.c",
+        "src/memory/grounded_memory.c",
+        "src/window/grounded_window.c",
+        "src/window/grounded_window_extra.c",
+        "src/logger/grounded_logger.c",
+        "src/string/grounded_string.c",
+    }
+    filter "system:windows"
+        links
+        {
+            "opengl32",
+        }
+    filter "system:linux"
+
 project "GroundedStatic"
     kind "StaticLib"
     targetdir "bin/static/%{cfg.buildcfg}"

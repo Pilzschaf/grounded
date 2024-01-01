@@ -1961,6 +1961,8 @@ static void dataOfferHandleAction(void* userData, struct wl_data_offer* dataOffe
         u32 preferredAction = WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE;
         wl_data_offer_set_actions(dataOffer, waylandOffer->allowedActions & (~WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK), preferredAction);
     }
+
+    printf("Selected action: %i\n", waylandOffer->selectedAction);
 }
 
 static const struct wl_data_offer_listener dataOfferListener = {
@@ -1995,9 +1997,9 @@ static void updateWaylandDragPosition(GroundedWaylandWindow* window, struct Wayl
         activeWindow->mouseState.y = posY;
     }
     u32 newMimeIndex = window->dndCallback(0, (GroundedWindow*)window, posX, posY, waylandOffer->mimeTypeCount, waylandOffer->mimeTypes, &waylandOffer->dropCallback);
-    if(newMimeIndex != waylandOffer->lastAcceptedMimeIndex) {
+    // I think spec told us that we do not have to answer if the last accept is still valid. However in practice it seems to be best to always answer with an accept
+    if(newMimeIndex != waylandOffer->lastAcceptedMimeIndex || true) {
         if(newMimeIndex < waylandOffer->mimeTypeCount) {
-            //TODO: Is this call correct? We must call this upon handleOffer
             wl_data_offer_accept(waylandOffer->offer, waylandOffer->enterSerial, (const char*)waylandOffer->mimeTypes[newMimeIndex].base);
             if(dataDeviceManagerVersion >= 3) {
                 wl_data_offer_set_actions(waylandOffer->offer, waylandOffer->allowedActions, WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY);

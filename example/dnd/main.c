@@ -6,6 +6,8 @@
 #include <stdio.h>
 //#include <GL/gl.h>
 
+//TODO: Why is the drag payload not shown with xcb?
+
 #define GL_COLOR_BUFFER_BIT     0x00004000
 #define GL_MODELVIEW			0x1700
 #define GL_PROJECTION			0x1701

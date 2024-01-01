@@ -905,9 +905,13 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                         u32 version = clientMessageEvent->data.data32[1] >> 24;
                         xcb_window_t source = clientMessageEvent->data.data32[0];
                         u32 flags = clientMessageEvent->data.data32[1] & 0xFFFFFF;
-                        //TODO: Coordinates
-                        s32 x = 0;
-                        s32 y = 0;
+
+                        xcb_query_pointer_cookie_t pointerCookie = xcb_query_pointer(xcbConnection, window->window);
+                        xcb_query_pointer_reply_t* pointerReply = xcb_query_pointer_reply(xcbConnection, pointerCookie, 0);
+                        s32 x = pointerReply->win_x;
+                        s32 y = pointerReply->win_y;
+                        free(pointerReply);
+
                         if (flags & 1) {
                             // More than 3 mime types so get types from xdndtypelist
                             xcb_get_property_cookie_t propertyCookie = xcb_get_property(xcbConnection, 0, source, xcbAtoms.xdndTypeListAtom, XCB_ATOM_ATOM, 0, GROUNDED_XCB_MAX_MIMETYPES);
@@ -940,12 +944,15 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                 } else if(clientMessageEvent->type == xcbAtoms.xdndDropAtom) {
                     printf("DND Drop\n");
                     if(window->dndCallback && xdndTargetData.currentDropCallback) {
-                        //TODO: Coordinates
+                        xcb_query_pointer_cookie_t pointerCookie = xcb_query_pointer(xcbConnection, window->window);
+                        xcb_query_pointer_reply_t* pointerReply = xcb_query_pointer_reply(xcbConnection, pointerCookie, 0);
+                        s32 x = pointerReply->win_x;
+                        s32 y = pointerReply->win_y;
+                        free(pointerReply);
+
                         xcb_window_t source = clientMessageEvent->data.data32[0];
                         xcb_timestamp_t time = clientMessageEvent->data.data32[2];
 
-                        s32 x = 0;
-                        s32 y = 0;
                         String8 mimeType = xdndTargetData.mimeTypes[xdndTargetData.currentMimeIndex];
                         String8 data = EMPTY_STRING8;
                         
@@ -1012,8 +1019,14 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                 mouseState->horizontalScrollDelta += 1.0f;
             }
             result.type = GROUNDED_EVENT_TYPE_BUTTON_DOWN;
+            result.buttonDown.window = (GroundedWindow*)window;
             // Button mapping seems to be the same for xcb and our definition
             result.buttonDown.button = mouseButtonEvent->detail;
+            //TODO: Make sure we have the latest mouse position here. Either request mouse position or use latest motion event
+            xcb_query_pointer_cookie_t pointerCookie = xcb_query_pointer(xcbConnection, window->window);
+            xcb_query_pointer_reply_t* pointerReply = xcb_query_pointer_reply(xcbConnection, pointerCookie, 0);
+            result.buttonDown.mousePositionX = pointerReply->win_x;
+            result.buttonDown.mousePositionY = pointerReply->win_y;
         } break;
         case XCB_ENTER_NOTIFY:{
             xcb_enter_notify_event_t* enterEvent = (xcb_enter_notify_event_t*)event;
@@ -1062,6 +1075,10 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             result.type = GROUNDED_EVENT_TYPE_BUTTON_UP;
             // Button mapping seems to be the same for xcb and our definition
             result.buttonUp.button = mouseButtonReleaseEvent->detail;
+            result.buttonUp.window = (GroundedWindow*)window;
+            //TODO: Make sure we have the latest mouse position here
+            result.buttonUp.mousePositionX = mouseState->x;
+            result.buttonUp.mousePositionY = mouseState->y;
         } break;
         //TODO: Key modifiers
         case XCB_KEY_PRESS:{
@@ -1220,11 +1237,21 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                 }
             }
         } break;
+        case XCB_SELECTION_NOTIFY:{
+            printf("Selection notify\n");
+            // Notifies us that a seleciton is now available to us. Probably something we have requested before. For example a drag payload
+            
+        } break;
         case 0:{
             // response_type 0 means error
             GROUNDED_LOG_ERROR("Received error from xcb");
             xcb_generic_error_t* error = (xcb_generic_error_t*)event;
             printf("XCB errorcode: %d sequence:%i\n", error->error_code, error->sequence);
+            ASSERT(false);
+        } break;
+        case XCB_GE_GENERIC:{
+            // Some custom event we are probably not interested in
+            printf("Unknown generic event\n");
             ASSERT(false);
         } break;
         default:{
@@ -1602,13 +1629,18 @@ static void xcbSendDndPosition(xcb_window_t source, xcb_window_t target, int x, 
 
 // Destination to source as response to dnd position event
 static void xcbSendDndStatus(xcb_window_t source, xcb_window_t target) {
-    printf("Sending status from %u to %u\n", source, target);
-    int accept = 1;
+    int accept = xdndTargetData.currentDropCallback != 0;
+    xcb_atom_t action = accept ? xcbAtoms.xdndActionCopyAtom : XCB_NONE;
+    if(accept) {
+        accept |= 2;
+    }
+    printf("Sending status from %u to %u with accept=%i\n", source, target, accept);
     xcb_client_message_event_t statusEvent = {
         .response_type = XCB_CLIENT_MESSAGE,
         .window = target,
+        .type = xcbAtoms.xdndStatusAtom,
         .format = 32,
-        .data.data32 = {source, accept, 0, 0, xcbAtoms.xdndActionCopyAtom},
+        .data.data32 = {source, accept, 0, 0, action},
     };
     xcb_send_event(xcbConnection, 0, target, XCB_EVENT_MASK_NO_EVENT, (const char *)&statusEvent);
     xcb_flush(xcbConnection);
@@ -1674,7 +1706,7 @@ static void groundedXcbBeginDragAndDrop(GroundedWindowDragPayloadDescription* de
         xdndSourceData.mimeTypes[i] = atomReply->atom;
         free(atomReply);
     }
-    if(false && desc->xcbIcon) {
+    if(desc->xcbIcon) {
         xcb_get_geometry_cookie_t geometryCookie = xcb_get_geometry(xcbConnection, desc->xcbIcon);
         xcb_get_geometry_reply_t* geometryReply = xcb_get_geometry_reply(xcbConnection, geometryCookie, 0);
         int width = geometryReply->width;
