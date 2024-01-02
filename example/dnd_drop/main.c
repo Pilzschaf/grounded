@@ -10,6 +10,7 @@ void (*glClear)(int);
 #define GL_COLOR_BUFFER_BIT     0x00004000
 
 GROUNDED_WINDOW_DND_DROP_CALLBACK(uriListCallback) {
+    //TODO: Fix data retrieval in xcb
     printf("Dropped an text/uri-list\n");
     printf("Data: %.*s\n", (int)data.size, (const char*)data.base);
 }
@@ -30,6 +31,8 @@ int main() {
     { // Thread context initialization
         MemoryArena arena1 = createGrowingArena(osGetMemorySubsystem(), KB(256));
         MemoryArena arena2 = createGrowingArena(osGetMemorySubsystem(), KB(16));
+        enableDebugMemoryOverflowDetectForArena(&arena1);
+        enableDebugMemoryOverflowDetectForArena(&arena2);
 
         threadContextInit(arena1, arena2, &groundedDefaultConsoleLogger);
     }

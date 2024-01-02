@@ -5,6 +5,10 @@
 #include "../memory/grounded_arena.h"
 #include "../string/grounded_string.h"
 
+//TODO: Maybe make the dnd API more async in nature. Instead of directly accessing the data of a mime type, it is requested and the callback called again on move or when the data has arrived.
+// Drop is only processed once no transfers are running.
+//TODO: How good would this rewrite fit the windows API
+
 typedef struct GroundedWindow GroundedWindow;
 
 void groundedInitWindowSystem();

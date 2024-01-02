@@ -170,6 +170,7 @@ static xcb_window_t getXdndAwareTarget(int rootX, int rootY);
 static void xcbSendDndPosition(xcb_window_t source, xcb_window_t target, int x, int y);
 static void xcbSendDndLeave(xcb_window_t source, xcb_window_t target);
 static void xcbSendDndDrop(xcb_window_t source, xcb_window_t target);
+static void xcbSendFinished(xcb_window_t source, xcb_window_t target);
 static void xcbSendDndEnter(xcb_window_t source, xcb_window_t target);
 
 static void reportXcbError(const char* message) {
@@ -976,11 +977,44 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                             xcb_flush(xcbConnection);
 
                             //TODO: Wait for response event. Could do this by using a pthred_cond.
+                            // We can also get other events so that might not be that good...
+                            //TODO: Implement some kind of timeout so we can not hang indefinetely if we get not response
+                            while(true) {
+                                // xcb_poll_for_queued_event
+                                xcb_generic_event_t* event = xcb_wait_for_event(xcbConnection);
+                                if(event) {
+                                    if((event->response_type & 0x7f) == XCB_SELECTION_NOTIFY) {
+                                        //TODO: Retrieve dnd data
+                                        xcb_selection_notify_event_t *notifyEvent = (xcb_selection_notify_event_t*)event;
+                                        if(notifyEvent->property != XCB_NONE) {
+                                            // Retrieve the selected data from the property
+                                            xcb_get_property_cookie_t propertyCookie = xcb_get_property(xcbConnection, 0, notifyEvent->requestor, notifyEvent->property, XCB_GET_PROPERTY_TYPE_ANY, 0, UINT32_MAX);
+                                            xcb_get_property_reply_t* propertyReply = xcb_get_property_reply(xcbConnection, propertyCookie, 0);
+                                            if (propertyReply) {
+                                                // Process the data as needed
+                                                data = str8Copy(&xdndTargetData.offerArena, str8FromBlock(xcb_get_property_value(propertyReply), xcb_get_property_value_length(propertyReply)));
+                                                //printf("Received data: %.*s\n", xcb_get_property_value_length(propertyReply),    (char *)xcb_get_property_value(propertyReply));
+
+                                                free(propertyReply);
+                                            }
+                                        }
+                                        free(event);
+                                        break;
+                                    } else {
+                                        GroundedEvent result = xcbTranslateToGroundedEvent(event);
+                                        if(result.type != GROUNDED_EVENT_TYPE_NONE) {
+                                            eventQueue[eventQueueIndex++] = result;
+                                        }
+                                    }
+                                    free(event);
+                                }
+                            }
+
                             free(internReply);
                         }
                         
                         xdndTargetData.currentDropCallback(0, data, (GroundedWindow*)window, x, y, mimeType);
-                        //TODO: Send finished
+                        xcbSendFinished(window->window, source);
                     }
                 } else if(clientMessageEvent->type == xcbAtoms.xdndStatusAtom) {
                     printf("DND Status\n");
@@ -1329,6 +1363,7 @@ static GroundedEvent* xcbPollEvents(u32* eventCount) {
             if(result.type != GROUNDED_EVENT_TYPE_NONE) {
                 eventQueue[eventQueueIndex++] = result;
             }
+            free(event);
         }
     } while(event != 0);
 
@@ -1632,7 +1667,7 @@ static void xcbSendDndStatus(xcb_window_t source, xcb_window_t target) {
     int accept = xdndTargetData.currentDropCallback != 0;
     xcb_atom_t action = accept ? xcbAtoms.xdndActionCopyAtom : XCB_NONE;
     if(accept) {
-        accept |= 2;
+        //accept |= 2;
     }
     printf("Sending status from %u to %u with accept=%i\n", source, target, accept);
     xcb_client_message_event_t statusEvent = {
@@ -1666,10 +1701,27 @@ static void xcbSendDndDrop(xcb_window_t source, xcb_window_t target) {
         .window = target,
         .type = xcbAtoms.xdndDropAtom,
         .format = 32,
-        //.data.data32 = {source, 1, actionCopy},
         .data.data32 = {source, 0, XCB_CURRENT_TIME},
     };
     xcb_send_event(xcbConnection, 0, target, XCB_EVENT_MASK_NO_EVENT, (const char *)&dropEvent);
+    xcb_flush(xcbConnection);
+}
+
+static void xcbSendFinished(xcb_window_t source, xcb_window_t target) {
+    printf("Sending dnd finished from %u to %u\n", source, target);
+    int accepted = 1; // 1 for accepted
+    xcb_atom_t action = 0;
+    if(accepted) {
+        action = xcbAtoms.xdndActionCopyAtom;
+    }
+    xcb_client_message_event_t finishedEvent = {
+        .response_type = XCB_CLIENT_MESSAGE,
+        .window = target,
+        .type = xcbAtoms.xdndFinishedAtom,
+        .format = 32,
+        .data.data32 = {source, accepted, action},
+    };
+    xcb_send_event(xcbConnection, 0, target, XCB_EVENT_MASK_NO_EVENT, (const char *)&finishedEvent);
     xcb_flush(xcbConnection);
 }
 
