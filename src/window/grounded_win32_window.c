@@ -10,6 +10,8 @@
 //#include <winuser.h>
 //#include <ntdef.h>
 #include <windows.h>
+#include <objbase.h>
+#include <INITGUID.H>
 #endif
 
 #include <stdio.h>
@@ -22,6 +24,15 @@ struct GroundedOpenGLContext {
 };
 #endif
 
+// Our very own COM object...
+// https://www.codeproject.com/Articles/13601/COM-in-plain-C
+typedef struct {
+    IDropTargetVtbl* vTable;
+    ULONG referenceCount;
+    HWND hWnd;
+    GroundedWindowDndDropCallback* currentDropCallback;
+} MyDropTarget;
+
 typedef struct GroundedWin32Window {
     HWND hWnd;
     u32 minWidth;
@@ -30,6 +41,8 @@ typedef struct GroundedWin32Window {
     u32 maxHeight;
     bool openglFormatSelected;
     HDC hDC;
+    MyDropTarget dropTarget;
+    GroundedWindowDndCallback* dndCallback;
 } GroundedWin32Window;
 
 MouseState win32MouseState;
@@ -83,16 +96,192 @@ static u8 translateWin32Keycode(WPARAM wParam) {
     return result;
 }
 
-GroundedWin32Window windows;
 GroundedWin32Window* currentlyCreatingWindow;
+
+static GroundedWin32Window* getGroundedWindow(HWND hWnd) {
+    GroundedWin32Window* result = GetWindowLongPtr(hWnd, GWLP_USERDATA);
+    if (!result) {
+        result = currentlyCreatingWindow;
+    }
+    return result;
+}
+
+// 9a5914c6-94f4-4ccd-973b-b191bbecf5d3
+DEFINE_GUID(CLSID_IDropTarget, 0x9a5914c6, 0x94f4, 0x4ccd, 0x97, 0x3b, 0xb1, 0x91, 0xbb, 0xec, 0xf5, 0xd3);
+
+// 07b81ceb-5208-4232-9e7e-5ec4e3191ded
+DEFINE_GUID(IID_IDropTarget, 0x07b81ceb, 0x5208, 0x4232, 0x9e, 0x7e, 0x5e, 0xc4, 0xe3, 0x19, 0x1d, 0xed);
+
+HRESULT STDMETHODCALLTYPE QueryInterface(MyDropTarget* This, REFIID vTableGuid, void** ppv) {
+    if (!IsEqualIID(vTableGuid, &IID_IDropTarget) && !IsEqualIID(vTableGuid, &IID_IUnknown) && !IsEqualIID(vTableGuid, &IID_IDropTarget)) {
+        *ppv = 0;
+        return(E_NOINTERFACE);
+    }
+
+    *ppv = This;
+    This->vTable->AddRef(This);
+    return(NOERROR);
+}
+
+ULONG STDMETHODCALLTYPE AddRef(MyDropTarget* This) {
+    ++This->referenceCount;
+    return(This->referenceCount);
+}
+
+ULONG STDMETHODCALLTYPE Release(MyDropTarget* This) {
+    --This->referenceCount;
+
+    if (This->referenceCount == 0) {
+        // As we did not allocated anything dynamically, we do not free anything
+        //GlobalFree(This);
+        return 0;
+    }
+
+    return(This->referenceCount);
+}
+
+/*
+Formats:
+https://learn.microsoft.com/en-us/windows/win32/dataxchg/standard-clipboard-formats
+CF_BITMAP
+CF_WAVE
+CF_HDROP
+CF_RIFF
+CF_SYLK
+CF_TEXT
+CF_TIFF
+CF_UNICODETEXT
+*/
+
+// IDropTarget implementation
+HRESULT STDMETHODCALLTYPE DragEnter(MyDropTarget* This, IDataObject* pDataObject, DWORD grfKeyState, POINTL pt, DWORD* pdwEffect) {
+    IEnumFORMATETC* enumFormatEtc;
+    FORMATETC hdropFormat;
+    bool hdropFound = false;
+    This->currentDropCallback = 0;
+
+    GroundedWin32Window* window = getGroundedWindow(This->hWnd);
+    
+    if (SUCCEEDED(pDataObject->lpVtbl->EnumFormatEtc(pDataObject, DATADIR_GET, &enumFormatEtc))) {
+        FORMATETC formatEtc;
+        ULONG fetched;
+        while (S_OK == enumFormatEtc->lpVtbl->Next(enumFormatEtc, 1, &formatEtc, &fetched)) {
+            if (formatEtc.cfFormat == CF_HDROP) {
+                hdropFound = true;
+                hdropFormat = formatEtc;
+            }
+
+            // Release memory allocated for the format
+            CoTaskMemFree(formatEtc.ptd);
+        }
+
+        enumFormatEtc->lpVtbl->Release(enumFormatEtc);
+    }
+
+    if (hdropFound) {
+        This->currentDropCallback = 0;
+        u32 newMimeIndex = window->dndCallback(0, window, pt.x, pt.y, 1, &STR8_LITERAL("text/uri-list"), &This->currentDropCallback);
+
+        /*STGMEDIUM medium;
+        if (SUCCEEDED(pDataObject->lpVtbl->GetData(pDataObject, &hdropFormat, &medium))) {
+            HDROP hDrop = (HDROP)GlobalLock(medium.hGlobal);
+            //LPVOID pData = GlobalLock(medium.hGlobal);
+            if (hDrop) {
+                UINT numFiles = DragQueryFileW(hDrop, 0xFFFFFFFF, 0, 0);
+                GlobalUnlock(medium.hGlobal);
+            }
+            ReleaseStgMedium(&medium);
+        }*/
+        if (newMimeIndex != UINT32_MAX) {
+            *pdwEffect = DROPEFFECT_COPY;
+            return S_OK;
+        }
+    }
+
+    //pDataObject->lpVtbl->GetCanonicalFormatEtc(pDataObject,)
+    *pdwEffect = DROPEFFECT_COPY;
+    return S_OK;
+}
+
+HRESULT STDMETHODCALLTYPE DragOver(MyDropTarget* This, DWORD grfKeyState, POINTL pt, DWORD* pdwEffect) {
+    GroundedWin32Window* window = getGroundedWindow(This->hWnd);
+    if (window && window->dndCallback) {
+        This->currentDropCallback = 0;
+        u32 newMimeIndex = window->dndCallback(0, window, pt.x, pt.y, 1, &STR8_LITERAL("text/uri-list"), &This->currentDropCallback);
+        if (newMimeIndex != UINT32_MAX) {
+            *pdwEffect = DROPEFFECT_COPY;
+            return S_OK;
+        }
+    }
+
+    *pdwEffect = DROPEFFECT_NONE;
+    return S_OK;
+}
+
+HRESULT STDMETHODCALLTYPE DragLeave(MyDropTarget* This) {
+    
+    return S_OK;
+}
+
+HRESULT STDMETHODCALLTYPE Drop(MyDropTarget* This, IDataObject* pDataObject, DWORD grfKeyState, POINTL pt, DWORD* pdwEffect) {
+    GroundedWin32Window* window = getGroundedWindow(This->hWnd);
+    if (window && window->dndCallback && This->currentDropCallback) {
+        String8 data = EMPTY_STRING8;
+        MemoryArena* scratch = threadContextGetScratch(0);
+        ArenaTempMemory temp = arenaBeginTemp(scratch);
+
+        //TODO: Retrieve data from correct mime
+        FORMATETC format = { CF_HDROP, 0, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+        STGMEDIUM medium;
+        if (SUCCEEDED(pDataObject->lpVtbl->GetData(pDataObject, &format, &medium))) {
+            HDROP hDrop = (HDROP)GlobalLock(medium.hGlobal);
+            if (hDrop) {
+                UINT numFiles = DragQueryFileW(hDrop, 0xFFFFFFFF, 0, 0);
+                if (numFiles > 0) {
+                    u32 filenameSize = DragQueryFileW(hDrop, 0, 0, 0) + 1; //TODO: For whatever reason do we have to add this +1 here???
+                    STATIC_ASSERT(sizeof(wchar_t) == 2);
+                    wchar_t* filenameBuffer = ARENA_PUSH_ARRAY_NO_CLEAR(scratch, filenameSize, wchar_t);
+                    filenameSize = DragQueryFileW(hDrop, 0, filenameBuffer, filenameSize);
+                    data = str8FromStr16(scratch, str16FromBlock(filenameBuffer, filenameSize));
+                }
+                GlobalUnlock(medium.hGlobal);
+            }
+            ReleaseStgMedium(&medium);
+        }
+
+        This->currentDropCallback(0, data, window, pt.x, pt.y, STR8_LITERAL("text/uri-list"));
+        *pdwEffect = DROPEFFECT_COPY;
+        arenaEndTemp(temp);
+    } else {
+        *pdwEffect = DROPEFFECT_NONE;
+    }
+
+    return S_OK;
+}
+
+// Initialize IDropTarget vtable
+IDropTargetVtbl MyDropTargetVtbl = {
+    .QueryInterface = QueryInterface,
+    .AddRef = AddRef,
+    .Release = Release,
+    .DragEnter = DragEnter,
+    .DragOver = DragOver,
+    .DragLeave = DragLeave,
+    .Drop = Drop,
+};
 
 // This can be called directly from the thread that created the window with this message loop. For example by calls to createWindow, ShowWindow etc.
 // Not all messages go through the queue eg. GetMessage/PollMessage. But also non-queued messages are only delivered if the creating thread is blocking
 static LRESULT CALLBACK win32MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch(uMsg) {
         case WM_CREATE: {
-            //GroundedWin32Window* window = (GroundedWin32Window*)lParam;
-            //RegisterDragDrop(hWnd, dropTarget);
+            GroundedWin32Window* window = getGroundedWindow(hWnd);
+
+            window->dropTarget.hWnd = hWnd;
+            window->dropTarget.referenceCount = 1;
+            window->dropTarget.vTable = &MyDropTargetVtbl;
+            RegisterDragDrop(hWnd, &window->dropTarget);
+
             return DefWindowProcW(hWnd, uMsg, wParam, lParam);
         } break;
         case WM_CLOSE: {
@@ -184,14 +373,7 @@ static LRESULT CALLBACK win32MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam,
         } break;
         case WM_GETMINMAXINFO: {
             // Sent when size is about to change. We can specify min and max size here
-
-            //GroundedWin32Window* window = &windows;
-            GroundedWin32Window* window = GetWindowLongPtr(hWnd, GWLP_USERDATA);
-            //GroundedWin32Window* window = (GroundedWin32Window*)lParam;
-            //return 0;
-            if (!window) {
-                window = currentlyCreatingWindow;
-            } 
+            GroundedWin32Window* window = getGroundedWindow(hWnd);
 
             LPMINMAXINFO minMaxInfo = (LPMINMAXINFO)lParam;
             if (window->minWidth) {
@@ -273,6 +455,7 @@ GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(MemoryArena* arena, struc
     GroundedWin32Window* result = ARENA_PUSH_STRUCT(arena, GroundedWin32Window);
     *result = (GroundedWin32Window){0};
     currentlyCreatingWindow = result;
+    result->dndCallback = parameters->dndCallback;
     HWND parentWindow = 0;
     // str16FromStr8 guarantees 0-termination
     String16 utf16Title = str16FromStr8(scratch, parameters->title);
