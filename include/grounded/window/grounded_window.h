@@ -358,6 +358,7 @@ GROUNDED_FUNCTION_INLINE u32 groundedGetUnicodeCodepointForKeycode(u8 keycode) {
 #ifdef GROUNDED_OPENGL_SUPPORT
 typedef struct GroundedOpenGLContext GroundedOpenGLContext;
 GROUNDED_FUNCTION GroundedOpenGLContext* groundedCreateOpenGLContext(MemoryArena* arena, GroundedOpenGLContext* contextToShareResources);
+GROUNDED_FUNCTION void groundedWindowDestroyOpenglGontext(GroundedOpenGLContext* context);
 GROUNDED_FUNCTION void groundedMakeOpenGLContextCurrent(GroundedWindow* window, GroundedOpenGLContext* context);
 GROUNDED_FUNCTION void groundedWindowGlSwapBuffers(GroundedWindow* window);
 GROUNDED_FUNCTION void groundedWindowSetGlSwapInterval(int interval);

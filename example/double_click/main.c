@@ -79,6 +79,7 @@ int main() {
     }
 
     // Release resources
+    groundedWindowDestroyOpenglGontext(openGLContext);
     groundedDestroyWindow(window);
     groundedShutdownWindowSystem();
 

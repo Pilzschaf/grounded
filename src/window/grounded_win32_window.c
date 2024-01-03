@@ -28,6 +28,8 @@ typedef struct GroundedWin32Window {
     u32 minHeight;
     u32 maxWidth;
     u32 maxHeight;
+    bool openglFormatSelected;
+    HDC hDC;
 } GroundedWin32Window;
 
 MouseState win32MouseState;
@@ -82,11 +84,17 @@ static u8 translateWin32Keycode(WPARAM wParam) {
 }
 
 GroundedWin32Window windows;
+GroundedWin32Window* currentlyCreatingWindow;
 
 // This can be called directly from the thread that created the window with this message loop. For example by calls to createWindow, ShowWindow etc.
 // Not all messages go through the queue eg. GetMessage/PollMessage. But also non-queued messages are only delivered if the creating thread is blocking
 static LRESULT CALLBACK win32MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch(uMsg) {
+        case WM_CREATE: {
+            //GroundedWin32Window* window = (GroundedWin32Window*)lParam;
+            //RegisterDragDrop(hWnd, dropTarget);
+            return DefWindowProcW(hWnd, uMsg, wParam, lParam);
+        } break;
         case WM_CLOSE: {
             // Get window from hWnd parameter
             PostQuitMessage(0);
@@ -177,7 +185,13 @@ static LRESULT CALLBACK win32MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam,
         case WM_GETMINMAXINFO: {
             // Sent when size is about to change. We can specify min and max size here
 
-            GroundedWin32Window* window = &windows;
+            //GroundedWin32Window* window = &windows;
+            GroundedWin32Window* window = GetWindowLongPtr(hWnd, GWLP_USERDATA);
+            //GroundedWin32Window* window = (GroundedWin32Window*)lParam;
+            //return 0;
+            if (!window) {
+                window = currentlyCreatingWindow;
+            } 
 
             LPMINMAXINFO minMaxInfo = (LPMINMAXINFO)lParam;
             if (window->minWidth) {
@@ -231,10 +245,18 @@ GROUNDED_FUNCTION void groundedInitWindowSystem() {
     if(!atom) {
         error = "Could not register window class";
     }
+
+    HRESULT result = OleInitialize(0);
+    if (result != S_OK) {
+        error = "Could not initialize ole";
+    }
 }
 
 GROUNDED_FUNCTION void groundedShutdownWindowSystem() {
     //TODO: Release resources
+    HINSTANCE instance = GetModuleHandle(0);
+    UnregisterClassW(L"GroundedDefaultWindowClass", instance);
+    OleUninitialize();
 }
 
 GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(MemoryArena* arena, struct GroundedWindowCreateParameters* parameters) {
@@ -242,13 +264,15 @@ GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(MemoryArena* arena, struc
         static struct GroundedWindowCreateParameters defaultParameters = {0};
         parameters = &defaultParameters;
     }
-    MemoryArena* scratch = threadContextGetScratch(0);
+    MemoryArena* scratch = threadContextGetScratch(arena);
     ArenaTempMemory temp = arenaBeginTemp(scratch);
 
     const char* error = 0;
     HINSTANCE instance = GetModuleHandle(0);
-    GroundedWin32Window* result = &windows;
+    //GroundedWin32Window* result = &windows;
+    GroundedWin32Window* result = ARENA_PUSH_STRUCT(arena, GroundedWin32Window);
     *result = (GroundedWin32Window){0};
+    currentlyCreatingWindow = result;
     HWND parentWindow = 0;
     // str16FromStr8 guarantees 0-termination
     String16 utf16Title = str16FromStr8(scratch, parameters->title);
@@ -270,8 +294,10 @@ GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(MemoryArena* arena, struc
     if(!result->hWnd) {
         error = "Could not create win32 window";
     }
-
+    
     if(!error) {
+        SetWindowLongPtr(result->hWnd, GWLP_USERDATA, result);
+        currentlyCreatingWindow = 0;
         result->minWidth = parameters->minWidth;
         result->minHeight = parameters->minHeight;
         result->maxWidth = parameters->maxWidth;
@@ -714,7 +740,7 @@ GROUNDED_FUNCTION void* groundedWindowLoadGlFunction(const char* symbol) {
     return result;
 }
 
-//TODO: On Windows it seems to be the case that we have to know the pixel format upon at window creation. How to solve this nicely?
+//TODO: On Windows it seems to be the case that we have to know the pixel format at window creation. How to solve this nicely?
 // This is also the case for linux I think. But on windows we acually require the window to set the pixel format. This is the actual problem
 // HDC is required for context creation...
 // Can share a single hglrc between multiple windows
@@ -757,9 +783,11 @@ GROUNDED_FUNCTION GroundedOpenGLContext* groundedCreateOpenGLContext(MemoryArena
 
     const int contextAttributes[] = {
         WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
-        WGL_CONTEXT_MINOR_VERSION_ARB, 3,
-        //WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
-        WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+        WGL_CONTEXT_MINOR_VERSION_ARB, 2,
+        //WGL_CONTEXT_PROFILE_MASK_ARB,
+        WGL_CONTEXT_PROFILE_MASK_ARB,
+        // WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+        WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
         0
     };
 
@@ -785,9 +813,11 @@ GROUNDED_FUNCTION void groundedMakeOpenGLContextCurrent(GroundedWindow* opaqueWi
     GroundedWin32Window* window = (GroundedWin32Window*)opaqueWindow;
     assert(context->hGLRC);
 
-    HDC hDC = GetDC(window->hWnd);
+    HDC hDC = window->hDC;
 
-    { // TODO: Must only be done once
+    if(!window->openglFormatSelected) {
+        window->hDC = GetDC(window->hWnd);
+        hDC = window->hDC;
         // Try R8G8B8A8
         int desiredAttributes[] = {
             WGL_DRAW_TO_WINDOW_ARB, 1,
@@ -804,23 +834,28 @@ GROUNDED_FUNCTION void groundedMakeOpenGLContextCurrent(GroundedWindow* opaqueWi
         UINT numFormats = 0;
         wglChoosePixelFormatARB(hDC, desiredAttributes, 0, 1, &pixelFormatIndex, &numFormats);
         SetPixelFormat(hDC, pixelFormatIndex, 0);
+        window->openglFormatSelected = true;
     }
 
     wglMakeCurrent(hDC, context->hGLRC);
-    ReleaseDC(window->hWnd, hDC);
+    //ReleaseDC(window->hWnd, hDC);
 }
 
 GROUNDED_FUNCTION void groundedWindowGlSwapBuffers(GroundedWindow* w) {
     GroundedWin32Window* window = (GroundedWin32Window*)w;
-    HDC hDC = GetDC(window->hWnd);
-    SwapBuffers(hDC);
-    ReleaseDC(window->hWnd, hDC);
+    //HDC hDC = GetDC(window->hWnd);
+    SwapBuffers(window->hDC);
+    //ReleaseDC(window->hWnd, hDC);
 }
 
 GROUNDED_FUNCTION void groundedWindowSetGlSwapInterval(int interval) {
     if (wglSwapIntervalEXT) {
         wglSwapIntervalEXT(interval);
     }
+}
+
+GROUNDED_FUNCTION void groundedWindowDestroyOpenglGontext(GroundedOpenGLContext* context) {
+    wglDeleteContext(context->hGLRC);
 }
 
 #endif // GROUNDED_OPENGL_SUPPORT

@@ -6,8 +6,6 @@
 #include <stdio.h>
 //#include <GL/gl.h>
 
-//TODO: Why is the drag payload not shown with xcb?
-
 #define GL_COLOR_BUFFER_BIT     0x00004000
 #define GL_MODELVIEW			0x1700
 #define GL_PROJECTION			0x1701
@@ -15,6 +13,8 @@
 #define GL_SRC_ALPHA			0x0302
 #define GL_ONE_MINUS_SRC_ALPHA	0x0303
 #define GL_TRIANGLES			0x0004
+#define GL_DEBUG_OUTPUT_SYNCHRONOUS 33346
+#define GL_DEBUG_OUTPUT 37600
 
 typedef struct Box {
     vec4 color;
@@ -28,6 +28,27 @@ Box boxes[] = {
     {.color = {{0.0f, 0.0f, 1.0f, 1.0f}}, .position = {{300, 200}}, .size = 100.0f},
 };
 
+typedef unsigned int GLenum;
+typedef unsigned int GLuint;
+typedef int GLsizei;
+
+typedef void (APIENTRY* DEBUGPROC)(GLenum source,
+    GLenum type,
+    GLuint id,
+    GLenum severity,
+    GLsizei length,
+    const char* message,
+    const void* userParam);
+
+
+static void openGLDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const char* message, const void* userParam) {
+    MemoryArena* scratch = threadContextGetScratch(0);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
+    String8 outputMessage = str8FromFormat(scratch, "[OpenGL Error] %s", message);
+    GROUNDED_LOG_ERROR((const char*)outputMessage.base);
+    arenaEndTemp(temp);
+}
+
 void (*glClearColor)(float, float, float, float);
 void (*glClear)(int);
 void (*glBegin)(unsigned int mode);
@@ -40,6 +61,7 @@ void (*glEnable)(unsigned int cap);
 void (*glBlendFunc)(unsigned int sfactor, unsigned int dfactor);
 void (*glColor4f)(float red, float green, float blue, float alpha);
 void (*glVertex2i)(int x, int y);
+void (*glDebugMessageCallback)(DEBUGPROC callback, const void* userParam);
 
 GroundedOpenGLContext* openGLContext;
 
@@ -52,7 +74,8 @@ void updateAndRenderWindow(GroundedWindow* window) {
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    glMatrixMode(GL_PROJECTION);
+    //glMatrixMode(GL_PROJECTION);
+    glMatrixMode(5889);
     float a = 2.0f/windowWidth;
     float b = 2.0f / windowHeight;
     float proj[] = {
@@ -143,7 +166,7 @@ int main() {
     });
 
     // Create window2
-    GroundedWindow* window2 = groundedCreateWindow(threadContextGetScratch(threadContextGetScratch(0)), &(struct GroundedWindowCreateParameters){
+    GroundedWindow* window2 = groundedCreateWindow(threadContextGetScratch(threadContextGetScratch(0)), &(struct GroundedWindowCreateParameters) {
         .title = STR8_LITERAL("DND window2"),
         .minWidth = 320,
         .minHeight = 240,
@@ -173,6 +196,11 @@ int main() {
     glBlendFunc = groundedWindowLoadGlFunction("glBlendFunc");
     glColor4f = groundedWindowLoadGlFunction("glColor4f");
     glVertex2i = groundedWindowLoadGlFunction("glVertex2i");
+    glDebugMessageCallback = groundedWindowLoadGlFunction("glDebugMessageCallback");
+
+    glEnable(GL_DEBUG_OUTPUT);
+    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+    glDebugMessageCallback(openGLDebugCallback, 0);
 
     // Message loop
     u32 eventCount = 0;
@@ -232,6 +260,7 @@ int main() {
     }
 
     // Release resources
+    groundedWindowDestroyOpenglGontext(openGLContext);
     if(window1) {
         groundedDestroyWindow(window1);
     }

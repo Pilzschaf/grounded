@@ -39,7 +39,6 @@ int main() {
 
     groundedInitWindowSystem();
 
-
     GroundedWindow* window = groundedCreateWindow(threadContextGetScratch(0), &(struct GroundedWindowCreateParameters) {
         .title = STR8_LITERAL("Drop here"),
         .width = 1240,
@@ -70,8 +69,7 @@ int main() {
         groundedWindowGlSwapBuffers(window);
     }
 
-    //TODO: Destroy opengl context?
-
+    groundedWindowDestroyOpenglGontext(openGLContext);
     groundedDestroyWindow(window);
     groundedShutdownWindowSystem();
     return 0;
