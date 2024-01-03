@@ -172,6 +172,8 @@ static void xcbSendDndLeave(xcb_window_t source, xcb_window_t target);
 static void xcbSendDndDrop(xcb_window_t source, xcb_window_t target);
 static void xcbSendFinished(xcb_window_t source, xcb_window_t target);
 static void xcbSendDndEnter(xcb_window_t source, xcb_window_t target);
+static void xcbHandleFinished();
+static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event);
 
 static void reportXcbError(const char* message) {
     printf("Error: %s\n", message);
@@ -578,24 +580,96 @@ static void xcbHandleDndEnter(GroundedXcbWindow* window, xcb_atom_t* mimeTypes, 
     xdndTargetData.currentMimeIndex = window->dndCallback(0, (GroundedWindow*)window, x, y, xdndTargetData.mimeTypeCount, xdndTargetData.mimeTypes, &xdndTargetData.currentDropCallback);
 }
 
-static void xcbHandleDndMove() {
-
+static void xcbHandleDndMove(GroundedXcbWindow* window, xcb_window_t source) {
+    xcbSendDndStatus(window->window, source);
 }
 
-static void xcbHandleLeave() {
-
+static void xcbHandleLeave(GroundedXcbWindow* window) {
+    window->pointerInside = false;
 }
 
-static void xcbHandleDrop() {
+static void xcbHandleDrop(GroundedXcbWindow* window, xcb_window_t source, xcb_timestamp_t time) {
+    if(window->dndCallback && xdndTargetData.currentDropCallback) {
+        xcb_query_pointer_cookie_t pointerCookie = xcb_query_pointer(xcbConnection, window->window);
+        xcb_query_pointer_reply_t* pointerReply = xcb_query_pointer_reply(xcbConnection, pointerCookie, 0);
+        s32 x = pointerReply->win_x;
+        s32 y = pointerReply->win_y;
+        free(pointerReply);
 
+        String8 mimeType = xdndTargetData.mimeTypes[xdndTargetData.currentMimeIndex];
+        String8 data = EMPTY_STRING8;
+        
+        xcb_window_t owner = 0;
+        xcb_get_selection_owner_cookie_t selectionOwnerCookie = xcb_get_selection_owner(xcbConnection, xcbAtoms.xdndSelectionAtom);
+        xcb_get_selection_owner_reply_t* selectionOwnerReply = xcb_get_selection_owner_reply(xcbConnection, selectionOwnerCookie, 0);
+        ASSERT(selectionOwnerReply->owner == source);
+
+        if(xdndSourceData.target == window->window) {
+            // We target ourselves so we can get the data directly. Hooray
+            if(xdndSourceData.desc->dataCallback) {
+                u32 mimeIndex = xdndTargetData.currentMimeIndex;
+                data = xdndSourceData.desc->dataCallback(&xdndSourceData.desc->arena, mimeType, mimeIndex, xdndSourceData.userData);
+            }
+            xdndTargetData.currentDropCallback(0, data, (GroundedWindow*)window, x, y, mimeType);
+            xcbHandleFinished();
+        } else {
+
+            // We intern the type atom here
+            xcb_intern_atom_cookie_t internCookie = xcb_intern_atom(xcbConnection, 0, mimeType.size, (const char*)mimeType.base);
+            xcb_intern_atom_reply_t* internReply = xcb_intern_atom_reply(xcbConnection, internCookie, 0);
+            xcb_convert_selection(xcbConnection, window->window, xcbAtoms.xdndSelectionAtom, internReply->atom, xcbAtoms.xdndSelectionAtom, time);
+            xcb_flush(xcbConnection);
+
+            //TODO: Wait for response event. Could do this by using a pthred_cond.
+            //TODO: Implement some kind of timeout so we can not hang indefinetely if we get not response
+            while(true) {
+                // xcb_poll_for_queued_event
+                xcb_generic_event_t* event = xcb_wait_for_event(xcbConnection);
+                if(event) {
+                    if((event->response_type & 0x7f) == XCB_SELECTION_NOTIFY) {
+                        //TODO: Retrieve dnd data
+                        xcb_selection_notify_event_t *notifyEvent = (xcb_selection_notify_event_t*)event;
+                        if(notifyEvent->property != XCB_NONE) {
+                            // Retrieve the selected data from the property
+                            xcb_get_property_cookie_t propertyCookie = xcb_get_property(xcbConnection, 0, notifyEvent->requestor, notifyEvent->property, XCB_GET_PROPERTY_TYPE_ANY, 0, UINT32_MAX);
+                            xcb_get_property_reply_t* propertyReply = xcb_get_property_reply(xcbConnection, propertyCookie, 0);
+                            if (propertyReply) {
+                                // Process the data as needed
+                                data = str8Copy(&xdndTargetData.offerArena, str8FromBlock(xcb_get_property_value(propertyReply), xcb_get_property_value_length(propertyReply)));
+                                //printf("Received data: %.*s\n", xcb_get_property_value_length(propertyReply),    (char *)xcb_get_property_value(propertyReply));
+
+                                free(propertyReply);
+                            }
+                        }
+                        free(event);
+                        break;
+                    } else {
+                        GroundedEvent result = xcbTranslateToGroundedEvent(event);
+                        if(result.type != GROUNDED_EVENT_TYPE_NONE) {
+                            eventQueue[eventQueueIndex++] = result;
+                        }
+                    }
+                    free(event);
+                }
+            }
+
+            free(internReply);
+
+            xdndTargetData.currentDropCallback(0, data, (GroundedWindow*)window, x, y, mimeType);
+            xcbSendFinished(window->window, source);
+        }
+    }
 }
 
-static void xcbHandleStatus() {
-
+static void xcbHandleStatus(bool dropPossible) {
+    xdndSourceData.statusPending = false;
 }
 
 static void xcbHandleFinished() {
-
+    xdndSourceData.target = 0;
+    if(xdndSourceData.desc->dragFinishCallback) {
+        xdndSourceData.desc->dragFinishCallback(&xdndSourceData.desc->arena, xdndSourceData.userData, xdndSourceData.finishType);
+    }
 }
 
 static GroundedWindow* xcbCreateWindow(MemoryArena* arena, struct GroundedWindowCreateParameters* parameters) {
@@ -938,95 +1012,23 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                     }
                 } else if(clientMessageEvent->type == xcbAtoms.xdndPositionAtom) {
                     printf("DND Move\n");
-                    xcbSendDndStatus(window->window, clientMessageEvent->data.data32[0]);
+                    xcb_window_t source = clientMessageEvent->data.data32[0];
+                    xcbHandleDndMove(window, source);
                 } else if(clientMessageEvent->type == xcbAtoms.xdndLeaveAtom) {
                     printf("DND Leave\n");
-                    window->pointerInside = false;
+                    xcbHandleLeave(window);
                 } else if(clientMessageEvent->type == xcbAtoms.xdndDropAtom) {
                     printf("DND Drop\n");
-                    if(window->dndCallback && xdndTargetData.currentDropCallback) {
-                        xcb_query_pointer_cookie_t pointerCookie = xcb_query_pointer(xcbConnection, window->window);
-                        xcb_query_pointer_reply_t* pointerReply = xcb_query_pointer_reply(xcbConnection, pointerCookie, 0);
-                        s32 x = pointerReply->win_x;
-                        s32 y = pointerReply->win_y;
-                        free(pointerReply);
-
-                        xcb_window_t source = clientMessageEvent->data.data32[0];
-                        xcb_timestamp_t time = clientMessageEvent->data.data32[2];
-
-                        String8 mimeType = xdndTargetData.mimeTypes[xdndTargetData.currentMimeIndex];
-                        String8 data = EMPTY_STRING8;
-                        
-                        xcb_window_t owner = 0;
-                        xcb_get_selection_owner_cookie_t selectionOwnerCookie = xcb_get_selection_owner(xcbConnection, xcbAtoms.xdndSelectionAtom);
-                        xcb_get_selection_owner_reply_t* selectionOwnerReply = xcb_get_selection_owner_reply(xcbConnection, selectionOwnerCookie, 0);
-                        ASSERT(selectionOwnerReply->owner == source);
-
-                        if(xdndSourceData.target == window->window) {
-                            // We target ourselves so we can get the data directly. Hooray
-                            if(xdndSourceData.desc->dataCallback) {
-                                u32 mimeIndex = xdndTargetData.currentMimeIndex;
-                                data = xdndSourceData.desc->dataCallback(&xdndSourceData.desc->arena, mimeType, mimeIndex, xdndSourceData.userData);
-                            }
-                        } else {
-
-                            // We intern the type atom here
-                            xcb_intern_atom_cookie_t internCookie = xcb_intern_atom(xcbConnection, 0, mimeType.size, (const char*)mimeType.base);
-                            xcb_intern_atom_reply_t* internReply = xcb_intern_atom_reply(xcbConnection, internCookie, 0);
-                            xcb_convert_selection(xcbConnection, window->window, xcbAtoms.xdndSelectionAtom, internReply->atom, xcbAtoms.xdndSelectionAtom, time);
-                            xcb_flush(xcbConnection);
-
-                            //TODO: Wait for response event. Could do this by using a pthred_cond.
-                            // We can also get other events so that might not be that good...
-                            //TODO: Implement some kind of timeout so we can not hang indefinetely if we get not response
-                            while(true) {
-                                // xcb_poll_for_queued_event
-                                xcb_generic_event_t* event = xcb_wait_for_event(xcbConnection);
-                                if(event) {
-                                    if((event->response_type & 0x7f) == XCB_SELECTION_NOTIFY) {
-                                        //TODO: Retrieve dnd data
-                                        xcb_selection_notify_event_t *notifyEvent = (xcb_selection_notify_event_t*)event;
-                                        if(notifyEvent->property != XCB_NONE) {
-                                            // Retrieve the selected data from the property
-                                            xcb_get_property_cookie_t propertyCookie = xcb_get_property(xcbConnection, 0, notifyEvent->requestor, notifyEvent->property, XCB_GET_PROPERTY_TYPE_ANY, 0, UINT32_MAX);
-                                            xcb_get_property_reply_t* propertyReply = xcb_get_property_reply(xcbConnection, propertyCookie, 0);
-                                            if (propertyReply) {
-                                                // Process the data as needed
-                                                data = str8Copy(&xdndTargetData.offerArena, str8FromBlock(xcb_get_property_value(propertyReply), xcb_get_property_value_length(propertyReply)));
-                                                //printf("Received data: %.*s\n", xcb_get_property_value_length(propertyReply),    (char *)xcb_get_property_value(propertyReply));
-
-                                                free(propertyReply);
-                                            }
-                                        }
-                                        free(event);
-                                        break;
-                                    } else {
-                                        GroundedEvent result = xcbTranslateToGroundedEvent(event);
-                                        if(result.type != GROUNDED_EVENT_TYPE_NONE) {
-                                            eventQueue[eventQueueIndex++] = result;
-                                        }
-                                    }
-                                    free(event);
-                                }
-                            }
-
-                            free(internReply);
-                        }
-                        
-                        xdndTargetData.currentDropCallback(0, data, (GroundedWindow*)window, x, y, mimeType);
-                        xcbSendFinished(window->window, source);
-                    }
+                    xcb_window_t source = clientMessageEvent->data.data32[0];
+                    xcb_timestamp_t time = clientMessageEvent->data.data32[2];
+                    xcbHandleDrop(window, source, time);
                 } else if(clientMessageEvent->type == xcbAtoms.xdndStatusAtom) {
                     printf("DND Status\n");
-                    xdndSourceData.statusPending = false;
                     bool dropPossible = clientMessageEvent->data.data32[1];
-                    printf("Drop possible\n");
+                    xcbHandleStatus(dropPossible);
                 } else if(clientMessageEvent->type == xcbAtoms.xdndFinishedAtom) {
                     printf("DND Finished\n");
-                    xdndSourceData.target = 0;
-                    if(xdndSourceData.desc->dragFinishCallback) {
-                        xdndSourceData.desc->dragFinishCallback(&xdndSourceData.desc->arena, xdndSourceData.userData, xdndSourceData.finishType);
-                    }
+                    xcbHandleFinished();
                 }
             } else {
                 reportXcbError("Xcb client message for unknown window");
@@ -1085,7 +1087,13 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                 if(xdndSourceData.dragActive) {
                     xdndSourceData.finishType = GROUNDED_DRAG_FINISH_TYPE_CANCEL;
                     if(xdndSourceData.target) {
-                        xcbSendDndDrop(window->window, xdndSourceData.target);
+                        if(xdndSourceData.target == window->window) {
+                            // We target ourselves so call directly
+                            xcbHandleDrop(window, xdndSourceData.target, 0);
+                        } else {
+                            xcbSendDndDrop(window->window, xdndSourceData.target);
+                        }
+                        //TODO: Does not make any sense to set the finish type here
                         xdndSourceData.finishType = GROUNDED_DRAG_FINISH_TYPE_COPY;
                         xcbSetOverwriteCursor(0);
                     }
@@ -1163,7 +1171,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                 xcb_window_t hoveredWindow = getXdndAwareTarget(motionEvent->root_x, motionEvent->root_y);
                 xcbMoveDragImageWindow(motionEvent->root_x, motionEvent->root_y);
                 if(hoveredWindow != 0 && xcbIsWindowDndAware(hoveredWindow)) {
-                    //printf("Hovered window: %u\n", hoveredWindow);
+                    printf("Hovered window: %u\n", hoveredWindow);
                     if(!xdndSourceData.target) {
                         // Send enter event to hovered window
                         xcbSendDndEnter(window->window, hoveredWindow);
@@ -1181,6 +1189,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                     }
                     xdndSourceData.target = hoveredWindow;
                 } else {
+                    printf("Nothing hovered\n");
                     if(xdndSourceData.target) {
                         // Send leave event
                         xcbSendDndLeave(window->window, hoveredWindow);
@@ -1571,6 +1580,55 @@ static xcb_window_t xcbGetHoveredWindow(xcb_window_t startingWindow, int rootX, 
     return result;
 }
 
+static bool xcbIsWindowDndAware(xcb_window_t window) {
+    xcb_get_property_cookie_t propertyCookie = xcb_get_property(xcbConnection, 0, window, xcbAtoms.xdndAwareAtom, XCB_GET_PROPERTY_TYPE_ANY, 0, 0);
+    xcb_get_property_reply_t* propertyReply = xcb_get_property_reply(xcbConnection, propertyCookie, 0);
+    bool dndAware = propertyReply && propertyReply->type != XCB_NONE;
+    free(propertyReply);
+    return dndAware;
+}
+
+static xcb_window_t getXdndAwareTargetQueryTree(int posX, int posY, xcb_window_t window, int maxDepth) {
+    xcb_window_t result = 0;
+
+    if(window != xdndSourceData.dragImageWindow && maxDepth > 0) {
+        xcb_get_window_attributes_cookie_t attributeCookie = xcb_get_window_attributes(xcbConnection, window);
+        xcb_get_window_attributes_reply_t* attributesReply = xcb_get_window_attributes_reply(xcbConnection, attributeCookie, 0);
+        if(attributesReply && attributesReply->map_state == XCB_MAP_STATE_VIEWABLE) {
+            xcb_get_geometry_cookie_t geometryCookie = xcb_get_geometry(xcbConnection, window);
+            xcb_get_geometry_reply_t* geometryReply = xcb_get_geometry_reply(xcbConnection, geometryCookie, 0);
+            if(geometryReply && geometryReply->x <= posX && geometryReply->x + geometryReply->width > posX &&
+                geometryReply->y <= posY && geometryReply->y + geometryReply->height > posY) {
+                // Point lies inside this window. Check if it is dnd aware
+                bool dndAware = xcbIsWindowDndAware(window);
+                if(dndAware) {
+                    result = window; 
+                } else {
+                    // Query tree to find dnd aware clients at pos
+                    xcb_query_tree_cookie_t queryTreeCookie = xcb_query_tree(xcbConnection, window);
+                    xcb_query_tree_reply_t* queryTreeReply = xcb_query_tree_reply(xcbConnection, queryTreeCookie, 0);
+                    if(queryTreeReply) {
+                        if(!queryTreeReply) {
+                            return 0;
+                        }
+                        int childrenCount = xcb_query_tree_children_length(queryTreeReply);
+                        xcb_window_t* children = xcb_query_tree_children(queryTreeReply);
+                        for(int i = childrenCount; result == 0 && i > 0; i--) {
+                            result = getXdndAwareTargetQueryTree(posX - geometryReply->x, posY - geometryReply->y, children[i-1], maxDepth-1);
+                        }
+                        free(queryTreeReply);
+                        if(!result) {
+                            result = window;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return result;
+}
+
 static xcb_window_t getXdndAwareTarget(int rootX, int rootY) {
     xcb_window_t root = xcbScreen->root;
     xcb_translate_coordinates_cookie_t translateCookie = xcb_translate_coordinates(xcbConnection, root, root, rootX, rootY);
@@ -1594,38 +1652,22 @@ static xcb_window_t getXdndAwareTarget(int rootX, int rootY) {
             src = target;
             xcb_window_t child = translateReply->child;
             
-            xcb_get_property_cookie_t propertyCookie = xcb_get_property(xcbConnection, 0, target, xcbAtoms.xdndAwareAtom, XCB_GET_PROPERTY_TYPE_ANY, 0, 0);
-            xcb_get_property_reply_t* propertyReply = xcb_get_property_reply(xcbConnection, propertyCookie, 0);
-            bool dndAware = propertyReply && propertyReply->type != XCB_NONE;
+            bool dndAware = xcbIsWindowDndAware(target);
             if(dndAware) {
                 break;
             }
             target = child;
         }
-    }
-    return target;
-}
 
-static bool xcbIsWindowDndAware(xcb_window_t window) {
-    xcb_get_property_cookie_t propertyCookie = xcb_get_property(xcbConnection, 0, window, xcbAtoms.xdndAwareAtom, XCB_GET_PROPERTY_TYPE_ANY, 0, 0);
-    xcb_get_property_reply_t* propertyReply = xcb_get_property_reply(xcbConnection, propertyCookie, 0);
-    if(propertyReply && propertyReply->type != XCB_NONE) {
-        return true;
-        //int isDndAware = propertyReply->type == XCB_ATOM_ATOM && propertyReply->format == 32 && propertyReply->length > 0;
-
-        //void* data = xcb_get_property_value(propertyReply);
-        //return propertyReply->type != XCB_NONE;
-        //free(propertyReply);
-        
-    }
-    {
-        xcb_get_property_cookie_t propertyCookie = xcb_get_property(xcbConnection, 0, window, xcbAtoms.xdndProxyAtom, XCB_GET_PROPERTY_TYPE_ANY, 0, 1);
-        xcb_get_property_reply_t* propertyReply = xcb_get_property_reply(xcbConnection, propertyCookie, 0);
-        if(propertyReply && propertyReply->type != XCB_NONE) {
-            return true;
+        if(target == 0 || target == xdndSourceData.dragImageWindow) {
+            // We have hit nothing or our drag payload image
+            target = getXdndAwareTargetQueryTree(rootX, rootY, xcbScreen->root, 8);
+            if(target) {
+                printf("Found target by query tree search\n");
+            }
         }
     }
-    return false;
+    return target;
 }
 
 static void xcbSendDndEnter(xcb_window_t source, xcb_window_t target) {
@@ -1721,7 +1763,8 @@ static void xcbSendFinished(xcb_window_t source, xcb_window_t target) {
         .format = 32,
         .data.data32 = {source, accepted, action},
     };
-    xcb_send_event(xcbConnection, 0, target, XCB_EVENT_MASK_NO_EVENT, (const char *)&finishedEvent);
+    xcb_void_cookie_t cookie = xcb_send_event(xcbConnection, 0, target, XCB_EVENT_MASK_NO_EVENT, (const char *)&finishedEvent);
+    printf("Send finished sequence: %u\n", cookie.sequence);
     xcb_flush(xcbConnection);
 }
 

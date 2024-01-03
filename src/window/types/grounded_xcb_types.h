@@ -89,6 +89,12 @@ typedef struct xcb_screen_t {
     uint8_t        allowed_depths_len;
 } xcb_screen_t;
 
+typedef enum xcb_map_state_t {
+    XCB_MAP_STATE_UNMAPPED = 0,
+    XCB_MAP_STATE_UNVIEWABLE = 1,
+    XCB_MAP_STATE_VIEWABLE = 2
+} xcb_map_state_t;
+
 typedef struct {
     unsigned int sequence;  /**< Sequence number */
 } xcb_void_cookie_t;
