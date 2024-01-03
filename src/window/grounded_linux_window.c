@@ -621,6 +621,19 @@ GROUNDED_FUNCTION void groundedWindowSetGlSwapInterval(int interval) {
         default:break;
     }
 }
+
+GROUNDED_FUNCTION void groundedWindowDestroyOpenglGontext(GroundedOpenGLContext* context) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            waylandDestroyOpenGLContext(context);
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            xcbDestroyOpenGLContext(context);
+        }break;
+        default:break;
+    }
+}
 #endif // GROUNDED_OPENGL_SUPPORT
 
 

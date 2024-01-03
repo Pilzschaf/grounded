@@ -32,13 +32,13 @@ typedef unsigned int GLenum;
 typedef unsigned int GLuint;
 typedef int GLsizei;
 
-typedef void (APIENTRY* DEBUGPROC)(GLenum source,
+/*typedef void (APIENTRY* DEBUGPROC)(GLenum source,
     GLenum type,
     GLuint id,
     GLenum severity,
     GLsizei length,
     const char* message,
-    const void* userParam);
+    const void* userParam);*/
 
 
 static void openGLDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const char* message, const void* userParam) {
@@ -61,7 +61,7 @@ void (*glEnable)(unsigned int cap);
 void (*glBlendFunc)(unsigned int sfactor, unsigned int dfactor);
 void (*glColor4f)(float red, float green, float blue, float alpha);
 void (*glVertex2i)(int x, int y);
-void (*glDebugMessageCallback)(DEBUGPROC callback, const void* userParam);
+//void (*glDebugMessageCallback)(DEBUGPROC callback, const void* userParam);
 
 GroundedOpenGLContext* openGLContext;
 
@@ -196,11 +196,11 @@ int main() {
     glBlendFunc = groundedWindowLoadGlFunction("glBlendFunc");
     glColor4f = groundedWindowLoadGlFunction("glColor4f");
     glVertex2i = groundedWindowLoadGlFunction("glVertex2i");
-    glDebugMessageCallback = groundedWindowLoadGlFunction("glDebugMessageCallback");
+    //glDebugMessageCallback = groundedWindowLoadGlFunction("glDebugMessageCallback");
 
     glEnable(GL_DEBUG_OUTPUT);
     glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-    glDebugMessageCallback(openGLDebugCallback, 0);
+    //glDebugMessageCallback(openGLDebugCallback, 0);
 
     // Message loop
     u32 eventCount = 0;

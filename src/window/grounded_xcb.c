@@ -1911,6 +1911,10 @@ static void xcbWindowGlSwapBuffers(GroundedXcbWindow* window) {
 static void xcbWindowSetGlSwapInterval(int interval) {
     eglSwapInterval(xcbEglDisplay, interval);
 }
+
+static void xcbDestroyOpenGLContext(GroundedOpenGLContext* context) {
+    eglDestroyContext(xcbEglDisplay, context);
+}
 #endif // GROUNDED_OPENGL_SUPPORT
 
 //*************

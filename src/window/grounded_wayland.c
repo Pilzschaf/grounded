@@ -1773,7 +1773,7 @@ static void waylandResizeEglSurface(GroundedWaylandWindow* window) {
     wl_egl_window_resize(window->eglWindow, window->width, window->height, 0, 0);
 }
 
-GROUNDED_FUNCTION void waylandOpenGLMakeCurrent(GroundedWaylandWindow* window, GroundedOpenGLContext* context) {
+static void waylandOpenGLMakeCurrent(GroundedWaylandWindow* window, GroundedOpenGLContext* context) {
     if(!window->eglWindow || !window->eglSurface) {
         waylandCreateEglSurface(window);
     }
@@ -1784,12 +1784,16 @@ GROUNDED_FUNCTION void waylandOpenGLMakeCurrent(GroundedWaylandWindow* window, G
     }
 }
 
-GROUNDED_FUNCTION void waylandWindowGlSwapBuffers(GroundedWaylandWindow* window) {
+static void waylandWindowGlSwapBuffers(GroundedWaylandWindow* window) {
     eglSwapBuffers(waylandEglDisplay, window->eglSurface);
 }
 
-GROUNDED_FUNCTION void waylandWindowSetGlSwapInterval(int interval) {
+static void waylandWindowSetGlSwapInterval(int interval) {
     eglSwapInterval(waylandEglDisplay, interval);
+}
+
+static void waylandDestroyOpenGLContext(GroundedOpenGLContext* context) {
+    eglDestroyContext(waylandEglDisplay, context);
 }
 #endif // GROUNDED_OPENGL_SUPPORT
 
