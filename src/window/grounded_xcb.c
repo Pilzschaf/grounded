@@ -978,6 +978,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                 if(clientMessageEvent->data.data32[0] == xcbAtoms.xcbDeleteAtom) {
                     // Delete request
                     result.type = GROUNDED_EVENT_TYPE_CLOSE_REQUEST;
+                    result.closeRequest.window = (GroundedWindow*)window;
                 } else if(clientMessageEvent->type == xcbAtoms.xdndEnterAtom) {
                     printf("DND Enter\n");
                     if(window->dndCallback) {
