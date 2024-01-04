@@ -36,6 +36,8 @@
 //#include <xcb/xcb_cursor.h>
 //#include <xcb/xcb.h>
 
+//TODO: Currently in xcb dataSource finish is never called when an invalid client is involved which never sends dndFinished. Can be handled using a timeout
+
 typedef struct GroundedXcbWindow {
     xcb_window_t window;
     u32 width;
@@ -123,6 +125,10 @@ struct {
 #undef X
 
 void* xcbLibrary;
+void* xcbCursorLibrary;
+void* xcbShmLibrary;
+void* xcbImageLibrary;
+void* xcbRenderLibrary;
 xcb_connection_t* xcbConnection;
 xcb_screen_t* xcbScreen;
 xcb_depth_t* xcbTransparentDepth; // 32bit depth used for transparent windows
@@ -141,6 +147,9 @@ struct {
     xcb_atom_t xcbDeleteAtom;
     xcb_atom_t xcbProtocolsAtom;
     xcb_atom_t xcbCustomDataAtom;
+    xcb_atom_t xcbNetWmState;
+    xcb_atom_t xcbNetWmStateFullscreen;
+    xcb_atom_t xcbMotifWmHints;
     xcb_atom_t xdndAwareAtom;
     xcb_atom_t xdndEnterAtom;
     xcb_atom_t xdndPositionAtom;
@@ -187,6 +196,7 @@ static GroundedXcbWindow* groundedWindowFromXcb(xcb_window_t window) {
     }
     void* customData = xcb_get_property_value(reply);
     GroundedXcbWindow* result = *(GroundedXcbWindow**)customData;
+    free(reply);
     return result;
 }
 
@@ -232,7 +242,7 @@ static void initXcb() {
     }
 
     if(!error) {
-        void* xcbCursorLibrary = dlopen("libxcb-cursor.so", RTLD_LAZY | RTLD_LOCAL);
+        xcbCursorLibrary = dlopen("libxcb-cursor.so", RTLD_LAZY | RTLD_LOCAL);
         if(xcbCursorLibrary) {
             const char* firstMissingFunctionName = 0;
             #define X(N, R, P) N = (grounded_xcb_##N*)dlsym(xcbCursorLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
@@ -248,7 +258,7 @@ static void initXcb() {
     }
 
     if(!error) {
-        void* xcbShmLibrary = dlopen("libxcb-shm.so", RTLD_LAZY | RTLD_LOCAL);
+        xcbShmLibrary = dlopen("libxcb-shm.so", RTLD_LAZY | RTLD_LOCAL);
         if(xcbShmLibrary) {
             const char* firstMissingFunctionName = 0;
             #define X(N, R, P) N = (grounded_xcb_##N*)dlsym(xcbShmLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
@@ -264,13 +274,14 @@ static void initXcb() {
                     GROUNDED_LOG_WARNING("No xcb shm available");
                 } else {
                     xcbShmAvailable = true;
+                    free(reply);
                 }
             }
         }
     }
 
     if(!error) {
-        void* xcbImageLibrary = dlopen("libxcb-image.so", RTLD_LAZY | RTLD_LOCAL);
+        xcbImageLibrary = dlopen("libxcb-image.so", RTLD_LAZY | RTLD_LOCAL);
         if(xcbImageLibrary) {
             const char* firstMissingFunctionName = 0;
             #define X(N, R, P) N = (grounded_xcb_##N*)dlsym(xcbImageLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
@@ -284,7 +295,7 @@ static void initXcb() {
     }
 
     if(!error) {
-        void* xcbRenderLibrary = dlopen("libxcb-render.so", RTLD_LAZY | RTLD_LOCAL);
+        xcbRenderLibrary = dlopen("libxcb-render.so", RTLD_LAZY | RTLD_LOCAL);
         if(xcbRenderLibrary) {
             const char* firstMissingFunctionName = 0;
             #define X(N, R, P) N = (grounded_xcb_##N*)dlsym(xcbRenderLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
@@ -298,15 +309,18 @@ static void initXcb() {
                 xcb_render_query_pict_formats_reply_t* formatsReply = xcb_render_query_pict_formats_reply(xcbConnection,
 							    formats_cookie, 0);
                 ASSERT(formatsReply);
-                xcb_render_pictforminfo_t* formats = xcb_render_query_pict_formats_formats(formatsReply);
-                for (u32 i = 0; i < formatsReply->num_formats; i++) {
+                if(formatsReply) {
+                    xcb_render_pictforminfo_t* formats = xcb_render_query_pict_formats_formats(formatsReply);
+                    for (u32 i = 0; i < formatsReply->num_formats; i++) {
 
-                    if (formats[i].type == XCB_RENDER_PICT_TYPE_DIRECT &&
-                        formats[i].depth == 32 &&
-                        formats[i].direct.alpha_mask == 0xff &&
-                        formats[i].direct.alpha_shift == 24) {
-                        rgbaFormat = &formats[i];
+                        if (formats[i].type == XCB_RENDER_PICT_TYPE_DIRECT &&
+                            formats[i].depth == 32 &&
+                            formats[i].direct.alpha_mask == 0xff &&
+                            formats[i].direct.alpha_shift == 24) {
+                            rgbaFormat = &formats[i];
+                        }
                     }
+                    free(formatsReply);
                 }
             }
         }
@@ -368,6 +382,9 @@ static void initXcb() {
         INTERN_ATOM(xcbProtocolsAtom, "WM_PROTOCOLS");
         INTERN_ATOM(xcbDeleteAtom, "WM_DELETE_WINDOW");
         INTERN_ATOM(xcbCustomDataAtom, "GROUNDED_CUSTOM_DATA");
+        INTERN_ATOM(xcbNetWmState, "_NET_WM_STATE");
+        INTERN_ATOM(xcbNetWmStateFullscreen, "_NET_WM_STATE_FULLSCREEN");
+        INTERN_ATOM(xcbMotifWmHints, "_MOTIF_WM_HINTS");
         INTERN_ATOM(xdndAwareAtom, "XdndAware");
         INTERN_ATOM(xdndEnterAtom, "XdndEnter");
         INTERN_ATOM(xdndPositionAtom, "XdndPosition");
@@ -414,6 +431,22 @@ static void shutdownXcb() {
         xcb_disconnect(xcbConnection);
         xcbConnection = 0;
     }
+    if(xcbRenderLibrary) {
+        dlclose(xcbRenderLibrary);
+        xcbRenderLibrary = 0;
+    }
+    if(xcbImageLibrary) {
+        dlclose(xcbImageLibrary);
+        xcbImageLibrary = 0;
+    }
+    if(xcbShmLibrary) {
+        dlclose(xcbShmLibrary);
+        xcbShmLibrary = 0;
+    }
+    if(xcbRenderLibrary) {
+        dlclose(xcbRenderLibrary);
+        xcbRenderLibrary = 0;
+    }
     if(xcbLibrary) {
         dlclose(xcbLibrary);
         xcbLibrary = 0;
@@ -440,23 +473,12 @@ static void xcbSetWindowTitle(GroundedXcbWindow* window, String8 title, bool flu
     }
 }
 
-static inline xcb_intern_atom_reply_t* intern_helper(xcb_connection_t *conn, bool only_if_exists, const char *str) {
-    xcb_intern_atom_cookie_t cookie = xcb_intern_atom(conn, only_if_exists, strlen(str), str);
-    return xcb_intern_atom_reply(conn, cookie, NULL);
-}
-
 //TODO: Doesn't work if window has already been mapped
 static void xcbWindowSetFullscreen(GroundedXcbWindow* window, bool fullscreen) {
-    xcb_intern_atom_reply_t *atom_wm_state = intern_helper(xcbConnection, false, "_NET_WM_STATE");
-    xcb_intern_atom_reply_t *atom_wm_fullscreen = intern_helper(xcbConnection, false, "_NET_WM_STATE_FULLSCREEN");
-    xcb_change_property(xcbConnection, XCB_PROP_MODE_REPLACE, window->window, atom_wm_state->atom, XCB_ATOM_ATOM, 32, fullscreen, &(atom_wm_fullscreen->atom));               
-    free(atom_wm_fullscreen);
-    free(atom_wm_state);
+    xcb_change_property(xcbConnection, XCB_PROP_MODE_REPLACE, window->window, xcbAtoms.xcbNetWmState, XCB_ATOM_ATOM, 32, fullscreen, &(xcbAtoms.xcbNetWmStateFullscreen));               
 }
 
 static void xcbWindowSetBorderless(GroundedXcbWindow* window, bool borderless) {
-    xcb_intern_atom_cookie_t setWindowDecorationsCookie = xcb_intern_atom(xcbConnection, 0, strlen("_MOTIF_WM_HINTS"), "_MOTIF_WM_HINTS");    
-    
     // motif hints
     struct MotifHints{
         uint32_t   flags;
@@ -473,18 +495,14 @@ static void xcbWindowSetBorderless(GroundedXcbWindow* window, bool borderless) {
     hints.input_mode = 0;
     hints.status = 0;
     
-    xcb_intern_atom_reply_t *setWindowDecorationsReply = xcb_intern_atom_reply (xcbConnection, setWindowDecorationsCookie, 0);
-    
     xcb_change_property (xcbConnection,
                          XCB_PROP_MODE_REPLACE,
                          window->window,
-                         setWindowDecorationsReply->atom,
-                         setWindowDecorationsReply->atom,
+                         xcbAtoms.xcbMotifWmHints,
+                         xcbAtoms.xcbMotifWmHints,
                          32,  // format of property
                          5,   // length of data (5x32 bit) , followed by pointer to data
                          &hints ); // is this is a motif hints struct
-    
-    free(setWindowDecorationsReply);
 }
 
 static void xcbWindowSetHidden(GroundedXcbWindow* window, bool hidden) {    
@@ -519,11 +537,13 @@ static void xcbSetCursorGrab(GroundedXcbWindow* window, bool grab) {
         while(retries < 100 && reply->status == XCB_GRAB_STATUS_NOT_VIEWABLE) {
             // Window is not yet visible but should be after a short wait
             GROUNDED_LOG_WARNING("Window not yet visible on cursor grab request. Retrying shortly");
+            free(reply);
             groundedYield();
             retries++;
             cookie = xcb_grab_pointer(xcbConnection, ownerEvents, window->window, 0, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, window->window, XCB_NONE, XCB_CURRENT_TIME);
             reply = xcb_grab_pointer_reply(xcbConnection, cookie, &error);
         }
+        free(reply);
     } else {
         xcb_ungrab_pointer(xcbConnection, XCB_CURRENT_TIME);
     }
@@ -545,24 +565,9 @@ static u32 xcbGetWindowHeight(GroundedXcbWindow* window) {
     return window->height;
 }
 
-static void setDndAware(GroundedXcbWindow* window) { //TODO: Why 12???
-    //TODO: Look like we have to directly set the version here and not need a second version
-    xcb_atom_t xdndAware = xcbAtoms.xdndAwareAtom;
-    xcb_atom_t atm = 5;
-    xcb_change_property(xcbConnection, XCB_PROP_MODE_REPLACE, window->window, xdndAware, XCB_ATOM_ATOM, 32, 1, &atm);
-
-
-    // Set our supported xdnd protocol version to version 5
-    //TODO: Why 11??? XdndProtocolVersion or XdndVersion???
-    /*xcb_intern_atom_cookie_t xdndVersionAtomCookie = xcb_intern_atom(xcbConnection, 0, 11, "XdndProtocolVersion");
-    xcb_intern_atom_reply_t* xdndVersionAtomReply = xcb_intern_atom_reply(xcbConnection, xdndVersionAtomCookie, 0);
-    xcb_atom_t xdndVersionAtom = xdndVersionAtomReply->atom;
-    free(xdndVersionAtomReply);
-    xcb_change_property(xcbConnection, XCB_PROP_MODE_REPLACE, window->window, xdndVersionAtom, XCB_ATOM_ATOM, 32, 1, (const uint32_t[]){5});
-
-    //TODO: This can probably be emitted in most case as it is done at other points
-    xcb_flush(xcbConnection);*/
-    //xcb_flush(xcbConnection);
+static void setDndAware(GroundedXcbWindow* window) {
+    xcb_atom_t version = 5;
+    xcb_change_property(xcbConnection, XCB_PROP_MODE_REPLACE, window->window, xcbAtoms.xdndAwareAtom, XCB_ATOM_ATOM, 32, 1, &version);
 }
 
 static void xcbHandleDndEnter(GroundedXcbWindow* window, xcb_atom_t* mimeTypes, u64 mimeTypeCount, s32 x, s32 y) {
@@ -658,6 +663,7 @@ static void xcbHandleDrop(GroundedXcbWindow* window, xcb_window_t source, xcb_ti
             xdndTargetData.currentDropCallback(0, data, (GroundedWindow*)window, x, y, mimeType);
             xcbSendFinished(window->window, source);
         }
+        free(selectionOwnerReply);
     }
 }
 
@@ -1093,9 +1099,13 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                         } else {
                             xcbSendDndDrop(window->window, xdndSourceData.target);
                         }
-                        //TODO: Does not make any sense to set the finish type here
+                        //TODO: Does not make any sense to set the finish type here as the target should decide it
                         xdndSourceData.finishType = GROUNDED_DRAG_FINISH_TYPE_COPY;
                         xcbSetOverwriteCursor(0);
+                    } else {
+                        // Directly send cancelation
+                        xdndSourceData.finishType = GROUNDED_DRAG_FINISH_TYPE_CANCEL;
+                        xcbHandleFinished();
                     }
                     
                     /*if(xdndDragData.desc->dragFinishCallback) {
