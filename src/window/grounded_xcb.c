@@ -571,6 +571,7 @@ static void setDndAware(GroundedXcbWindow* window) {
 }
 
 static void xcbHandleDndEnter(GroundedXcbWindow* window, xcb_atom_t* mimeTypes, u64 mimeTypeCount, s32 x, s32 y) {
+    window->pointerInside = true;
     arenaResetToMarker(xdndTargetData.offerArenaResetMarker);
     xdndTargetData.mimeTypeCount = mimeTypeCount;
     xdndTargetData.mimeTypes = ARENA_PUSH_ARRAY(&xdndTargetData.offerArena, mimeTypeCount, String8);
@@ -585,7 +586,9 @@ static void xcbHandleDndEnter(GroundedXcbWindow* window, xcb_atom_t* mimeTypes, 
     xdndTargetData.currentMimeIndex = window->dndCallback(0, (GroundedWindow*)window, x, y, xdndTargetData.mimeTypeCount, xdndTargetData.mimeTypes, &xdndTargetData.currentDropCallback);
 }
 
-static void xcbHandleDndMove(GroundedXcbWindow* window, xcb_window_t source) {
+static void xcbHandleDndMove(GroundedXcbWindow* window, xcb_window_t source, s32 x, s32 y) {
+    window->pointerInside = true;
+    xdndTargetData.currentMimeIndex = window->dndCallback(0, (GroundedWindow*)window, x, y, xdndTargetData.mimeTypeCount, xdndTargetData.mimeTypes, &xdndTargetData.currentDropCallback);
     xcbSendDndStatus(window->window, source);
 }
 
@@ -616,6 +619,7 @@ static void xcbHandleDrop(GroundedXcbWindow* window, xcb_window_t source, xcb_ti
                 data = xdndSourceData.desc->dataCallback(&xdndSourceData.desc->arena, mimeType, mimeIndex, xdndSourceData.userData);
             }
             xdndTargetData.currentDropCallback(0, data, (GroundedWindow*)window, x, y, mimeType);
+            xdndSourceData.finishType = GROUNDED_DRAG_FINISH_TYPE_COPY;
             xcbHandleFinished();
         } else {
 
@@ -1020,7 +1024,9 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                 } else if(clientMessageEvent->type == xcbAtoms.xdndPositionAtom) {
                     printf("DND Move\n");
                     xcb_window_t source = clientMessageEvent->data.data32[0];
-                    xcbHandleDndMove(window, source);
+                    s32 x = clientMessageEvent->data.data32[2] >> 16;
+                    s32 y = clientMessageEvent->data.data32[2] & 0xFFFF;
+                    xcbHandleDndMove(window, source, x, y);
                 } else if(clientMessageEvent->type == xcbAtoms.xdndLeaveAtom) {
                     printf("DND Leave\n");
                     xcbHandleLeave(window);
@@ -1081,7 +1087,8 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
         case XCB_LEAVE_NOTIFY:{
             xcb_leave_notify_event_t* leaveEvent = (xcb_leave_notify_event_t*)event;
             GroundedXcbWindow* window = groundedWindowFromXcb(leaveEvent->event);
-            if(window) {
+            if(window && !xdndSourceData.dragActive) {
+                // DUring drag this is controlled by the drag
                 window->pointerInside = false;
             }
         } break;
@@ -1322,6 +1329,7 @@ static void xcbFetchMouseState(GroundedXcbWindow* window, MouseState* mouseState
     xcb_flush(xcbConnection);
     xcb_query_pointer_reply_t* pointerReply = xcb_query_pointer_reply(xcbConnection, pointerCookie, &error);
     if(pointerReply && window->pointerInside) {
+        printf("Pointer inside\n");
         // Pointer is on this window
         mouseState->x = pointerReply->win_x;
         mouseState->y = pointerReply->win_y;
