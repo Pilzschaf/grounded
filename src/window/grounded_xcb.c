@@ -1416,6 +1416,7 @@ static void xcbApplyCurrentCursor(GroundedXcbWindow* window) {
     }
     u32 value_list[1] = {cursor};
     xcb_change_window_attributes (xcbConnection, window->window, mask, (const u32*)&value_list);
+    xcb_flush(xcbConnection);
 }
 
 static void xcbSetCursor(xcb_cursor_t cursor) {
