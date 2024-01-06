@@ -150,6 +150,7 @@ struct {
     xcb_atom_t xcbNetWmState;
     xcb_atom_t xcbNetWmStateFullscreen;
     xcb_atom_t xcbMotifWmHints;
+    xcb_atom_t xcbNetWmMoveResize;
     xcb_atom_t xdndAwareAtom;
     xcb_atom_t xdndEnterAtom;
     xcb_atom_t xdndPositionAtom;
@@ -183,6 +184,7 @@ static void xcbSendFinished(xcb_window_t source, xcb_window_t target);
 static void xcbSendDndEnter(xcb_window_t source, xcb_window_t target);
 static void xcbHandleFinished();
 static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event);
+static xcb_cursor_t xcbGetCursorOfType(GroundedMouseCursor cursorType);
 
 static void reportXcbError(const char* message) {
     printf("Error: %s\n", message);
@@ -385,6 +387,7 @@ static void initXcb() {
         INTERN_ATOM(xcbNetWmState, "_NET_WM_STATE");
         INTERN_ATOM(xcbNetWmStateFullscreen, "_NET_WM_STATE_FULLSCREEN");
         INTERN_ATOM(xcbMotifWmHints, "_MOTIF_WM_HINTS");
+        INTERN_ATOM(xcbNetWmMoveResize, "_NET_WM_MOVERESIZE");
         INTERN_ATOM(xdndAwareAtom, "XdndAware");
         INTERN_ATOM(xdndEnterAtom, "XdndEnter");
         INTERN_ATOM(xdndPositionAtom, "XdndPosition");
@@ -503,6 +506,8 @@ static void xcbWindowSetBorderless(GroundedXcbWindow* window, bool borderless) {
                          32,  // format of property
                          5,   // length of data (5x32 bit) , followed by pointer to data
                          &hints ); // is this is a motif hints struct
+
+    xcb_flush(xcbConnection);
 }
 
 static void xcbWindowSetHidden(GroundedXcbWindow* window, bool hidden) {    
@@ -762,7 +767,10 @@ static GroundedWindow* xcbCreateWindow(MemoryArena* arena, struct GroundedWindow
         // At least when running through XWayland this seems to be required to get the correct mouse cursor
         xcbSetCursorType(currentCursorType);
 
-        result->customTitlebarCallback = parameters->customTitlebarCallback;
+        if(parameters->customTitlebarCallback) {
+            result->customTitlebarCallback = parameters->customTitlebarCallback;
+            xcbWindowSetBorderless(result, true);
+        }
 
         // Make window visible
         xcb_map_window(xcbConnection, result->window);
@@ -969,6 +977,18 @@ static u8 translateXcbKeycode(u8 xcbKeycode) {
     return result;
 }
 
+enum XcbEdges {
+	XCB_RESIZE_EDGE_NONE = 0,
+	XCB_RESIZE_EDGE_TOP = 1,
+	XCB_RESIZE_EDGE_BOTTOM = 2,
+	XCB_RESIZE_EDGE_LEFT = 4,
+	XCB_RESIZE_EDGE_TOP_LEFT = 5,
+	XCB_RESIZE_EDGE_BOTTOM_LEFT = 6,
+	XCB_RESIZE_EDGE_RIGHT = 8,
+	XCB_RESIZE_EDGE_TOP_RIGHT = 9,
+	XCB_RESIZE_EDGE_BOTTOM_RIGHT = 10,
+};
+
 static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
     GroundedEvent result = {};
     result.type = GROUNDED_EVENT_TYPE_NONE;
@@ -1051,6 +1071,65 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             xcb_button_press_event_t* mouseButtonEvent = (xcb_button_press_event_t*) event;
             GroundedXcbWindow* window = groundedWindowFromXcb(mouseButtonEvent->event);
             MouseState* mouseState = &window->xcbMouseState;
+            if(window && window->customTitlebarCallback) {
+                GroundedWindowCustomTitlebarHit hit = window->customTitlebarCallback((GroundedWindow*)window, mouseButtonEvent->event_x, mouseButtonEvent->event_y);
+                if(hit == GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_BAR) {
+                    xcb_client_message_event_t event = {
+                        .response_type = XCB_CLIENT_MESSAGE,
+                        .format = 32,
+                        .window = window->window,
+                        .type = xcbAtoms.xcbNetWmMoveResize,
+                        .data.data32 = {mouseButtonEvent->root_x, mouseButtonEvent->root_y, _NET_WM_MOVERESIZE_MOVE, mouseButtonEvent->detail, 0}
+                    };
+                    xcb_ungrab_pointer(xcbConnection, XCB_CURRENT_TIME);
+                    xcb_send_event(xcbConnection, 0, xcbScreen->root, XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT, (const char*)&event);
+                    xcb_flush(xcbConnection);
+                    // Do not process this event further
+                    break;
+                } else if(hit == GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_BORDER) {
+                    u32 edges = 0;
+                    float x = mouseButtonEvent->event_x;
+                    float y = mouseButtonEvent->event_y;
+                    float width = groundedWindowGetWidth((GroundedWindow*)window);
+                    float height = groundedWindowGetHeight((GroundedWindow*)window);
+                    float offset = 20.0f;
+                    if(x < offset) {
+                        edges |= XCB_RESIZE_EDGE_LEFT;
+                    } else if(x > width - offset) {
+                        edges |= XCB_RESIZE_EDGE_RIGHT;
+                    }
+                    if(y < offset) {
+                        edges |= XCB_RESIZE_EDGE_TOP;
+                    } else if(y > height - offset) {
+                        edges |= XCB_RESIZE_EDGE_BOTTOM;
+                    }
+                    xcb_atom_t sizeAction = 0;
+                    switch(edges) {
+                        case XCB_RESIZE_EDGE_TOP: sizeAction = _NET_WM_MOVERESIZE_SIZE_TOP; break;
+                        case XCB_RESIZE_EDGE_BOTTOM: sizeAction = _NET_WM_MOVERESIZE_SIZE_BOTTOM; break;
+                        case XCB_RESIZE_EDGE_LEFT: sizeAction = _NET_WM_MOVERESIZE_SIZE_LEFT; break;
+                        case XCB_RESIZE_EDGE_RIGHT: sizeAction = _NET_WM_MOVERESIZE_SIZE_RIGHT; break;
+                        case XCB_RESIZE_EDGE_TOP_RIGHT: sizeAction = _NET_WM_MOVERESIZE_SIZE_TOPRIGHT; break;
+                        case XCB_RESIZE_EDGE_TOP_LEFT: sizeAction = _NET_WM_MOVERESIZE_SIZE_TOPLEFT; break;
+                        case XCB_RESIZE_EDGE_BOTTOM_RIGHT: sizeAction = _NET_WM_MOVERESIZE_SIZE_BOTTOMRIGHT; break;
+                        case XCB_RESIZE_EDGE_BOTTOM_LEFT: sizeAction = _NET_WM_MOVERESIZE_SIZE_BOTTOMLEFT; break;
+                    }
+
+                    xcb_client_message_event_t event = {
+                        .response_type = XCB_CLIENT_MESSAGE,
+                        .format = 32,
+                        .window = window->window,
+                        .type = xcbAtoms.xcbNetWmMoveResize,
+                        .data.data32 = {mouseButtonEvent->root_x, mouseButtonEvent->root_y, sizeAction, mouseButtonEvent->detail, 0}
+                    };
+                    xcb_ungrab_pointer(xcbConnection, XCB_CURRENT_TIME);
+                    xcb_send_event(xcbConnection, 0, xcbScreen->root, XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT, (const char*)&event);
+                    xcb_flush(xcbConnection);
+                    // Do not process this event further
+                    break;
+                }
+            }
+
             // 4, 5 is scrolling 6,7 is horizontal scrolling
             if(mouseButtonEvent->detail == 1) {
                 mouseState->buttons[GROUNDED_MOUSE_BUTTON_LEFT] = true;
@@ -1215,6 +1294,40 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                     }
                     xdndSourceData.target = 0;
                 }
+            } else if(window->customTitlebarCallback) {
+                GroundedWindowCustomTitlebarHit hit = window->customTitlebarCallback((GroundedWindow*)window, motionEvent->event_x, motionEvent->event_y);
+                if(hit == GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_BORDER) {
+                    float x = motionEvent->event_x;
+                    float y = motionEvent->event_y;
+                    float width = groundedWindowGetWidth((GroundedWindow*)window);
+                    float height = groundedWindowGetHeight((GroundedWindow*)window);
+                    float offset = 10.0f;
+                    u32 edges = 0;
+                    if(x < offset) {
+                        edges |= XCB_RESIZE_EDGE_LEFT;
+                    } else if(x > width - offset) {
+                        edges |= XCB_RESIZE_EDGE_RIGHT;
+                    }
+                    if(y < offset) {
+                        edges |= XCB_RESIZE_EDGE_TOP;
+                    } else if(y > height - offset) {
+                        edges |= XCB_RESIZE_EDGE_BOTTOM;
+                    }
+                    GroundedMouseCursor cursorType = GROUNDED_MOUSE_CURSOR_DEFAULT;
+                    switch(edges) {
+                        case XCB_RESIZE_EDGE_TOP: cursorType = GROUNDED_MOUSE_CURSOR_UPDOWN; break;
+                        case XCB_RESIZE_EDGE_BOTTOM: cursorType = GROUNDED_MOUSE_CURSOR_UPDOWN; break;
+                        case XCB_RESIZE_EDGE_LEFT: cursorType = GROUNDED_MOUSE_CURSOR_LEFTRIGHT; break;
+                        case XCB_RESIZE_EDGE_RIGHT: cursorType = GROUNDED_MOUSE_CURSOR_LEFTRIGHT; break;
+                        case XCB_RESIZE_EDGE_TOP_RIGHT: cursorType = GROUNDED_MOUSE_CURSOR_UPRIGHT; break;
+                        case XCB_RESIZE_EDGE_TOP_LEFT: cursorType = GROUNDED_MOUSE_CURSOR_UPLEFT; break;
+                        case XCB_RESIZE_EDGE_BOTTOM_RIGHT: cursorType = GROUNDED_MOUSE_CURSOR_DOWNRIGHT; break;
+                        case XCB_RESIZE_EDGE_BOTTOM_LEFT: cursorType = GROUNDED_MOUSE_CURSOR_DOWNLEFT; break;
+                    }
+                    xcbSetOverwriteCursor(xcbGetCursorOfType(cursorType));
+                } else {
+                    xcbSetOverwriteCursor(0);
+                }
             }
         } break;
         case XCB_VISIBILITY_NOTIFY:{
@@ -1329,7 +1442,6 @@ static void xcbFetchMouseState(GroundedXcbWindow* window, MouseState* mouseState
     xcb_flush(xcbConnection);
     xcb_query_pointer_reply_t* pointerReply = xcb_query_pointer_reply(xcbConnection, pointerCookie, &error);
     if(pointerReply && window->pointerInside) {
-        printf("Pointer inside\n");
         // Pointer is on this window
         mouseState->x = pointerReply->win_x;
         mouseState->y = pointerReply->win_y;
