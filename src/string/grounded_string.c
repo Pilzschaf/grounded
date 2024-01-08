@@ -251,7 +251,7 @@ GROUNDED_FUNCTION String8 str8ListJoin(MemoryArena* arena, String8List* list, St
     }
 
     String8 result = {str, (ptr - str)};
-    str[ptr - str - 1] = '\0';
+    str[ptr - str] = '\0';
     return result;
 }
 

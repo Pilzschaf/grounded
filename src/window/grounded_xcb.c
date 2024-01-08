@@ -1071,7 +1071,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             xcb_button_press_event_t* mouseButtonEvent = (xcb_button_press_event_t*) event;
             GroundedXcbWindow* window = groundedWindowFromXcb(mouseButtonEvent->event);
             MouseState* mouseState = &window->xcbMouseState;
-            if(window && window->customTitlebarCallback) {
+            if(window && window->customTitlebarCallback && mouseButtonEvent->detail == 1) {
                 GroundedWindowCustomTitlebarHit hit = window->customTitlebarCallback((GroundedWindow*)window, mouseButtonEvent->event_x, mouseButtonEvent->event_y);
                 if(hit == GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_BAR) {
                     xcb_client_message_event_t event = {
@@ -1448,6 +1448,7 @@ static void xcbFetchMouseState(GroundedXcbWindow* window, MouseState* mouseState
         mouseState->mouseInWindow = true;
     } else {
         // Cursor not in window
+        ASSERT(!mouseState->scrollDelta);
         mouseState->x = -1;
         mouseState->y = -1;
         mouseState->mouseInWindow = false;
