@@ -113,11 +113,11 @@ GROUNDED_FUNCTION bool str8IsSubstringOf(String8 substring, String8 str) {
 }
 
 static String8 str8FromFormatVaList(struct MemoryArena* arena, const char* format, va_list args) {
-    // in case we need to try a second time
+    // In case we need to try a second time
     va_list args2;
     va_copy(args2, args);
     
-    // try to build the string in 1024 bytes
+    // Try to build the string in 1024 bytes
     u64 bufferSize = 1024;
     ArenaMarker firstBufferMarker = arenaCreateMarker(arena);
     u8* buffer = ARENA_PUSH_ARRAY(arena, bufferSize, u8);
