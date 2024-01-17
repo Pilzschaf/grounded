@@ -165,6 +165,7 @@ struct {
 } xcbAtoms;
 
 GroundedXcbWindow* activeXcbWindow; // Keyboard focus
+GroundedXcbWindow* hoveredWindow;
 GroundedKeyboardState xcbKeyboardState;
 bool xcbShmAvailable;
 
@@ -772,6 +773,10 @@ static GroundedWindow* xcbCreateWindow(MemoryArena* arena, struct GroundedWindow
             xcbWindowSetBorderless(result, true);
         }
 
+        if(parameters->userData) {
+            xcbWindowSetUserData(result, parameters->userData);
+        }
+
         // Make window visible
         xcb_map_window(xcbConnection, result->window);
 
@@ -787,6 +792,9 @@ static GroundedWindow* xcbCreateWindow(MemoryArena* arena, struct GroundedWindow
 static void xcbDestroyWindow(GroundedXcbWindow* window) {
     if(activeXcbWindow == window) {
         activeXcbWindow = 0;
+    }
+    if(hoveredWindow == window) {
+        hoveredWindow = 0;
     }
     xcb_destroy_window(xcbConnection, window->window);
 
@@ -1161,7 +1169,9 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             GroundedXcbWindow* window = groundedWindowFromXcb(enterEvent->event);
             if(window) {
                 window->pointerInside = true;
+                xcbApplyCurrentCursor(window);
             }
+            hoveredWindow = window;
         } break;
         case XCB_LEAVE_NOTIFY:{
             xcb_leave_notify_event_t* leaveEvent = (xcb_leave_notify_event_t*)event;
@@ -1169,6 +1179,12 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             if(window && !xdndSourceData.dragActive) {
                 // DUring drag this is controlled by the drag
                 window->pointerInside = false;
+            }
+            if(hoveredWindow == window) {
+                hoveredWindow = 0;
+                if(!xdndSourceData.dragActive) {
+                    xcbSetOverwriteCursor(0);
+                }
             }
         } break;
         case XCB_BUTTON_RELEASE:{
@@ -1268,7 +1284,6 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                 xcb_window_t hoveredWindow = getXdndAwareTarget(motionEvent->root_x, motionEvent->root_y);
                 xcbMoveDragImageWindow(motionEvent->root_x, motionEvent->root_y);
                 if(hoveredWindow != 0 && xcbIsWindowDndAware(hoveredWindow)) {
-                    printf("Hovered window: %u\n", hoveredWindow);
                     if(!xdndSourceData.target) {
                         // Send enter event to hovered window
                         xcbSendDndEnter(window->window, hoveredWindow);
@@ -1367,7 +1382,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             GroundedXcbWindow* window = groundedWindowFromXcb(focusEvent->event);
             if(window) {
                 activeXcbWindow = window;
-                xcbApplyCurrentCursor(window);
+                //xcbApplyCurrentCursor(window);
             }
         } break;
         case XCB_FOCUS_OUT:{
@@ -1452,6 +1467,7 @@ static void xcbFetchMouseState(GroundedXcbWindow* window, MouseState* mouseState
         mouseState->x = -1;
         mouseState->y = -1;
         mouseState->mouseInWindow = false;
+        //printf("Pointer not in window%u\n", window->window);
     }
 
     // Set mouse button state
@@ -1538,8 +1554,8 @@ static void xcbSetCursor(xcb_cursor_t cursor) {
     }
     xcbCurrentCursor = cursor;
 
-    if(activeXcbWindow) {
-        xcbApplyCurrentCursor(activeXcbWindow);
+    if(hoveredWindow) {
+        xcbApplyCurrentCursor(hoveredWindow);
     }
 }
 
@@ -1549,8 +1565,8 @@ static void xcbSetOverwriteCursor(xcb_cursor_t cursor) {
     }
     xcbCursorOverwrite = cursor;
 
-    if(activeXcbWindow) {
-        xcbApplyCurrentCursor(activeXcbWindow);
+    if(hoveredWindow) {
+        xcbApplyCurrentCursor(hoveredWindow);
     }
 }
 
@@ -1592,9 +1608,12 @@ static xcb_cursor_t xcbGetCursorOfType(GroundedMouseCursor cursorType) {
 static void xcbSetCursorType(GroundedMouseCursor cursorType) {
     ASSERT(cursorType != GROUNDED_MOUSE_CURSOR_CUSTOM);
     ASSERT(cursorType < GROUNDED_MOUSE_CURSOR_COUNT);
-
-    xcbSetCursor(xcbGetCursorOfType(cursorType));
-    currentCursorType = cursorType;
+    if(cursorType != currentCursorType) {
+        xcb_cursor_t cursor = xcbGetCursorOfType(cursorType);
+        xcbSetCursor(cursor);
+        ASSERT(xcbCurrentCursor == cursor);
+        currentCursorType = cursorType;
+    }
 }
 
 static void xcbSetIcon(u8* data, u32 width, u32 height) {

@@ -480,6 +480,21 @@ GROUNDED_FUNCTION GroundedWindowDragPayloadDescription* groundedWindowPrepareDra
     return result;
 }
 
+GROUNDED_FUNCTION GroundedWindowDndCallback* groundedWindowGetDndCallback(GroundedWindow* window) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+    GroundedWindowDndCallback* result = 0;
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            result = ((GroundedWaylandWindow*)window)->dndCallback;
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            result = ((GroundedXcbWindow*)window)->dndCallback;
+        } break;
+        default:break;
+    }
+    return result;
+}
+
 GROUNDED_WINDOW_DND_DATA_CALLBACK(simpleDragAndDropSend) {
     ASSERT(mimeIndex == 0);
     ASSERT(userData);
