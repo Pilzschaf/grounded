@@ -143,6 +143,11 @@ xcb_cursor_t xcbCursorOverwrite;
 GroundedMouseCursor currentCursorType = GROUNDED_MOUSE_CURSOR_DEFAULT;
 xcb_render_pictforminfo_t* rgbaFormat;
 
+MemoryArena clipboardArena;
+ArenaMarker clipboardArenaMarker;
+xcb_window_t clipboardWindow;
+String8 clipboardString;
+
 struct {
     xcb_atom_t xcbDeleteAtom;
     xcb_atom_t xcbProtocolsAtom;
@@ -151,6 +156,11 @@ struct {
     xcb_atom_t xcbNetWmStateFullscreen;
     xcb_atom_t xcbMotifWmHints;
     xcb_atom_t xcbNetWmMoveResize;
+    xcb_atom_t xcbClipboard;
+    xcb_atom_t xcbUtf8String;
+    xcb_atom_t xcbTargets;
+    xcb_atom_t xcbMultiple;
+    xcb_atom_t xcbSaveTargets;
     xcb_atom_t xdndAwareAtom;
     xcb_atom_t xdndEnterAtom;
     xcb_atom_t xdndPositionAtom;
@@ -389,6 +399,11 @@ static void initXcb() {
         INTERN_ATOM(xcbNetWmStateFullscreen, "_NET_WM_STATE_FULLSCREEN");
         INTERN_ATOM(xcbMotifWmHints, "_MOTIF_WM_HINTS");
         INTERN_ATOM(xcbNetWmMoveResize, "_NET_WM_MOVERESIZE");
+        INTERN_ATOM(xcbClipboard, "CLIPBOARD");
+        INTERN_ATOM(xcbUtf8String, "UTF8_STRING");
+        INTERN_ATOM(xcbTargets, "TARGETS");
+        INTERN_ATOM(xcbMultiple, "MULTIPLE");
+        INTERN_ATOM(xcbSaveTargets, "SAVE_TARGETS");
         INTERN_ATOM(xdndAwareAtom, "XdndAware");
         INTERN_ATOM(xdndEnterAtom, "XdndEnter");
         INTERN_ATOM(xdndPositionAtom, "XdndPosition");
@@ -405,6 +420,17 @@ static void initXcb() {
         xdndTargetData.offerArena = createGrowingArena(osGetMemorySubsystem(), KB(4));
         xdndTargetData.offerArenaResetMarker = arenaCreateMarker(&xdndTargetData.offerArena);
     }
+
+    //TODO: Init clipboardWindow
+    clipboardArena = createGrowingArena(osGetMemorySubsystem(), KB(4));
+    clipboardArenaMarker = arenaCreateMarker(&clipboardArena);
+    clipboardWindow = xcb_generate_id(xcbConnection);
+    u32 valueMask = XCB_CW_EVENT_MASK;
+    // One entry for each bit in the value mask. Correct sort is important!
+    u32 valueList[] = {
+        XCB_EVENT_MASK_PROPERTY_CHANGE,
+    };
+    xcb_create_window_checked(xcbConnection, XCB_COPY_FROM_PARENT, clipboardWindow, xcbScreen->root, 0, 0, 1, 1, 0, 0, xcbScreen->root_visual, valueMask, valueList);
 
     if(error) {
         shutdownXcb();
@@ -725,9 +751,9 @@ static GroundedWindow* xcbCreateWindow(MemoryArena* arena, struct GroundedWindow
         u16 border = 0;
         xcb_visualid_t visual = xcbScreen->root_visual;
         // Notify x server which events we want to receive for this window
-        uint32_t valueMask = XCB_CW_EVENT_MASK;
+        u32 valueMask = XCB_CW_EVENT_MASK;
         // One entry for each bit in the value mask. Correct sort is important!
-        uint32_t valueList[] = {
+        u32 valueList[] = {
             XCB_EVENT_MASK_KEY_PRESS | XCB_EVENT_MASK_KEY_RELEASE | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_LEAVE_WINDOW,
         };
         if(!error) {
@@ -1003,6 +1029,9 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
 
     // The & 0x7f is required to receive the XCB_CLIENT_MESSAGE
     switch(event->response_type & 0x7f) {
+        case XCB_PROPERTY_NOTIFY:{
+            //TODO: What to do with this event?
+        };
         case XCB_CLIENT_MESSAGE:{
             xcb_client_message_event_t* clientMessageEvent = (xcb_client_message_event_t*)event;
             GroundedXcbWindow* window = groundedWindowFromXcb(clientMessageEvent->window);
@@ -1424,12 +1453,56 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                     GROUNDED_LOG_WARNING("Selection request for unknown mime type");
                     ASSERT(false);
                 }
+            } else if(selectionRequestEvent->selection == xcbAtoms.xcbClipboard) {
+                // Clipboard event
+
+                // Send data
+                //xcb_change_property(xcbConnection, XCB_PROP_MODE_REPLACE, selectionRequestEvent->requestor, selectionRequestEvent->property, selectionRequestEvent->target, 8, clipboardString.size, clipboardString.base);
+                xcb_atom_t property = selectionRequestEvent->property;
+                if(selectionRequestEvent->property == XCB_ATOM_NONE) {
+                    // Old version we do not support!
+                    ASSERT(false);
+                    break;       
+                }
+                if(selectionRequestEvent->target == xcbAtoms.xcbTargets) {
+                    // List of supported targets was requested
+                    xcb_atom_t targets[] = {xcbAtoms.xcbUtf8String};
+                    xcb_change_property(xcbConnection, XCB_PROP_MODE_REPLACE, selectionRequestEvent->requestor, property, XCB_ATOM_ATOM, 32, ARRAY_COUNT(targets), targets);
+                } else if(selectionRequestEvent->target == xcbAtoms.xcbMultiple) {
+                    // Multiple conversions requested
+                    ASSERT(false);
+                } else if(selectionRequestEvent->target == xcbAtoms.xcbSaveTargets) {
+
+                } else {
+                    // Conversion to a data target requested
+                    if(selectionRequestEvent->target == xcbAtoms.xcbUtf8String) {
+                        xcb_change_property(xcbConnection, XCB_PROP_MODE_REPLACE, selectionRequestEvent->requestor, property, selectionRequestEvent->target, 8, clipboardString.size, clipboardString.base);
+                    } else {
+                        ASSERT(false);
+                    }
+                }
+
+                // Notify that data has been written
+                xcb_selection_notify_event_t selectionEvent = {
+                    .property = selectionRequestEvent->property,
+                    .response_type = XCB_SELECTION_NOTIFY,
+                    .requestor = selectionRequestEvent->requestor,
+                    .target = selectionRequestEvent->target,
+                    .time = selectionRequestEvent->time,
+                    .selection = selectionRequestEvent->selection,
+                };
+
+                xcb_send_event(xcbConnection, 0, selectionRequestEvent->requestor, XCB_EVENT_MASK_NO_EVENT, (const char*)&selectionEvent);
+                xcb_flush(xcbConnection);
             }
         } break;
         case XCB_SELECTION_NOTIFY:{
             printf("Selection notify\n");
             // Notifies us that a seleciton is now available to us. Probably something we have requested before. For example a drag payload
             
+        } break;
+        case XCB_SELECTION_CLEAR:{
+            //TODO: What to do here?
         } break;
         case 0:{
             // response_type 0 means error
@@ -2014,6 +2087,37 @@ static void groundedXcbBeginDragAndDrop(GroundedWindowDragPayloadDescription* de
 
     printf("Starting drag in xcb\n");
     xdndSourceData.dragActive = true;
+}
+
+void groundedXcbSetClipboardText(String8 text) {
+    arenaResetToMarker(clipboardArenaMarker);
+    clipboardString = str8Copy(&clipboardArena, text);
+
+    //xcb_change_property(xcbConnection, XCB_PROP_MODE_REPLACE, clipboardWindow, xcbAtoms.xcbClipboard, xcbAtoms.xcbUtf8String, 8, text.size, text.base);
+
+    xcb_set_selection_owner(xcbConnection, clipboardWindow, xcbAtoms.xcbClipboard, XCB_CURRENT_TIME);
+    
+    return;
+    //xcb_atom_t target = XCB_ATOM_UTF8_STRING;
+
+    xcb_get_selection_owner_cookie_t ownerCookie = xcb_get_selection_owner(xcbConnection, xcbAtoms.xcbClipboard);
+    xcb_get_selection_owner_reply_t* ownerReply = xcb_get_selection_owner_reply(xcbConnection, ownerCookie, 0);
+    if(ownerReply) {
+        xcb_window_t owner = ownerReply->owner;
+        free(ownerReply);
+
+        if(owner == XCB_NONE) {
+
+        }
+
+        arenaResetToMarker(clipboardArenaMarker);
+        clipboardString = str8Copy(&clipboardArena, text);
+
+        xcb_set_selection_owner(xcbConnection, clipboardWindow, xcbAtoms.xcbClipboard, XCB_CURRENT_TIME);
+        //xcb_change_property(xcbConnection, XCB_PROP_MODE_REPLACE, clipboardWindow, xcbAtoms.xcbClipboard, XCB_ATOM_STRING, 8, text.size, text.base);
+
+        //xcb_flush(xcbConnection);
+    }
 }
 
 //*************

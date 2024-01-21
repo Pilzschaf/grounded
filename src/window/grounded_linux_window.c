@@ -528,6 +528,20 @@ GROUNDED_FUNCTION void groundedWindowBeginDragAndDrop(GroundedWindowDragPayloadD
     }
 }
 
+GROUNDED_FUNCTION void groundedWindowSetClipboardText(String8 text) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            ASSERT(false);
+            //groundedWaylandSetClipboardText(text);
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            groundedXcbSetClipboardText(text);
+        } break;
+        default:break;
+    }
+}
+
 /*GROUNDED_FUNCTION void groundedStartDragAndDropWithSingleDataType(GroundedWindow* window, String8 mimeType, u8* data, u64 size, GroundedWindowDragPayloadImage* image) {
     // Create the arena and store itself as well as the payload data itself in it
     MemoryArena* arena = ARENA_BOOTSTRAP(createGrowingArena(osGetMemorySubsystem(), size + KB(2)));
