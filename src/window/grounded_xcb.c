@@ -1206,7 +1206,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             xcb_leave_notify_event_t* leaveEvent = (xcb_leave_notify_event_t*)event;
             GroundedXcbWindow* window = groundedWindowFromXcb(leaveEvent->event);
             if(window && !xdndSourceData.dragActive) {
-                // DUring drag this is controlled by the drag
+                // During drag this is controlled by the drag
                 window->pointerInside = false;
             }
             if(hoveredWindow == window) {
@@ -1529,11 +1529,11 @@ static void xcbFetchMouseState(GroundedXcbWindow* window, MouseState* mouseState
     xcb_generic_error_t * error = 0;
     xcb_flush(xcbConnection);
     xcb_query_pointer_reply_t* pointerReply = xcb_query_pointer_reply(xcbConnection, pointerCookie, &error);
-    if(pointerReply && window->pointerInside) {
+    if(pointerReply && activeXcbWindow == window) {
         // Pointer is on this window
         mouseState->x = pointerReply->win_x;
         mouseState->y = pointerReply->win_y;
-        mouseState->mouseInWindow = true;
+        mouseState->mouseInWindow = window->pointerInside;
     } else {
         // Cursor not in window
         ASSERT(!mouseState->scrollDelta);

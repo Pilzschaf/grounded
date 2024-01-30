@@ -1434,6 +1434,10 @@ static GroundedWindow* waylandCreateWindow(MemoryArena* arena, struct GroundedWi
         waylandSetInhibitIdle(window, true);
     }
 
+    if(parameters->userData) {
+        waylandWindowSetUserData(window, parameters->userData);
+    }
+
     // Make sure mouse position is outside screen
     window->mouseState.x = -1;
     window->mouseState.y = -1;
