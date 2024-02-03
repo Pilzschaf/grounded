@@ -70,6 +70,7 @@ typedef struct GroundedWaylandWindow {
     u32 width;
     u32 height;
     void* userData;
+    void* dndUserData;
     GroundedWindowCustomTitlebarCallback* customTitlebarCallback;
     MouseState mouseState;
 
@@ -185,6 +186,7 @@ struct WaylandDataOffer {
     u32 lastAcceptedMimeIndex;
     String8* mimeTypes;
     GroundedWindowDndDropCallback* dropCallback;
+    struct GroundedDragPayload payload;
     s32 x;
     s32 y;
 };
@@ -1437,6 +1439,7 @@ static GroundedWindow* waylandCreateWindow(MemoryArena* arena, struct GroundedWi
     if(parameters->userData) {
         waylandWindowSetUserData(window, parameters->userData);
     }
+    window->dndUserData = parameters->dndUserData;
 
     // Make sure mouse position is outside screen
     window->mouseState.x = -1;
@@ -2004,7 +2007,7 @@ static void updateWaylandDragPosition(GroundedWaylandWindow* window, struct Wayl
         activeWindow->mouseState.x = posX;
         activeWindow->mouseState.y = posY;
     }
-    u32 newMimeIndex = window->dndCallback(0, (GroundedWindow*)window, posX, posY, waylandOffer->mimeTypeCount, waylandOffer->mimeTypes, &waylandOffer->dropCallback);
+    u32 newMimeIndex = window->dndCallback(&waylandOffer->payload, (GroundedWindow*)window, posX, posY, waylandOffer->mimeTypeCount, waylandOffer->mimeTypes, &waylandOffer->dropCallback, window->dndUserData);
     // I think spec told us that we do not have to answer if the last accept is still valid. However in practice it seems to be best to always answer with an accept
     if(newMimeIndex != waylandOffer->lastAcceptedMimeIndex || true) {
         if(newMimeIndex < waylandOffer->mimeTypeCount) {

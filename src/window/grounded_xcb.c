@@ -44,6 +44,7 @@ typedef struct GroundedXcbWindow {
     u32 height;
     bool pointerInside; // True when cursor is currently over this window
     void* userData;
+    void* dndUserData;
     GroundedWindowCustomTitlebarCallback* customTitlebarCallback;
     MouseState xcbMouseState;
     GroundedWindowDndCallback* dndCallback;
@@ -72,6 +73,7 @@ struct {
     u64 mimeTypeCount;
     String8* mimeTypes;
     u32 currentMimeIndex;
+    struct GroundedDragPayload payload;
 } xdndTargetData;
 
 // xcb function types
@@ -615,12 +617,12 @@ static void xcbHandleDndEnter(GroundedXcbWindow* window, xcb_atom_t* mimeTypes, 
         free(nameReply);
     }
     
-    xdndTargetData.currentMimeIndex = window->dndCallback(0, (GroundedWindow*)window, x, y, xdndTargetData.mimeTypeCount, xdndTargetData.mimeTypes, &xdndTargetData.currentDropCallback);
+    xdndTargetData.currentMimeIndex = window->dndCallback(&xdndTargetData.payload, (GroundedWindow*)window, x, y, xdndTargetData.mimeTypeCount, xdndTargetData.mimeTypes, &xdndTargetData.currentDropCallback, window->dndUserData);
 }
 
 static void xcbHandleDndMove(GroundedXcbWindow* window, xcb_window_t source, s32 x, s32 y) {
     window->pointerInside = true;
-    xdndTargetData.currentMimeIndex = window->dndCallback(0, (GroundedWindow*)window, x, y, xdndTargetData.mimeTypeCount, xdndTargetData.mimeTypes, &xdndTargetData.currentDropCallback);
+    xdndTargetData.currentMimeIndex = window->dndCallback(&xdndTargetData.payload, (GroundedWindow*)window, x, y, xdndTargetData.mimeTypeCount, xdndTargetData.mimeTypes, &xdndTargetData.currentDropCallback, window->dndUserData);
     xcbSendDndStatus(window->window, source);
 }
 
@@ -650,7 +652,7 @@ static void xcbHandleDrop(GroundedXcbWindow* window, xcb_window_t source, xcb_ti
                 u32 mimeIndex = xdndTargetData.currentMimeIndex;
                 data = xdndSourceData.desc->dataCallback(&xdndSourceData.desc->arena, mimeType, mimeIndex, xdndSourceData.userData);
             }
-            xdndTargetData.currentDropCallback(0, data, (GroundedWindow*)window, x, y, mimeType);
+            xdndTargetData.currentDropCallback(&xdndTargetData.payload, data, (GroundedWindow*)window, x, y, mimeType);
             xdndSourceData.finishType = GROUNDED_DRAG_FINISH_TYPE_COPY;
             xcbHandleFinished();
         } else {
@@ -802,6 +804,7 @@ static GroundedWindow* xcbCreateWindow(MemoryArena* arena, struct GroundedWindow
         if(parameters->userData) {
             xcbWindowSetUserData(result, parameters->userData);
         }
+        result->dndUserData = parameters->dndUserData;
 
         // Make window visible
         xcb_map_window(xcbConnection, result->window);

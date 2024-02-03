@@ -149,7 +149,7 @@ typedef enum GroundedDragFinishType {
 
 #define GROUNDED_WINDOW_DND_DROP_CALLBACK(name) void name(struct GroundedDragPayload* payload, String8 data, GroundedWindow* window, s32 x, s32 y, String8 mimeType)
 typedef GROUNDED_WINDOW_DND_DROP_CALLBACK(GroundedWindowDndDropCallback);
-#define GROUNDED_WINDOW_DND_CALLBACK(name) u32 name(struct GroundedDragPayload* payload, GroundedWindow* window, s32 x, s32 y, u32 mimeTypeCount, String8* mimeTypes, GroundedWindowDndDropCallback** onDropCallback)
+#define GROUNDED_WINDOW_DND_CALLBACK(name) u32 name(struct GroundedDragPayload* payload, GroundedWindow* window, s32 x, s32 y, u32 mimeTypeCount, String8* mimeTypes, GroundedWindowDndDropCallback** onDropCallback, void* userData)
 typedef GROUNDED_WINDOW_DND_CALLBACK(GroundedWindowDndCallback);
 
 // There is no guarantee when the data callback is called. It can happen async to the main loop and also does not indicate whether a drop has occured or will occur
@@ -172,6 +172,7 @@ struct GroundedWindowCreateParameters {
 	//bool hidden;
 	//bool transparent;
 	void* userData;
+	void* dndUserData;
 	bool inhibitIdle;
 	GroundedWindowCustomTitlebarCallback* customTitlebarCallback; //TODO: We should let clients with custom title bars know if they should show a titlebar or not
 	GroundedWindowDndCallback* dndCallback; // Application should return the index of the mime type it wants to accept. UINT32_MAX for none?
@@ -214,6 +215,9 @@ GROUNDED_FUNCTION void groundedWindowDragPayloadSetDataCallback(GroundedWindowDr
 GROUNDED_FUNCTION void groundedWindowDragPayloadSetDragFinishCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndDragFinishCallback* callback);
 GROUNDED_FUNCTION void groundedWindowBeginDragAndDrop(GroundedWindowDragPayloadDescription* desc, void* userData);
 GROUNDED_FUNCTION GroundedWindowDndCallback* groundedWindowGetDndCallback(GroundedWindow* window);
+
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetUserData(struct GroundedDragPayload* payload, void* userData);
+GROUNDED_FUNCTION void* groundedWindowDragPayloadGetUserData(struct GroundedDragPayload* payload);
 
 GROUNDED_FUNCTION void groundedWindowSetClipboardText(String8 text);
 //GROUNDED_FUNCTION String8 groundedWindowGetClipboardText();

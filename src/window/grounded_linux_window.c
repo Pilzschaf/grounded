@@ -5,6 +5,10 @@ u32 eventQueueIndex;
 
 static const char** getCursorNameCandidates(enum GroundedMouseCursor cursorType, u64* candidateCount);
 
+struct GroundedDragPayload {
+    void* userData;
+};
+
 struct GroundedWindowDragPayloadDescription {
     MemoryArena arena;
 	union {
@@ -15,6 +19,7 @@ struct GroundedWindowDragPayloadDescription {
     String8* mimeTypes;
     GroundedWindowDndDataCallback* dataCallback;
     GroundedWindowDndDragFinishCallback* dragFinishCallback;
+
 };
 
 #ifdef GROUNDED_OPENGL_SUPPORT
@@ -540,6 +545,20 @@ GROUNDED_FUNCTION void groundedWindowSetClipboardText(String8 text) {
         } break;
         default:break;
     }
+}
+
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetUserData(struct GroundedDragPayload* payload, void* userData) {
+    if(payload) {
+        payload->userData = userData;
+    }
+}
+
+GROUNDED_FUNCTION void* groundedWindowDragPayloadGetUserData(struct  GroundedDragPayload* payload) {
+    void* result = 0;
+    if(payload) {
+        result = payload->userData;
+    }
+    return result;
 }
 
 /*GROUNDED_FUNCTION void groundedStartDragAndDropWithSingleDataType(GroundedWindow* window, String8 mimeType, u8* data, u64 size, GroundedWindowDragPayloadImage* image) {
