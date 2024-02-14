@@ -26,6 +26,8 @@
 
 //#include <xcb/shm.h>
 //#include <xcb/xcb_image.h>
+//#include <xcb/xproto.h>
+//#include <X11/keysymdef.h>
 
 #include "types/grounded_xcb_types.h"
 
@@ -831,6 +833,8 @@ static void xcbDestroyWindow(GroundedXcbWindow* window) {
     xcb_flush(xcbConnection);
 }
 
+//#include <linux/input-event-codes.h>
+// scancodes are defined in  <linux/input-event-codes.h> + 8. However those are the physical keys and might be mapped differently!
 static u8 translateXcbKeycode(u8 xcbKeycode) {
     u8 result = 0;
     switch(xcbKeycode) {
@@ -842,9 +846,6 @@ static u8 translateXcbKeycode(u8 xcbKeycode) {
         break;
         case 36:
         result = GROUNDED_KEY_RETURN;
-        break;
-        case 119:
-        result = GROUNDED_KEY_DELETE;
         break;
         case 62:
         // RShift
@@ -1007,6 +1008,39 @@ static u8 translateXcbKeycode(u8 xcbKeycode) {
         case 96:
         result = GROUNDED_KEY_F12;
         break;
+        case 110:
+        result = GROUNDED_KEY_HOME;
+        break;
+        case 111:
+        result = GROUNDED_KEY_UP;
+        break;
+        case 112:
+        result = GROUNDED_KEY_PAGE_UP;
+        break;
+        case 113:
+        result = GROUNDED_KEY_LEFT;
+        break;
+        case 114:
+        result = GROUNDED_KEY_RIGHT;
+        break;
+        case 115:
+        result = GROUNDED_KEY_END;
+        break;
+        case 116:
+        result = GROUNDED_KEY_DOWN;
+        break;
+        case 117:
+        result = GROUNDED_KEY_PAGE_DOWN;
+        break;
+        case 118:
+        result = GROUNDED_KEY_INSERT;
+        break;
+        case 119:
+        result = GROUNDED_KEY_DELETE;
+        break;
+        //case 127:
+        //result = GROUNDED_KEY_PAUSE;
+        //break;
         default:
         printf("Unknown keycode: %i\n", (int)xcbKeycode);
         break;

@@ -261,6 +261,10 @@ GROUNDED_FUNCTION u64 groundedGetCounter() {
 
 GROUNDED_FUNCTION void groundedWindowFetchKeyboardState(GroundedKeyboardState* keyboardState) {
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+
+    ASSERT(sizeof(keyboardState->lastKeys) == sizeof(keyboardState->keys));
+    memcpy(keyboardState->lastKeys, keyboardState->keys, sizeof(keyboardState->keys));
+
     switch(linuxWindowBackend) {
         case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
             waylandFetchKeyboardState(keyboardState);

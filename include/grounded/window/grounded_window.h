@@ -7,7 +7,7 @@
 
 //TODO: Maybe make the dnd API more async in nature. Instead of directly accessing the data of a mime type, it is requested and the callback called again on move or when the data has arrived.
 // Drop is only processed once no transfers are running.
-//TODO: How good would this rewrite fit the windows API
+//TODO: How good would this rewrite fit the windows API. Xcb seems to be the only platform which would benefit from it
 
 typedef struct GroundedWindow GroundedWindow;
 
@@ -136,9 +136,6 @@ typedef enum GroundedWindowCustomTitlebarHit {
 } GroundedWindowCustomTitlebarHit;
 #define GROUNDED_WINDOW_CUSTOM_TITLEBAR_CALLBACK(name) GroundedWindowCustomTitlebarHit name(GroundedWindow* window, u32 x, u32 y)
 typedef GROUNDED_WINDOW_CUSTOM_TITLEBAR_CALLBACK(GroundedWindowCustomTitlebarCallback);
-
-//#define GROUNDED_WINDOW_MIME_TYPE_CALLBACK(name) bool name(String8 mimeType)
-//typedef GROUNDED_WINDOW_MIME_TYPE_CALLBACK(GroundedWindowMimeTypeCallback);
 
 struct GroundedDragPayload;
 typedef enum GroundedDragFinishType {
