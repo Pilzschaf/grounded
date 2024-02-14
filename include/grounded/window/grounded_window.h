@@ -27,15 +27,14 @@ typedef enum GroundedEventType {
 } GroundedEventType;
 typedef struct GroundedEvent {
     GroundedEventType type;
+	GroundedWindow* window; // The window this event is associated to. Is 0 for global events
     union {
         struct {
-            // The window which recieved the close request
-            GroundedWindow* window;
+			// No additional data
         } closeRequest;
 		struct {
 			u32 width;
 			u32 height;
-			GroundedWindow* window;
 		} resize;
 		struct {
 			u32 keycode;
@@ -46,13 +45,11 @@ typedef struct GroundedEvent {
 		} keyUp;
 		struct {
 			u32 button;
-			GroundedWindow* window;
 			s32 mousePositionX;
 			s32 mousePositionY;
 		} buttonDown;
 		struct {
 			u32 button;
-			GroundedWindow* window;
 			s32 mousePositionX;
 			s32 mousePositionY;
 		} buttonUp;
@@ -230,6 +227,18 @@ GROUNDED_FUNCTION void groundedWindowSetClipboardText(String8 text);
 // Retuned array must not be used anymore once get or poll events is called again
 GROUNDED_FUNCTION GroundedEvent* groundedWindowGetEvents(u32* eventCount, u32 maxWaitingTimeInMs);
 GROUNDED_FUNCTION GroundedEvent* groundedWindowPollEvents(u32* eventCount);
+GROUNDED_FUNCTION_INLINE GroundedEvent* groundedFilterEventsForWindow(MemoryArena* arena, GroundedWindow* window, GroundedEvent* events, u32 eventCount, u32* filteredCount) {
+	GroundedEvent* result = ARENA_PUSH_ARRAY(arena, eventCount, GroundedEvent);
+	u32 resultCount = 0;
+	for(u32 i = 0; i < eventCount; ++i) {
+		if(events[i].window == window || events[i].window == 0) {
+			result[resultCount++] = events[i];
+		}
+	}
+	*filteredCount = resultCount;
+	arenaPopTo(arena, result + resultCount);
+	return result;
+}
 
 // Get time in nanoseconds
 GROUNDED_FUNCTION u64 groundedGetCounter();
@@ -262,6 +271,8 @@ GROUNDED_FUNCTION void groundedWindowFetchMouseState(GroundedWindow* window, Mou
 #define GROUNDED_KEY_BACKSPACE  8 // 0x08      ASCII
 #define GROUNDED_KEY_TAB        9 // 0x09      ASCII
 #define GROUNDED_KEY_RETURN    13 // 0x0D      ASCII Alias with Enter
+#define GROUNDED_KEY_LCTRL	   14 // 0x0E
+#define GROUNDED_KEY_RCTRL	   15 // 0x0F
 #define GROUNDED_KEY_LSHIFT    16
 #define GROUNDED_KEY_RSHIFT    17
 #define GROUNDED_KEY_ESCAPE    27 // 0x1B      ASCII

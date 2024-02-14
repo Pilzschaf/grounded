@@ -841,12 +841,6 @@ static u8 translateXcbKeycode(u8 xcbKeycode) {
         case 9:
         result = GROUNDED_KEY_ESCAPE;
         break;
-        case 22:
-        result = GROUNDED_KEY_BACKSPACE;
-        break;
-        case 36:
-        result = GROUNDED_KEY_RETURN;
-        break;
         case 62:
         // RShift
         result = GROUNDED_KEY_RSHIFT;
@@ -894,6 +888,20 @@ static u8 translateXcbKeycode(u8 xcbKeycode) {
         case 18:
         result = GROUNDED_KEY_9;
         break;
+        case 22:
+        result = GROUNDED_KEY_BACKSPACE;
+        break;
+        case 23:
+        result = GROUNDED_KEY_TAB;
+        break;
+        case 36:
+        result = GROUNDED_KEY_RETURN;
+        break;
+        case 37:
+        result = GROUNDED_KEY_LCTRL;
+        break;
+
+        // Characters
         case 38:
         result = GROUNDED_KEY_A;
         break;
@@ -972,6 +980,8 @@ static u8 translateXcbKeycode(u8 xcbKeycode) {
         case 52:
         result = GROUNDED_KEY_Z;
         break;
+
+
         case 67:
         result = GROUNDED_KEY_F1;
         break;
@@ -1007,6 +1017,9 @@ static u8 translateXcbKeycode(u8 xcbKeycode) {
         break;
         case 96:
         result = GROUNDED_KEY_F12;
+        break;
+        case 105:
+        result = GROUNDED_KEY_RCTRL;
         break;
         case 110:
         result = GROUNDED_KEY_HOME;
@@ -1076,7 +1089,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                 if(clientMessageEvent->data.data32[0] == xcbAtoms.xcbDeleteAtom) {
                     // Delete request
                     result.type = GROUNDED_EVENT_TYPE_CLOSE_REQUEST;
-                    result.closeRequest.window = (GroundedWindow*)window;
+                    result.window = (GroundedWindow*)window;
                 } else if(clientMessageEvent->type == xcbAtoms.xdndEnterAtom) {
                     printf("DND Enter\n");
                     if(window->dndCallback) {
@@ -1221,7 +1234,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                 mouseState->horizontalScrollDelta += 1.0f;
             }
             result.type = GROUNDED_EVENT_TYPE_BUTTON_DOWN;
-            result.buttonDown.window = (GroundedWindow*)window;
+            result.window = (GroundedWindow*)window;
             // Button mapping seems to be the same for xcb and our definition
             result.buttonDown.button = mouseButtonEvent->detail;
             //TODO: Make sure we have the latest mouse position here. Either request mouse position or use latest motion event
@@ -1294,9 +1307,9 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                 mouseState->buttons[GROUNDED_MOUSE_BUTTON_RIGHT] = false;
             }
             result.type = GROUNDED_EVENT_TYPE_BUTTON_UP;
+            result.window = (GroundedWindow*)window;
             // Button mapping seems to be the same for xcb and our definition
             result.buttonUp.button = mouseButtonReleaseEvent->detail;
-            result.buttonUp.window = (GroundedWindow*)window;
             //TODO: Make sure we have the latest mouse position here
             result.buttonUp.mousePositionX = mouseState->x;
             result.buttonUp.mousePositionY = mouseState->y;
@@ -1329,9 +1342,9 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             if(configureEvent->width > 0) window->width = configureEvent->width;
             if(configureEvent->height > 0) window->height = configureEvent->height;
             result.type = GROUNDED_EVENT_TYPE_RESIZE;
+            result.window = (GroundedWindow*)window;
             result.resize.width = window->width;
             result.resize.height = window->height;
-            result.resize.window = (GroundedWindow*)window;
         } break;
         case XCB_REPARENT_NOTIFY:{
             // This window now has a new parent. We ignore this event for now...

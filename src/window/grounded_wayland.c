@@ -646,16 +646,16 @@ static void pointerHandleButton(void *data, struct wl_pointer *wl_pointer, uint3
     if(pressed) {
         eventQueue[eventQueueIndex++] = (GroundedEvent){
             .type = GROUNDED_EVENT_TYPE_BUTTON_DOWN,
+            .window = (GroundedWindow*)activeWindow,
             .buttonDown.button = buttonCode,
-            .buttonDown.window = (GroundedWindow*)activeWindow,
             .buttonDown.mousePositionX = activeWindow->mouseState.x,
             .buttonDown.mousePositionY = activeWindow->mouseState.y,
         };
     } else {
         eventQueue[eventQueueIndex++] = (GroundedEvent){
             .type = GROUNDED_EVENT_TYPE_BUTTON_UP,
+            .window = (GroundedWindow*)activeWindow,
             .buttonUp.button = buttonCode,
-            .buttonUp.window = (GroundedWindow*)activeWindow,
             .buttonUp.mousePositionX = activeWindow->mouseState.x,
             .buttonUp.mousePositionY = activeWindow->mouseState.y,
         };
@@ -1101,7 +1101,7 @@ static void xdgToplevelHandleConfigure(void* data,  struct xdg_toplevel* topleve
     if(width && height && (width != window->width || height != window->height)) {
         eventQueue[eventQueueIndex++] = (GroundedEvent){
             .type = GROUNDED_EVENT_TYPE_RESIZE,
-            .resize.window = (GroundedWindow*)window,
+            .window = (GroundedWindow*)window,
             .resize.width = width,
             .resize.height = height,
         };
@@ -1117,7 +1117,7 @@ static void xdgToplevelHandleClose(void* data, struct xdg_toplevel* toplevel) {
     GroundedWaylandWindow* window = (GroundedWaylandWindow*)data;
     eventQueue[eventQueueIndex++] = (GroundedEvent){
         .type = GROUNDED_EVENT_TYPE_CLOSE_REQUEST,
-        .closeRequest.window = (GroundedWindow*)window,
+        .window = (GroundedWindow*)window,
     };
 }
 
