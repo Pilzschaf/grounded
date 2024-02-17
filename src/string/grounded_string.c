@@ -153,7 +153,10 @@ GROUNDED_FUNCTION String8 str8Copy(MemoryArena* arena, String8 str) {
     String8 result;
     result.base = ARENA_PUSH_ARRAY(arena, str.size, u8);
     result.size = str.size;
-    MEMORY_COPY(result.base, str.base, str.size);
+    // Copy of 0 bytes is UB
+    if(str.size > 0) {
+        MEMORY_COPY(result.base, str.base, str.size);
+    }
     return result;
 }
 

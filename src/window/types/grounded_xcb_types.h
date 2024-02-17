@@ -11,7 +11,7 @@
 #define XCB_LEAVE_NOTIFY 8
 #define XCB_FOCUS_IN 9
 #define XCB_FOCUS_OUT 10
-//#define XCB_KEYMAP_NOTIFY 11
+#define XCB_KEYMAP_NOTIFY 11
 // #define XCB_EXPOSE 12
 // #define XCB_GRAPHICS_EXPOSURE 13
 #define XCB_NO_EXPOSURE 14
@@ -59,6 +59,7 @@
 typedef struct xcb_connection_t xcb_connection_t;  // Opaque structure containing all data that  XCB needs to communicate with an X server
 typedef struct xcb_setup_t xcb_setup_t;
 typedef struct xcb_cursor_context_t xcb_cursor_context_t;
+typedef struct xcb_extension_t xcb_extension_t;
 
 typedef uint32_t xcb_timestamp_t;
 typedef uint32_t xcb_window_t;
@@ -82,6 +83,29 @@ typedef struct xcb_request_error_t {
     uint8_t  major_opcode;
     uint8_t  pad0;
 } xcb_request_error_t;
+
+typedef struct xcb_setup_t {
+    uint8_t       status;
+    uint8_t       pad0;
+    uint16_t      protocol_major_version;
+    uint16_t      protocol_minor_version;
+    uint16_t      length;
+    uint32_t      release_number;
+    uint32_t      resource_id_base;
+    uint32_t      resource_id_mask;
+    uint32_t      motion_buffer_size;
+    uint16_t      vendor_len;
+    uint16_t      maximum_request_length;
+    uint8_t       roots_len;
+    uint8_t       pixmap_formats_len;
+    uint8_t       image_byte_order;
+    uint8_t       bitmap_format_bit_order;
+    uint8_t       bitmap_format_scanline_unit;
+    uint8_t       bitmap_format_scanline_pad;
+    xcb_keycode_t min_keycode;
+    xcb_keycode_t max_keycode;
+    uint8_t       pad1[4];
+} xcb_setup_t;
 
 typedef struct xcb_screen_t {
     xcb_window_t   root;
@@ -242,6 +266,17 @@ typedef enum xcb_mapping_t {
 typedef struct xcb_get_keyboard_mapping_cookie_t {
     unsigned int sequence;
 } xcb_get_keyboard_mapping_cookie_t;
+
+typedef struct xcb_query_extension_reply_t {
+    uint8_t  response_type;
+    uint8_t  pad0;
+    uint16_t sequence;
+    uint32_t length;
+    uint8_t  present;
+    uint8_t  major_opcode;
+    uint8_t  first_event;
+    uint8_t  first_error;
+} xcb_query_extension_reply_t;
 
 typedef struct xcb_get_keyboard_mapping_reply_t {
     uint8_t  response_type;
@@ -930,5 +965,610 @@ typedef struct xcb_grab_pointer_reply_t {
     uint16_t sequence;
     uint32_t length;
 } xcb_grab_pointer_reply_t;
+
+
+
+
+
+
+
+
+typedef uint16_t xcb_xkb_device_spec_t;
+typedef uint16_t xcb_xkb_id_spec_t;
+typedef uint16_t xcb_xkb_led_class_spec_t;
+
+typedef struct xcb_xkb_get_map_cookie_t {
+    unsigned int sequence;
+} xcb_xkb_get_map_cookie_t;
+
+typedef struct xcb_xkb_get_names_cookie_t {
+    unsigned int sequence;
+} xcb_xkb_get_names_cookie_t;
+
+typedef struct xcb_xkb_per_client_flags_cookie_t {
+    unsigned int sequence;
+} xcb_xkb_per_client_flags_cookie_t;
+
+typedef struct xcb_xkb_use_extension_cookie_t {
+    unsigned int sequence;
+} xcb_xkb_use_extension_cookie_t;
+
+#define XCB_XKB_NEW_KEYBOARD_NOTIFY 0
+#define XCB_XKB_MAP_NOTIFY 1
+#define XCB_XKB_STATE_NOTIFY 2
+
+typedef enum xcb_xkb_id_t {
+    XCB_XKB_ID_USE_CORE_KBD = 256,
+    XCB_XKB_ID_USE_CORE_PTR = 512,
+    XCB_XKB_ID_DFLT_XI_CLASS = 768,
+    XCB_XKB_ID_DFLT_XI_ID = 1024,
+    XCB_XKB_ID_ALL_XI_CLASS = 1280,
+    XCB_XKB_ID_ALL_XI_ID = 1536,
+    XCB_XKB_ID_XI_NONE = 65280
+} xcb_xkb_id_t;
+
+typedef enum xcb_xkb_event_type_t {
+    XCB_XKB_EVENT_TYPE_NEW_KEYBOARD_NOTIFY = 1,
+    XCB_XKB_EVENT_TYPE_MAP_NOTIFY = 2,
+    XCB_XKB_EVENT_TYPE_STATE_NOTIFY = 4,
+    XCB_XKB_EVENT_TYPE_CONTROLS_NOTIFY = 8,
+    XCB_XKB_EVENT_TYPE_INDICATOR_STATE_NOTIFY = 16,
+    XCB_XKB_EVENT_TYPE_INDICATOR_MAP_NOTIFY = 32,
+    XCB_XKB_EVENT_TYPE_NAMES_NOTIFY = 64,
+    XCB_XKB_EVENT_TYPE_COMPAT_MAP_NOTIFY = 128,
+    XCB_XKB_EVENT_TYPE_BELL_NOTIFY = 256,
+    XCB_XKB_EVENT_TYPE_ACTION_MESSAGE = 512,
+    XCB_XKB_EVENT_TYPE_ACCESS_X_NOTIFY = 1024,
+    XCB_XKB_EVENT_TYPE_EXTENSION_DEVICE_NOTIFY = 2048
+} xcb_xkb_event_type_t;
+
+typedef enum xcb_xkb_per_client_flag_t {
+    XCB_XKB_PER_CLIENT_FLAG_DETECTABLE_AUTO_REPEAT = 1,
+    XCB_XKB_PER_CLIENT_FLAG_GRABS_USE_XKB_STATE = 2,
+    XCB_XKB_PER_CLIENT_FLAG_AUTO_RESET_CONTROLS = 4,
+    XCB_XKB_PER_CLIENT_FLAG_LOOKUP_STATE_WHEN_GRABBED = 8,
+    XCB_XKB_PER_CLIENT_FLAG_SEND_EVENT_USES_XKB_STATE = 16
+} xcb_xkb_per_client_flag_t;
+
+typedef enum xcb_xkb_map_part_t {
+    XCB_XKB_MAP_PART_KEY_TYPES = 1,
+    XCB_XKB_MAP_PART_KEY_SYMS = 2,
+    XCB_XKB_MAP_PART_MODIFIER_MAP = 4,
+    XCB_XKB_MAP_PART_EXPLICIT_COMPONENTS = 8,
+    XCB_XKB_MAP_PART_KEY_ACTIONS = 16,
+    XCB_XKB_MAP_PART_KEY_BEHAVIORS = 32,
+    XCB_XKB_MAP_PART_VIRTUAL_MODS = 64,
+    XCB_XKB_MAP_PART_VIRTUAL_MOD_MAP = 128
+} xcb_xkb_map_part_t;
+
+typedef enum xcb_xkb_name_detail_t {
+    XCB_XKB_NAME_DETAIL_KEYCODES = 1,
+    XCB_XKB_NAME_DETAIL_GEOMETRY = 2,
+    XCB_XKB_NAME_DETAIL_SYMBOLS = 4,
+    XCB_XKB_NAME_DETAIL_PHYS_SYMBOLS = 8,
+    XCB_XKB_NAME_DETAIL_TYPES = 16,
+    XCB_XKB_NAME_DETAIL_COMPAT = 32,
+    XCB_XKB_NAME_DETAIL_KEY_TYPE_NAMES = 64,
+    XCB_XKB_NAME_DETAIL_KT_LEVEL_NAMES = 128,
+    XCB_XKB_NAME_DETAIL_INDICATOR_NAMES = 256,
+    XCB_XKB_NAME_DETAIL_KEY_NAMES = 512,
+    XCB_XKB_NAME_DETAIL_KEY_ALIASES = 1024,
+    XCB_XKB_NAME_DETAIL_VIRTUAL_MOD_NAMES = 2048,
+    XCB_XKB_NAME_DETAIL_GROUP_NAMES = 4096,
+    XCB_XKB_NAME_DETAIL_RG_NAMES = 8192
+} xcb_xkb_name_detail_t;
+
+typedef struct xcb_xkb_get_map_reply_t {
+    uint8_t       response_type;
+    uint8_t       deviceID;
+    uint16_t      sequence;
+    uint32_t      length;
+    uint8_t       pad0[2];
+    xcb_keycode_t minKeyCode;
+    xcb_keycode_t maxKeyCode;
+    uint16_t      present;
+    uint8_t       firstType;
+    uint8_t       nTypes;
+    uint8_t       totalTypes;
+    xcb_keycode_t firstKeySym;
+    uint16_t      totalSyms;
+    uint8_t       nKeySyms;
+    xcb_keycode_t firstKeyAction;
+    uint16_t      totalActions;
+    uint8_t       nKeyActions;
+    xcb_keycode_t firstKeyBehavior;
+    uint8_t       nKeyBehaviors;
+    uint8_t       totalKeyBehaviors;
+    xcb_keycode_t firstKeyExplicit;
+    uint8_t       nKeyExplicit;
+    uint8_t       totalKeyExplicit;
+    xcb_keycode_t firstModMapKey;
+    uint8_t       nModMapKeys;
+    uint8_t       totalModMapKeys;
+    xcb_keycode_t firstVModMapKey;
+    uint8_t       nVModMapKeys;
+    uint8_t       totalVModMapKeys;
+    uint8_t       pad1;
+    uint16_t      virtualMods;
+} xcb_xkb_get_map_reply_t;
+
+typedef struct xcb_xkb_get_names_reply_t {
+    uint8_t       response_type;
+    uint8_t       deviceID;
+    uint16_t      sequence;
+    uint32_t      length;
+    uint32_t      which;
+    xcb_keycode_t minKeyCode;
+    xcb_keycode_t maxKeyCode;
+    uint8_t       nTypes;
+    uint8_t       groupNames;
+    uint16_t      virtualMods;
+    xcb_keycode_t firstKey;
+    uint8_t       nKeys;
+    uint32_t      indicators;
+    uint8_t       nRadioGroups;
+    uint8_t       nKeyAliases;
+    uint16_t      nKTLevels;
+    uint8_t       pad0[4];
+} xcb_xkb_get_names_reply_t;
+
+typedef struct xcb_xkb_use_extension_reply_t {
+    uint8_t  response_type;
+    uint8_t  supported;
+    uint16_t sequence;
+    uint32_t length;
+    uint16_t serverMajor;
+    uint16_t serverMinor;
+    uint8_t  pad0[20];
+} xcb_xkb_use_extension_reply_t;
+
+typedef enum xcb_xkb_const_t {
+    XCB_XKB_CONST_MAX_LEGAL_KEY_CODE = 255,
+    XCB_XKB_CONST_PER_KEY_BIT_ARRAY_SIZE = 32,
+    XCB_XKB_CONST_KEY_NAME_LENGTH = 4
+} xcb_xkb_const_t;
+
+typedef struct xcb_xkb_key_type_t {
+    uint8_t  mods_mask;
+    uint8_t  mods_mods;
+    uint16_t mods_vmods;
+    uint8_t  numLevels;
+    uint8_t  nMapEntries;
+    uint8_t  hasPreserve;
+    uint8_t  pad0;
+} xcb_xkb_key_type_t;
+
+typedef struct xcb_xkb_key_sym_map_t {
+    uint8_t  kt_index[4];
+    uint8_t  groupInfo;
+    uint8_t  width;
+    uint16_t nSyms;
+} xcb_xkb_key_sym_map_t;
+
+typedef struct xcb_xkb_sa_no_action_t {
+    uint8_t type;
+    uint8_t pad0[7];
+} xcb_xkb_sa_no_action_t;
+
+typedef struct xcb_xkb_sa_set_mods_t {
+    uint8_t type;
+    uint8_t flags;
+    uint8_t mask;
+    uint8_t realMods;
+    uint8_t vmodsHigh;
+    uint8_t vmodsLow;
+    uint8_t pad0[2];
+} xcb_xkb_sa_set_mods_t;
+
+typedef struct xcb_xkb_sa_latch_mods_t {
+    uint8_t type;
+    uint8_t flags;
+    uint8_t mask;
+    uint8_t realMods;
+    uint8_t vmodsHigh;
+    uint8_t vmodsLow;
+    uint8_t pad0[2];
+} xcb_xkb_sa_latch_mods_t;
+
+typedef struct xcb_xkb_sa_lock_mods_t {
+    uint8_t type;
+    uint8_t flags;
+    uint8_t mask;
+    uint8_t realMods;
+    uint8_t vmodsHigh;
+    uint8_t vmodsLow;
+    uint8_t pad0[2];
+} xcb_xkb_sa_lock_mods_t;
+
+typedef struct xcb_xkb_sa_set_group_t {
+    uint8_t type;
+    uint8_t flags;
+    int8_t  group;
+    uint8_t pad0[5];
+} xcb_xkb_sa_set_group_t;
+
+typedef struct xcb_xkb_sa_latch_group_t {
+    uint8_t type;
+    uint8_t flags;
+    int8_t  group;
+    uint8_t pad0[5];
+} xcb_xkb_sa_latch_group_t;
+
+typedef struct xcb_xkb_sa_lock_group_t {
+    uint8_t type;
+    uint8_t flags;
+    int8_t  group;
+    uint8_t pad0[5];
+} xcb_xkb_sa_lock_group_t;
+
+typedef struct xcb_xkb_sa_move_ptr_t {
+    uint8_t type;
+    uint8_t flags;
+    int8_t  xHigh;
+    uint8_t xLow;
+    int8_t  yHigh;
+    uint8_t yLow;
+    uint8_t pad0[2];
+} xcb_xkb_sa_move_ptr_t;
+
+typedef struct xcb_xkb_sa_ptr_btn_t {
+    uint8_t type;
+    uint8_t flags;
+    uint8_t count;
+    uint8_t button;
+    uint8_t pad0[4];
+} xcb_xkb_sa_ptr_btn_t;
+
+typedef struct xcb_xkb_sa_lock_ptr_btn_t {
+    uint8_t type;
+    uint8_t flags;
+    uint8_t pad0;
+    uint8_t button;
+    uint8_t pad1[4];
+} xcb_xkb_sa_lock_ptr_btn_t;
+
+typedef struct xcb_xkb_sa_set_ptr_dflt_t {
+    uint8_t type;
+    uint8_t flags;
+    uint8_t affect;
+    int8_t  value;
+    uint8_t pad0[4];
+} xcb_xkb_sa_set_ptr_dflt_t;
+
+typedef struct xcb_xkb_sa_iso_lock_t {
+    uint8_t type;
+    uint8_t flags;
+    uint8_t mask;
+    uint8_t realMods;
+    int8_t  group;
+    uint8_t affect;
+    uint8_t vmodsHigh;
+    uint8_t vmodsLow;
+} xcb_xkb_sa_iso_lock_t;
+
+typedef struct xcb_xkb_sa_terminate_t {
+    uint8_t type;
+    uint8_t pad0[7];
+} xcb_xkb_sa_terminate_t;
+
+typedef struct xcb_xkb_sa_switch_screen_t {
+    uint8_t type;
+    uint8_t flags;
+    int8_t  newScreen;
+    uint8_t pad0[5];
+} xcb_xkb_sa_switch_screen_t;
+
+typedef struct xcb_xkb_sa_set_controls_t {
+    uint8_t type;
+    uint8_t pad0[3];
+    uint8_t boolCtrlsHigh;
+    uint8_t boolCtrlsLow;
+    uint8_t pad1[2];
+} xcb_xkb_sa_set_controls_t;
+
+typedef struct xcb_xkb_sa_lock_controls_t {
+    uint8_t type;
+    uint8_t pad0[3];
+    uint8_t boolCtrlsHigh;
+    uint8_t boolCtrlsLow;
+    uint8_t pad1[2];
+} xcb_xkb_sa_lock_controls_t;
+
+typedef struct xcb_xkb_sa_action_message_t {
+    uint8_t type;
+    uint8_t flags;
+    uint8_t message[6];
+} xcb_xkb_sa_action_message_t;
+
+typedef struct xcb_xkb_sa_redirect_key_t {
+    uint8_t       type;
+    xcb_keycode_t newkey;
+    uint8_t       mask;
+    uint8_t       realModifiers;
+    uint8_t       vmodsMaskHigh;
+    uint8_t       vmodsMaskLow;
+    uint8_t       vmodsHigh;
+    uint8_t       vmodsLow;
+} xcb_xkb_sa_redirect_key_t;
+
+typedef struct xcb_xkb_sa_device_btn_t {
+    uint8_t type;
+    uint8_t flags;
+    uint8_t count;
+    uint8_t button;
+    uint8_t device;
+    uint8_t pad0[3];
+} xcb_xkb_sa_device_btn_t;
+
+typedef struct xcb_xkb_sa_lock_device_btn_t {
+    uint8_t type;
+    uint8_t flags;
+    uint8_t pad0;
+    uint8_t button;
+    uint8_t device;
+    uint8_t pad1[3];
+} xcb_xkb_sa_lock_device_btn_t;
+
+typedef struct xcb_xkb_sa_device_valuator_t {
+    uint8_t type;
+    uint8_t device;
+    uint8_t val1what;
+    uint8_t val1index;
+    uint8_t val1value;
+    uint8_t val2what;
+    uint8_t val2index;
+    uint8_t val2value;
+} xcb_xkb_sa_device_valuator_t;
+
+typedef union xcb_xkb_action_t {
+    xcb_xkb_sa_no_action_t       noaction;
+    xcb_xkb_sa_set_mods_t        setmods;
+    xcb_xkb_sa_latch_mods_t      latchmods;
+    xcb_xkb_sa_lock_mods_t       lockmods;
+    xcb_xkb_sa_set_group_t       setgroup;
+    xcb_xkb_sa_latch_group_t     latchgroup;
+    xcb_xkb_sa_lock_group_t      lockgroup;
+    xcb_xkb_sa_move_ptr_t        moveptr;
+    xcb_xkb_sa_ptr_btn_t         ptrbtn;
+    xcb_xkb_sa_lock_ptr_btn_t    lockptrbtn;
+    xcb_xkb_sa_set_ptr_dflt_t    setptrdflt;
+    xcb_xkb_sa_iso_lock_t        isolock;
+    xcb_xkb_sa_terminate_t       terminate;
+    xcb_xkb_sa_switch_screen_t   switchscreen;
+    xcb_xkb_sa_set_controls_t    setcontrols;
+    xcb_xkb_sa_lock_controls_t   lockcontrols;
+    xcb_xkb_sa_action_message_t  message;
+    xcb_xkb_sa_redirect_key_t    redirect;
+    xcb_xkb_sa_device_btn_t      devbtn;
+    xcb_xkb_sa_lock_device_btn_t lockdevbtn;
+    xcb_xkb_sa_device_valuator_t devval;
+    uint8_t                      type;
+} xcb_xkb_action_t;
+
+typedef struct xcb_xkb_common_behavior_t {
+    uint8_t type;
+    uint8_t data;
+} xcb_xkb_common_behavior_t;
+
+typedef struct xcb_xkb_default_behavior_t {
+    uint8_t type;
+    uint8_t pad0;
+} xcb_xkb_default_behavior_t;
+
+typedef struct xcb_xkb_lock_behavior_t {
+    uint8_t type;
+    uint8_t pad0;
+} xcb_xkb_lock_behavior_t;
+
+typedef struct xcb_xkb_radio_group_behavior_t {
+    uint8_t type;
+    uint8_t group;
+} xcb_xkb_radio_group_behavior_t;
+
+typedef struct xcb_xkb_overlay_behavior_t {
+    uint8_t       type;
+    xcb_keycode_t key;
+} xcb_xkb_overlay_behavior_t;
+
+typedef struct xcb_xkb_permament_lock_behavior_t {
+    uint8_t type;
+    uint8_t pad0;
+} xcb_xkb_permament_lock_behavior_t;
+
+typedef struct xcb_xkb_permament_radio_group_behavior_t {
+    uint8_t type;
+    uint8_t group;
+} xcb_xkb_permament_radio_group_behavior_t;
+
+typedef struct xcb_xkb_permament_overlay_behavior_t {
+    uint8_t       type;
+    xcb_keycode_t key;
+} xcb_xkb_permament_overlay_behavior_t;
+
+typedef union xcb_xkb_behavior_t {
+    xcb_xkb_common_behavior_t                common;
+    xcb_xkb_default_behavior_t               _default;
+    xcb_xkb_lock_behavior_t                  lock;
+    xcb_xkb_radio_group_behavior_t           radioGroup;
+    xcb_xkb_overlay_behavior_t               overlay1;
+    xcb_xkb_overlay_behavior_t               overlay2;
+    xcb_xkb_permament_lock_behavior_t        permamentLock;
+    xcb_xkb_permament_radio_group_behavior_t permamentRadioGroup;
+    xcb_xkb_permament_overlay_behavior_t     permamentOverlay1;
+    xcb_xkb_permament_overlay_behavior_t     permamentOverlay2;
+    uint8_t                                  type;
+} xcb_xkb_behavior_t;
+
+typedef struct xcb_xkb_state_notify_event_t {
+    uint8_t         response_type;
+    uint8_t         xkbType;
+    uint16_t        sequence;
+    xcb_timestamp_t time;
+    uint8_t         deviceID;
+    uint8_t         mods;
+    uint8_t         baseMods;
+    uint8_t         latchedMods;
+    uint8_t         lockedMods;
+    uint8_t         group;
+    int16_t         baseGroup;
+    int16_t         latchedGroup;
+    uint8_t         lockedGroup;
+    uint8_t         compatState;
+    uint8_t         grabMods;
+    uint8_t         compatGrabMods;
+    uint8_t         lookupMods;
+    uint8_t         compatLoockupMods;
+    uint16_t        ptrBtnState;
+    uint16_t        changed;
+    xcb_keycode_t   keycode;
+    uint8_t         eventType;
+    uint8_t         requestMajor;
+    uint8_t         requestMinor;
+} xcb_xkb_state_notify_event_t;
+
+typedef struct xcb_xkb_set_behavior_t {
+    xcb_keycode_t      keycode;
+    xcb_xkb_behavior_t behavior;
+    uint8_t            pad0;
+} xcb_xkb_set_behavior_t;
+
+typedef struct xcb_xkb_key_mod_map_t {
+    xcb_keycode_t keycode;
+    uint8_t       mods;
+} xcb_xkb_key_mod_map_t;
+
+typedef struct xcb_xkb_set_explicit_t {
+    xcb_keycode_t keycode;
+    uint8_t       explicit;
+} xcb_xkb_set_explicit_t;
+
+typedef struct xcb_xkb_key_v_mod_map_t {
+    xcb_keycode_t keycode;
+    uint8_t       pad0;
+    uint16_t      vmods;
+} xcb_xkb_key_v_mod_map_t;
+
+typedef struct xcb_xkb_key_sym_map_iterator_t {
+    xcb_xkb_key_sym_map_t *data;
+    int                    rem;
+    int                    index;
+} xcb_xkb_key_sym_map_iterator_t;
+
+typedef struct xcb_xkb_get_map_map_t {
+    xcb_xkb_key_type_t      *types_rtrn;
+    xcb_xkb_key_sym_map_t   *syms_rtrn;
+    uint8_t                 *acts_rtrn_count;
+    uint8_t                 *pad2;
+    xcb_xkb_action_t        *acts_rtrn_acts;
+    xcb_xkb_set_behavior_t  *behaviors_rtrn;
+    uint8_t                 *vmods_rtrn;
+    uint8_t                 *pad3;
+    xcb_xkb_set_explicit_t  *explicit_rtrn;
+    uint8_t                 *pad4;
+    xcb_xkb_key_mod_map_t   *modmap_rtrn;
+    uint8_t                 *pad5;
+    xcb_xkb_key_v_mod_map_t *vmodmap_rtrn;
+} xcb_xkb_get_map_map_t;
+
+typedef struct xcb_xkb_get_device_info_cookie_t {
+    unsigned int sequence;
+} xcb_xkb_get_device_info_cookie_t;
+
+typedef struct xcb_xkb_get_device_info_reply_t {
+    uint8_t    response_type;
+    uint8_t    deviceID;
+    uint16_t   sequence;
+    uint32_t   length;
+    uint16_t   present;
+    uint16_t   supported;
+    uint16_t   unsupported;
+    uint16_t   nDeviceLedFBs;
+    uint8_t    firstBtnWanted;
+    uint8_t    nBtnsWanted;
+    uint8_t    firstBtnRtrn;
+    uint8_t    nBtnsRtrn;
+    uint8_t    totalBtns;
+    uint8_t    hasOwnState;
+    uint16_t   dfltKbdFB;
+    uint16_t   dfltLedFB;
+    uint8_t    pad0[2];
+    xcb_atom_t devType;
+    uint16_t   nameLen;
+} xcb_xkb_get_device_info_reply_t;
+
+/*typedef struct xcb_xkb_get_device_info_request_t {
+    uint8_t                  major_opcode;
+    uint8_t                  minor_opcode;
+    uint16_t                 length;
+    xcb_xkb_device_spec_t    deviceSpec;
+    uint16_t                 wanted;
+    uint8_t                  allButtons;
+    uint8_t                  firstButton;
+    uint8_t                  nButtons;
+    uint8_t                  pad0;
+    xcb_xkb_led_class_spec_t ledClass;
+    xcb_xkb_id_spec_t        ledID;
+} xcb_xkb_get_device_info_request_t;*/
+
+enum xkb_keymap_compile_flags {
+    /** Do not apply any flags. */
+    XKB_KEYMAP_COMPILE_NO_FLAGS = 0
+};
+
+struct xkb_context;
+
+typedef uint32_t xkb_keysym_t;
+typedef uint32_t xkb_keycode_t;
+typedef uint32_t xkb_layout_index_t;
+typedef uint32_t xkb_mod_mask_t;
+
+enum xkb_context_flags {
+    /** Do not apply any context flags. */
+    XKB_CONTEXT_NO_FLAGS = 0,
+    /** Create this context with an empty include path. */
+    XKB_CONTEXT_NO_DEFAULT_INCLUDES = (1 << 0),
+    /**
+     * Don't take RMLVO names from the environment.
+     *
+     * @since 0.3.0
+     */
+    XKB_CONTEXT_NO_ENVIRONMENT_NAMES = (1 << 1),
+    /**
+     * Disable the use of secure_getenv for this context, so that privileged
+     * processes can use environment variables. Client uses at their own risk.
+     *
+     * @since 1.5.0
+     */
+    XKB_CONTEXT_NO_SECURE_GETENV = (1 << 2)
+};
+
+enum xkb_state_component {
+    /** Depressed modifiers, i.e. a key is physically holding them. */
+    XKB_STATE_MODS_DEPRESSED = (1 << 0),
+    /** Latched modifiers, i.e. will be unset after the next non-modifier
+     *  key press. */
+    XKB_STATE_MODS_LATCHED = (1 << 1),
+    /** Locked modifiers, i.e. will be unset after the key provoking the
+     *  lock has been pressed again. */
+    XKB_STATE_MODS_LOCKED = (1 << 2),
+    /** Effective modifiers, i.e. currently active and affect key
+     *  processing (derived from the other state components).
+     *  Use this unless you explicitly care how the state came about. */
+    XKB_STATE_MODS_EFFECTIVE = (1 << 3),
+    /** Depressed layout, i.e. a key is physically holding it. */
+    XKB_STATE_LAYOUT_DEPRESSED = (1 << 4),
+    /** Latched layout, i.e. will be unset after the next non-modifier
+     *  key press. */
+    XKB_STATE_LAYOUT_LATCHED = (1 << 5),
+    /** Locked layout, i.e. will be unset after the key provoking the lock
+     *  has been pressed again. */
+    XKB_STATE_LAYOUT_LOCKED = (1 << 6),
+    /** Effective layout, i.e. currently active and affects key processing
+     *  (derived from the other state components).
+     *  Use this unless you explicitly care how the state came about. */
+    XKB_STATE_LAYOUT_EFFECTIVE = (1 << 7),
+    /** LEDs (derived from the other state components). */
+    XKB_STATE_LEDS = (1 << 8)
+};
 
 #endif // GROUNDED_XCB_TYPES_H

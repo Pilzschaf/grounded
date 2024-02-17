@@ -27,9 +27,14 @@
 //#include <xcb/shm.h>
 //#include <xcb/xcb_image.h>
 //#include <xcb/xproto.h>
-//#include <X11/keysymdef.h>
+#include <X11/keysymdef.h>
 
 #include "types/grounded_xcb_types.h"
+
+#define __XCB_H__
+//#include <xkbcommon/xkbcommon.h>
+//#include <xkbcommon/xkbcommon-x11.h>
+#undef __XCB_H__
 
 #ifndef GROUNDED_XCB_MAX_MIMETYPES
 #define GROUNDED_XCB_MAX_MIMETYPES 256
@@ -88,6 +93,36 @@ struct {
 #include "types/grounded_xcb_functions.h"
 #undef X
 
+// xcb xkb function types
+#define X(N, R, P) typedef R grounded_xcb_##N P;
+#include "types/grounded_xcb_xkb_functions.h"
+#undef X
+
+// xcb xkb function pointers
+#define X(N, R, P) static grounded_xcb_##N * N = 0;
+#include "types/grounded_xcb_xkb_functions.h"
+#undef X
+
+// xcb xkb function types
+#define X(N, R, P) typedef R grounded_xcb_##N P;
+#include "types/grounded_xkbcommon_x11_functions.h"
+#undef X
+
+// xcb xkb function pointers
+#define X(N, R, P) static grounded_xcb_##N * N = 0;
+#include "types/grounded_xkbcommon_x11_functions.h"
+#undef X
+
+// xcb xkb function types
+#define X(N, R, P) typedef R grounded_xcb_##N P;
+#include "types/grounded_xkbcommon_functions.h"
+#undef X
+
+// xcb xkb function pointers
+#define X(N, R, P) static grounded_xcb_##N * N = 0;
+#include "types/grounded_xkbcommon_functions.h"
+#undef X
+
 // xcb cursor function types
 #define X(N, R, P) typedef R grounded_xcb_##N P;
 #include "types/grounded_xcb_cursor_functions.h"
@@ -129,6 +164,7 @@ struct {
 #undef X
 
 void* xcbLibrary;
+void* xcbXkbLibrary;
 void* xcbCursorLibrary;
 void* xcbShmLibrary;
 void* xcbImageLibrary;
@@ -146,6 +182,19 @@ xcb_cursor_t xcbCurrentCursor;
 xcb_cursor_t xcbCursorOverwrite;
 GroundedMouseCursor currentCursorType = GROUNDED_MOUSE_CURSOR_DEFAULT;
 xcb_render_pictforminfo_t* rgbaFormat;
+
+u8 xkbEventIndex; // The event index of xkb events
+xcb_keycode_t minKeycode;
+xcb_keycode_t maxKeycode;
+struct xkb_context* xkbContext;
+struct xkb_state* xkbState;
+
+//u32 keycodeLookupTablePhysical[256];
+//u32 keycodeLookupTableLanguage[256];
+/*typedef struct SymCode {
+    unsigned long sym;
+    u32 keycode;
+} SymCode;*/
 
 MemoryArena clipboardArena;
 ArenaMarker clipboardArenaMarker;
@@ -217,6 +266,53 @@ static GroundedXcbWindow* groundedWindowFromXcb(xcb_window_t window) {
     return result;
 }
 
+#if 0
+static void refreshKeyboardLayout() {
+    MEMORY_CLEAR_ARRAY(keycodeLookupTablePhysical);
+    MEMORY_CLEAR_ARRAY(keycodeLookupTableLanguage);
+    return;
+
+    // Keycode is an index describing a physical key. It is independent from the keyboard layout used
+    // keysyms describe the meaning of a key.
+    // We need a mapping of a keycode to a keysym
+
+    { // Init physical
+        // Find common keys by their respective label
+        SymCode symTable[100];
+        SymCode* symPointer = symTable;
+        *symPointer++ = (SymCode){' ', GROUNDED_KEY_SPACE};
+
+        for(int i = 0; i <= XCB_XKB_CONST_MAX_LEGAL_KEY_CODE; ++i) {
+            //xcb_key_symbols_t *key_symbols = xcb_key_symbols_alloc(xcbConnection);
+            //xcb_key_symbols_get_keycode()
+        }
+
+        xcb_xkb_get_map_cookie_t mapCookie = xcb_xkb_get_map(xcbConnection, XCB_XKB_ID_USE_CORE_KBD, XCB_XKB_MAP_PART_KEY_TYPES | XCB_XKB_MAP_PART_KEY_SYMS, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);       
+        xcb_generic_error_t* error = 0;
+        xcb_xkb_get_map_reply_t* mapReply = xcb_xkb_get_map_reply(xcbConnection, mapCookie, &error);
+        xcb_xkb_get_map_map_t map;
+        //if(mapReply->present & get_map_required_components)
+        // https://github.com/xkbcommon/libxkbcommon/blob/89ceb3515b50707be908c091ecd777186f8eb705/src/x11/keymap.c#L699
+        xcb_xkb_get_map_map_unpack(xcb_xkb_get_map_map(mapReply), mapReply->nTypes, mapReply->nKeySyms, mapReply->nKeyActions, mapReply->totalActions, mapReply->totalKeyBehaviors, mapReply->virtualMods, mapReply->totalKeyExplicit, mapReply->totalModMapKeys, mapReply->totalVModMapKeys, mapReply->present, &map);
+        int sym_maps_length = xcb_xkb_get_map_map_syms_rtrn_length(mapReply, &map);
+        xcb_xkb_key_sym_map_iterator_t sym_maps_iter = xcb_xkb_get_map_map_syms_rtrn_iterator(mapReply, &map);
+
+        for (int i = 0; i < sym_maps_length; i++) {
+            xcb_xkb_key_sym_map_t *wire_sym_map = sym_maps_iter.data;
+            u32 keyIndex = mapReply->firstKeySym + i;
+
+            xcb_xkb_key_sym_map_next(&sym_maps_iter);
+        }
+
+        //xcb_get_keyboard_mapping_keysyms()
+
+        free(mapReply);
+    }
+
+    // Init language
+}
+#endif
+
 static void initXcb() {
     const char* error = 0;
 
@@ -247,6 +343,8 @@ static void initXcb() {
     if(!error) {
         const xcb_setup_t* xcbSetup = xcb_get_setup(xcbConnection);
         if(xcbSetup) {
+            minKeycode = xcbSetup->min_keycode;
+            maxKeycode = xcbSetup->max_keycode;
             xcb_screen_iterator_t xcbScreenIterator = xcb_setup_roots_iterator(xcbSetup);
             // First screen should be primary screen
             xcbScreen = xcbScreenIterator.data;
@@ -256,6 +354,103 @@ static void initXcb() {
         } else {
             error = "Could not retrieve xcb setup";
         }
+    }
+
+    // Load XKB (X Keyboard Extension)
+    if(!error) {
+        xcbXkbLibrary = dlopen("libxcb-xkb.so", RTLD_LAZY | RTLD_LOCAL);
+        if(xcbXkbLibrary) {
+            const char* firstMissingFunctionName = 0;
+            #define X(N, R, P) N = (grounded_xcb_##N*)dlsym(xcbXkbLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
+            #include "types/grounded_xcb_xkb_functions.h"
+            #undef X
+            if(firstMissingFunctionName) {
+                printf("Could not load xcb xkb function: %s\n", firstMissingFunctionName);
+                error = "Could not load all xcb xkb functions";
+            } else {
+                xcb_extension_t* xcb_xkb_id = (xcb_extension_t*)dlsym(xcbXkbLibrary, "xcb_xkb_id");
+                if(xcb_xkb_id) {
+                    const xcb_query_extension_reply_t* reply = xcb_get_extension_data(xcbConnection, xcb_xkb_id);
+                    if(reply && reply->present) {
+                        xkbEventIndex = reply->first_event;
+                        xcb_xkb_use_extension_cookie_t cookie = xcb_xkb_use_extension(xcbConnection, 1, 0);
+                        xcb_xkb_use_extension_reply_t* reply = xcb_xkb_use_extension_reply(xcbConnection, cookie, 0);
+                        if(reply && reply->supported) {
+                            // This shall mark what events we are interested in
+                            //xcb_xkb_select_events(xcbConnection, deviceSpec, affectWhich, clear, selectAll, affectMap, map, details);
+                            xcb_xkb_select_events(xcbConnection, XCB_XKB_ID_USE_CORE_KBD, XCB_XKB_EVENT_TYPE_STATE_NOTIFY, 0, XCB_XKB_EVENT_TYPE_STATE_NOTIFY, 0xFFF, 0xFFF, 0);
+
+                            //xcb_xkb_get_map_cookie_t mapCookie = xcb_xkb_get_map(xcbConnection, XCB_XKB_ID_USE_CORE_KBD, XCB_XKB_MAP_PART_KEY_TYPES | XCB_XKB_MAP_PART_KEY_SYMS, XCB_XKB_MAP_PART_KEY_TYPES | XCB_XKB_MAP_PART_KEY_SYMS, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                            /*xcb_xkb_get_map_cookie_t mapCookie = xcb_xkb_get_map(xcbConnection, XCB_XKB_ID_USE_CORE_KBD, XCB_XKB_MAP_PART_KEY_TYPES | XCB_XKB_MAP_PART_KEY_SYMS, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                            
+                            xcb_generic_error_t* error = 0;
+                            xcb_xkb_get_map_reply_t* mapReply = xcb_xkb_get_map_reply(xcbConnection, mapCookie, &error);
+                            
+                            xcb_xkb_get_names_cookie_t namesCookie = xcb_xkb_get_names(xcbConnection, XCB_XKB_ID_USE_CORE_KBD, XCB_XKB_NAME_DETAIL_KEY_NAMES);
+                            xcb_xkb_get_names_reply_t* namesReply = xcb_xkb_get_names_reply(xcbConnection, namesCookie, 0);*/
+
+                            // Set detectable auto-repeat. So we do not get virtual key-up events while user holds down
+                            xcb_xkb_per_client_flags(xcbConnection, XCB_XKB_ID_USE_CORE_KBD,
+                                XCB_XKB_PER_CLIENT_FLAG_DETECTABLE_AUTO_REPEAT,
+                                XCB_XKB_PER_CLIENT_FLAG_DETECTABLE_AUTO_REPEAT,
+                                XCB_XKB_PER_CLIENT_FLAG_DETECTABLE_AUTO_REPEAT,
+                                0, 0);
+                        } else {
+                            error = "Could not enable xcb xkb extension";
+                        }
+                    } else {
+                        error = "Could not load xcb xkb extension";
+                    }
+                } else {
+                    error = "Could not find xcb_xkb_id symbol in libxcb-xkb.so";
+                }
+            }
+        } else {
+            error = "Could not find libxcb-xkb.so";
+        }
+    }
+
+    if(!error) {
+        const char* firstMissingFunctionName = 0;
+        void* xkbCommonX11Library = dlopen("libxkbcommon-x11.so", RTLD_LAZY | RTLD_LOCAL);
+        if(xkbCommonX11Library) {
+            #define X(N, R, P) N = (grounded_xcb_##N*)dlsym(xkbCommonX11Library, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
+            #include "types/grounded_xkbcommon_x11_functions.h"
+            #undef X
+        }
+        void* xkbCommonLibrary = dlopen("libxkbcommon.so", RTLD_LAZY | RTLD_LOCAL);
+        if(xkbCommonLibrary) {
+            #define X(N, R, P) N = (grounded_xcb_##N*)dlsym(xkbCommonLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
+            #include "types/grounded_xkbcommon_functions.h"
+            #undef X
+        }
+        xkbContext = xkb_context_new(0);
+        xcb_xkb_get_device_info_cookie_t deviceInfoCookie = xcb_xkb_get_device_info(xcbConnection, XCB_XKB_ID_USE_CORE_KBD, 0, 0, 0, 0, 0, 0);
+        xcb_xkb_get_device_info_reply_t* deviceInfoReply = xcb_xkb_get_device_info_reply(xcbConnection, deviceInfoCookie, 0);
+        u8 deviceId = deviceInfoReply->deviceID;
+        struct xkb_keymap* keymap = xkb_x11_keymap_new_from_device(xkbContext, xcbConnection, deviceInfoReply->deviceID, 0);
+
+        /* Keymap related stuff
+            xkb_keycode_t xkb_keymap_min_keycode(struct xkb_keymap *keymap);
+            xkb_keycode_t xkb_keymap_max_keycode(struct xkb_keymap *keymap);
+            void xkb_keymap_key_for_each(struct xkb_keymap *keymap, xkb_keymap_key_iter_t iter, void *data);
+            const char * xkb_keymap_key_get_name(struct xkb_keymap *keymap, xkb_keycode_t key);
+            xkb_mod_index_t xkb_keymap_num_mods(struct xkb_keymap *keymap);
+            const char * xkb_keymap_mod_get_name(struct xkb_keymap *keymap, xkb_mod_index_t idx);
+            xkb_layout_index_t xkb_keymap_num_layouts(struct xkb_keymap *keymap);
+            const char * xkb_keymap_layout_get_name(struct xkb_keymap *keymap, xkb_layout_index_t idx);
+            xkb_layout_index_t xkb_keymap_num_layouts_for_key(struct xkb_keymap *keymap, xkb_keycode_t key);
+            xkb_level_index_t xkb_keymap_num_levels_for_key(struct xkb_keymap *keymap, xkb_keycode_t key,xkb_layout_index_t layout);
+            int xkb_keymap_key_get_syms_by_level(struct xkb_keymap *keymap, xkb_keycode_t key, xkb_layout_index_t layout, xkb_level_index_t level, const xkb_keysym_t **syms_out);
+        */
+
+        // xkbcommon actually wants us to use the xkb_state object
+        xkbState = xkb_x11_state_new_from_device(keymap, xcbConnection, deviceId);
+        // Set detectable auto repeat here
+        // Listen for newKeyboardnotify, mapnotify and statenotify using xcb_xkb_select_events_aux()
+        // On new keyboard or map notify rereate xkb_keymap and xkb_state
+        // On StateNotify update xkb_state using xkb_state_update_mask()
+        //xkb_state_update_mask(xkbState, );
     }
 
     if(!error) {
@@ -465,6 +660,7 @@ static void shutdownXcb() {
         xcb_disconnect(xcbConnection);
         xcbConnection = 0;
     }
+    //TODO: Do libraries in a similar pattern to atoms for easier unloading?
     if(xcbRenderLibrary) {
         dlclose(xcbRenderLibrary);
         xcbRenderLibrary = 0;
@@ -480,6 +676,14 @@ static void shutdownXcb() {
     if(xcbRenderLibrary) {
         dlclose(xcbRenderLibrary);
         xcbRenderLibrary = 0;
+    }
+    if(xcbCursorLibrary) {
+        dlclose(xcbCursorLibrary);
+        xcbCursorLibrary = 0;
+    }
+    if(xcbXkbLibrary) {
+        dlclose(xcbXkbLibrary);
+        xcbXkbLibrary = 0;
     }
     if(xcbLibrary) {
         dlclose(xcbLibrary);
@@ -1078,10 +1282,14 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
     result.type = GROUNDED_EVENT_TYPE_NONE;
 
     // The & 0x7f is required to receive the XCB_CLIENT_MESSAGE
-    switch(event->response_type & 0x7f) {
+    u8 eventType = event->response_type & 0x7f;
+    switch(eventType) {
         case XCB_PROPERTY_NOTIFY:{
             //TODO: What to do with this event?
         };
+        /*case XKB_BASE:{
+
+        } break;*/
         case XCB_CLIENT_MESSAGE:{
             xcb_client_message_event_t* clientMessageEvent = (xcb_client_message_event_t*)event;
             GroundedXcbWindow* window = groundedWindowFromXcb(clientMessageEvent->window);
@@ -1324,6 +1532,10 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             result.type = GROUNDED_EVENT_TYPE_KEY_DOWN;
             result.keyDown.keycode = keycode;
             result.keyDown.modifiers = 0;
+            
+            xkb_keysym_t keysym = xkb_state_key_get_one_sym(xkbState, keyPressEvent->detail);
+            u32 codepoint = xkb_keysym_to_utf32(keysym);
+            printf("Codepoint: %u\n", codepoint);
         } break;
         case XCB_KEY_RELEASE:{
             xcb_key_release_event_t* keyReleaseEvent = (xcb_key_release_event_t*)event;
@@ -1433,7 +1645,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
         case XCB_MAPPING_NOTIFY:{
             // New keyboard mapping. Basically new keyboard layout.
             // WERIRD: Happens if I use my custom keyboard mappings to change volume
-            /*xcb_mapping_notify_event_t* mappingEvent = (xcb_mapping_notify_event_t*)event;
+            xcb_mapping_notify_event_t* mappingEvent = (xcb_mapping_notify_event_t*)event;
             // mappingEvent->request can be
             // XCB_MAPPING_KEYBOARD for keyboard mappings
             // XCB_MAPPING_POINTER mouse mappings
@@ -1442,6 +1654,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             xcb_get_keyboard_mapping_cookie_t mappingCookie;
             xcb_get_keyboard_mapping_reply_t* mappingReply;
             mappingCookie = xcb_get_keyboard_mapping(xcbConnection, mappingEvent->first_keycode, mappingEvent->count);
+            //mappingCookie = xcb_get_keyboard_mapping(xcbConnection, ->first_keycode, mappingEvent->count);
             mappingReply = xcb_get_keyboard_mapping_reply(xcbConnection, mappingCookie, 0);
             if (mappingReply) {
                 xcb_keysym_t* keySyms = xcb_get_keyboard_mapping_keysyms(mappingReply);
@@ -1451,7 +1664,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
 
                 // Free the resources
                 free(mappingReply);
-            }*/
+            }
         } break;
         case XCB_DESTROY_NOTIFY:{
             // Window is getting destroyed.
@@ -1567,7 +1780,24 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             ASSERT(false);
         } break;
         default:{
-            ASSERT(false);
+            // Check for non-constant event types
+            if(eventType == xkbEventIndex) {
+                if(event->pad0 == XCB_XKB_STATE_NOTIFY) {
+                    xcb_xkb_state_notify_event_t* stateNotifyEvent = (xcb_xkb_state_notify_event_t*)event;
+                    xkb_state_update_mask(xkbState, stateNotifyEvent->baseMods, stateNotifyEvent->latchedMods, stateNotifyEvent->lockedMods, stateNotifyEvent->baseGroup, stateNotifyEvent->latchedGroup, stateNotifyEvent->lockedGroup);
+                    //int x = 0;
+                    // Keyboard layout chenged
+                    //refreshKeyboardLayout();
+                } else if(event->pad0 == XCB_XKB_NEW_KEYBOARD_NOTIFY) {
+
+                } else if(event->pad0 == XCB_XKB_MAP_NOTIFY) {
+
+                } else {
+                    ASSERT(false);
+                }
+            } else {
+                ASSERT(false);
+            }
         } break;
     }
     
