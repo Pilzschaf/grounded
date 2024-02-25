@@ -39,6 +39,7 @@ typedef struct GroundedEvent {
 		struct {
 			u32 keycode;
 			u32 modifiers;
+			u32 codepoint; // The unicode codepoint of this key. Can be 0 if it can not be translated into a codepoint (modifiers. etc)
 		} keyDown;
 		struct {
 			u32 keycode;

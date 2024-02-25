@@ -183,6 +183,8 @@ xcb_cursor_t xcbCursorOverwrite;
 GroundedMouseCursor currentCursorType = GROUNDED_MOUSE_CURSOR_DEFAULT;
 xcb_render_pictforminfo_t* rgbaFormat;
 
+//https://x.org/releases/X11R7.7/doc/xproto/x11protocol.html#Keyboards
+//https://www.x.org/releases/current/doc/kbproto/xkbproto.html#Computing_A_State_Field_from_an_XKB_State
 u8 xkbEventIndex; // The event index of xkb events
 xcb_keycode_t minKeycode;
 xcb_keycode_t maxKeycode;
@@ -1532,10 +1534,15 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             result.type = GROUNDED_EVENT_TYPE_KEY_DOWN;
             result.keyDown.keycode = keycode;
             result.keyDown.modifiers = 0;
+            result.keyDown.modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_SHIFT, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_SHIFT : 0;
+            result.keyDown.modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_CTRL, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_CONTROL : 0;
+            result.keyDown.modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_ALT, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_ALT : 0;
+            result.keyDown.modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_LOGO, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_WINDOWS : 0;
             
+            // Get the unicode codepoint for this key
             xkb_keysym_t keysym = xkb_state_key_get_one_sym(xkbState, keyPressEvent->detail);
             u32 codepoint = xkb_keysym_to_utf32(keysym);
-            printf("Codepoint: %u\n", codepoint);
+            result.keyDown.codepoint = codepoint;
         } break;
         case XCB_KEY_RELEASE:{
             xcb_key_release_event_t* keyReleaseEvent = (xcb_key_release_event_t*)event;

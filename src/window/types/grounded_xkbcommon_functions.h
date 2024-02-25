@@ -5,3 +5,4 @@ X(xkb_state_update_mask, enum xkb_state_component,(struct xkb_state *state,xkb_m
 X(xkb_state_key_get_one_sym, xkb_keysym_t, (struct xkb_state *state, xkb_keycode_t key))
 X(xkb_keysym_to_utf32, uint32_t, (xkb_keysym_t keysym))
 X(xkb_keysym_to_utf8, int, (xkb_keysym_t keysym, char *buffer, size_t size))
+X(xkb_state_mod_name_is_active, int, (struct xkb_state *state, const char *name,enum xkb_state_component type))
