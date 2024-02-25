@@ -2407,6 +2407,50 @@ void groundedXcbSetClipboardText(String8 text) {
     }
 }
 
+String8 groundedXcbGetClipboardText(MemoryArena* arena) {
+    String8 result = EMPTY_STRING8;
+
+    xcb_get_selection_owner_cookie_t ownerCookie = xcb_get_selection_owner(xcbConnection, xcbAtoms.xcbClipboard);
+    xcb_get_selection_owner_reply_t* ownerReply = xcb_get_selection_owner_reply(xcbConnection, ownerCookie, 0);
+    if(ownerReply && ownerReply->owner != XCB_NONE) {
+        xcb_convert_selection(xcbConnection, clipboardWindow, xcbAtoms.xcbClipboard, XCB_ATOM_STRING, XCB_ATOM_STRING, XCB_CURRENT_TIME);
+        xcb_flush(xcbConnection);
+
+        // Handle events until we retrieve our data
+        //TODO: Some timeout would be a good idea
+        while(true) {
+            xcb_generic_event_t* event = xcb_wait_for_event(xcbConnection);
+            if(event) {
+                if((event->response_type & 0x7f) == XCB_SELECTION_NOTIFY) {
+                    xcb_selection_notify_event_t *notifyEvent = (xcb_selection_notify_event_t*)event;
+                    if(notifyEvent->property != XCB_NONE) {
+                        // Retrieve the selected data from the property
+                        xcb_get_property_cookie_t propertyCookie = xcb_get_property(xcbConnection, 0, notifyEvent->requestor, notifyEvent->property, XCB_GET_PROPERTY_TYPE_ANY, 0, UINT32_MAX);
+                        xcb_get_property_reply_t* propertyReply = xcb_get_property_reply(xcbConnection, propertyCookie, 0);
+                        if (propertyReply) {
+                            // Process the data as needed
+                            result = str8Copy(&xdndTargetData.offerArena, str8FromBlock(xcb_get_property_value(propertyReply), xcb_get_property_value_length(propertyReply)));
+                            printf("Received data: %.*s\n", xcb_get_property_value_length(propertyReply),    (char *)xcb_get_property_value(propertyReply));
+
+                            free(propertyReply);
+                        }
+                    }
+                    free(event);
+                    break;
+                } else {
+                    GroundedEvent result = xcbTranslateToGroundedEvent(event);
+                    if(result.type != GROUNDED_EVENT_TYPE_NONE) {
+                        eventQueue[eventQueueIndex++] = result;
+                    }
+                }
+            }
+        }
+    }
+    free(ownerReply);
+
+    return result;
+}
+
 //*************
 // OpenGL stuff
 #ifdef GROUNDED_OPENGL_SUPPORT

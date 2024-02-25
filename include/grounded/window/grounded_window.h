@@ -215,7 +215,7 @@ GROUNDED_FUNCTION void groundedWindowDragPayloadSetUserData(struct GroundedDragP
 GROUNDED_FUNCTION void* groundedWindowDragPayloadGetUserData(struct GroundedDragPayload* payload);
 
 GROUNDED_FUNCTION void groundedWindowSetClipboardText(String8 text);
-//GROUNDED_FUNCTION String8 groundedWindowGetClipboardText();
+GROUNDED_FUNCTION String8 groundedWindowGetClipboardText(MemoryArena* arena);
 
 //GROUNDED_FUNCTION void groundedStartDragAndDrop(GroundedWindow* window, u64 mimeTypeCount, String8* mimeTypes, GroundedWindowDndSendCallback* callback, GroundedWindowDragPayloadImage* image, void* userData);
 //GROUNDED_FUNCTION void groundedStartDragAndDropWithSingleDataType(GroundedWindow* window, String8 mimeType, u8* data, u64 size, GroundedWindowDragPayloadImage* image); // Data can be freed after this call

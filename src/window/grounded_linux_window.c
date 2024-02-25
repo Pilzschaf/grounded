@@ -551,6 +551,21 @@ GROUNDED_FUNCTION void groundedWindowSetClipboardText(String8 text) {
     }
 }
 
+GROUNDED_FUNCTION String8 groundedWindowGetClipboardText(MemoryArena* arena) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            ASSERT(false);
+            //return groundedWaylandSetClipboardText(text);
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            return groundedXcbGetClipboardText(arena);
+        } break;
+        default:break;
+    }
+    return EMPTY_STRING8;
+}
+
 GROUNDED_FUNCTION void groundedWindowDragPayloadSetUserData(struct GroundedDragPayload* payload, void* userData) {
     if(payload) {
         payload->userData = userData;
