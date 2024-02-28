@@ -48,11 +48,13 @@ typedef struct GroundedEvent {
 			u32 button;
 			s32 mousePositionX;
 			s32 mousePositionY;
+			u64 timestamp; // ms precision
 		} buttonDown;
 		struct {
 			u32 button;
 			s32 mousePositionX;
 			s32 mousePositionY;
+			u64 timestamp; // ms precision
 		} buttonUp;
 		struct {
 			struct GroundedWindowDisplay* display;

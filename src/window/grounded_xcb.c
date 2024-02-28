@@ -1447,6 +1447,10 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             result.window = (GroundedWindow*)window;
             // Button mapping seems to be the same for xcb and our definition
             result.buttonDown.button = mouseButtonEvent->detail;
+            
+            ASSERT(mouseButtonEvent->time);
+            result.buttonDown.timestamp = mouseButtonEvent->time;
+            
             //TODO: Make sure we have the latest mouse position here. Either request mouse position or use latest motion event
             xcb_query_pointer_cookie_t pointerCookie = xcb_query_pointer(xcbConnection, window->window);
             xcb_query_pointer_reply_t* pointerReply = xcb_query_pointer_reply(xcbConnection, pointerCookie, 0);
@@ -1520,6 +1524,8 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             result.window = (GroundedWindow*)window;
             // Button mapping seems to be the same for xcb and our definition
             result.buttonUp.button = mouseButtonReleaseEvent->detail;
+            ASSERT(mouseButtonReleaseEvent->time);
+            result.buttonUp.timestamp = mouseButtonReleaseEvent->time;
             //TODO: Make sure we have the latest mouse position here
             result.buttonUp.mousePositionX = mouseState->x;
             result.buttonUp.mousePositionY = mouseState->y;
