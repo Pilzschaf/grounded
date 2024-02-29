@@ -209,11 +209,11 @@ int main() {
         GroundedEvent* events = groundedWindowPollEvents(&eventCount);
         for(u32 i = 0; i < eventCount; ++i) {
             if(events[i].type == GROUNDED_EVENT_TYPE_CLOSE_REQUEST) {
-                if(events[i].closeRequest.window == window1) {
-                    groundedDestroyWindow(events[i].closeRequest.window);
+                if(events[i].window == window1) {
+                    groundedDestroyWindow(events[i].window);
                     window1 = 0;
-                } else if(events[i].closeRequest.window == window2) {
-                    groundedDestroyWindow(events[i].closeRequest.window);
+                } else if(events[i].window == window2) {
+                    groundedDestroyWindow(events[i].window);
                     window2 = 0;
                 }
                 // Completely close application when one of the window gets closed
@@ -225,7 +225,7 @@ int main() {
             if(events[i].type == GROUNDED_EVENT_TYPE_BUTTON_DOWN) {
                 if(events[i].buttonDown.button == GROUNDED_MOUSE_BUTTON_LEFT) {
                     for(u32 j = 0; j < ARRAY_COUNT(boxes); ++j) {
-                        if(boxes[j].associatedWindow == events[i].buttonDown.window) {
+                        if(boxes[j].associatedWindow == events[i].window) {
                             vec2 minPoint = boxes[j].position;
                             vec2 maxPoint = v2Add(minPoint, VEC2(boxes[j].size, boxes[j].size));
                             vec2 mousePosition = VEC2(events[i].buttonDown.mousePositionX, events[i].buttonDown.mousePositionY);
