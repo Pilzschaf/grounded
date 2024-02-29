@@ -31,6 +31,7 @@ typedef struct GroundedEvent {
     union {
         struct {
 			// No additional data
+			u32 dummy;
         } closeRequest;
 		struct {
 			u32 width;
