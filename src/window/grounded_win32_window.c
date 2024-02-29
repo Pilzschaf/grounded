@@ -180,7 +180,8 @@ HRESULT STDMETHODCALLTYPE DragEnter(MyDropTarget* This, IDataObject* pDataObject
 
     if (hdropFound) {
         This->currentDropCallback = 0;
-        u32 newMimeIndex = window->dndCallback(0, window, pt.x, pt.y, 1, &STR8_LITERAL("text/uri-list"), &This->currentDropCallback);
+        void* userData = 0; //TODO:
+        u32 newMimeIndex = window->dndCallback(0, window, pt.x, pt.y, 1, &STR8_LITERAL("text/uri-list"), &This->currentDropCallback, userData);
 
         /*STGMEDIUM medium;
         if (SUCCEEDED(pDataObject->lpVtbl->GetData(pDataObject, &hdropFormat, &medium))) {
@@ -207,7 +208,8 @@ HRESULT STDMETHODCALLTYPE DragOver(MyDropTarget* This, DWORD grfKeyState, POINTL
     GroundedWin32Window* window = getGroundedWindow(This->hWnd);
     if (window && window->dndCallback) {
         This->currentDropCallback = 0;
-        u32 newMimeIndex = window->dndCallback(0, window, pt.x, pt.y, 1, &STR8_LITERAL("text/uri-list"), &This->currentDropCallback);
+        void* userData = 0; //TODO:
+        u32 newMimeIndex = window->dndCallback(0, window, pt.x, pt.y, 1, &STR8_LITERAL("text/uri-list"), &This->currentDropCallback, userData);
         if (newMimeIndex != UINT32_MAX) {
             *pdwEffect = DROPEFFECT_COPY;
             return S_OK;
