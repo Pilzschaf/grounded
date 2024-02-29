@@ -239,7 +239,7 @@ GROUNDED_FUNCTION_INLINE GroundedEvent* groundedFilterEventsForWindow(MemoryAren
 		}
 	}
 	*filteredCount = resultCount;
-	arenaPopTo(arena, result + resultCount);
+	arenaPopTo(arena, (u8*)(result + resultCount));
 	return result;
 }
 
