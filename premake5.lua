@@ -32,7 +32,7 @@ workspace "Grounded"
             "_GNU_SOURCE",
         }
     
-    filter "system:window"
+    filter "system:windows"
         -- TODO: Check if we should enable stuff like Werror/Wall for windows
         defines
         { 
@@ -73,6 +73,93 @@ project "CursorCycle"
         "src/logger/grounded_logger.c",
         "src/string/grounded_string.c",
     }
+
+project "DoubleClick"
+    defines
+    {
+        "GROUNDED_OPENGL_SUPPORT",
+    }
+    files
+    {
+        "example/double_click/main.c",
+        "src/threading/grounded_threading.c",
+        "src/memory/grounded_arena.c",
+        "src/memory/grounded_memory.c",
+        "src/window/grounded_window.c",
+        "src/window/grounded_window_extra.c",
+        "src/logger/grounded_logger.c",
+        "src/string/grounded_string.c",
+    }
+    links
+    {
+        
+        --"glew",
+    }
+    filter "system:windows"
+        links
+        {
+            "opengl32",
+        }
+    filter "system:linux"
+        links
+        {
+            --"GL",
+        }
+
+project "DND"
+    defines
+    {
+        "GROUNDED_OPENGL_SUPPORT",
+    }
+    files
+    {
+        "example/dnd/main.c",
+        "src/threading/grounded_threading.c",
+        "src/memory/grounded_arena.c",
+        "src/memory/grounded_memory.c",
+        "src/window/grounded_window.c",
+        "src/window/grounded_window_extra.c",
+        "src/logger/grounded_logger.c",
+        "src/string/grounded_string.c",
+    }
+    links
+    {
+        
+        --"glew",
+    }
+    filter "system:windows"
+        links
+        {
+            "opengl32",
+        }
+    filter "system:linux"
+        links
+        {
+            --"GL",
+        }
+
+project "DNDDrop"
+    defines
+    {
+        "GROUNDED_OPENGL_SUPPORT",
+    }
+    files
+    {
+        "example/dnd_drop/main.c",
+        "src/threading/grounded_threading.c",
+        "src/memory/grounded_arena.c",
+        "src/memory/grounded_memory.c",
+        "src/window/grounded_window.c",
+        "src/window/grounded_window_extra.c",
+        "src/logger/grounded_logger.c",
+        "src/string/grounded_string.c",
+    }
+    filter "system:windows"
+        links
+        {
+            "opengl32",
+        }
+    filter "system:linux"
 
 project "GroundedStatic"
     kind "StaticLib"

@@ -59,6 +59,8 @@ GROUNDED_FUNCTION_INLINE void groundedPause() {
 // Yield can yield execution to another thread
 GROUNDED_FUNCTION_INLINE void groundedYield();
 
+GROUNDED_FUNCTION_INLINE void groundedSleep(u32 millis);
+
 #ifdef _WIN32
 #include "grounded_win32_threading.inl"
 #else

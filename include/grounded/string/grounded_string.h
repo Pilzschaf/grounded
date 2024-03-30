@@ -89,6 +89,9 @@ GROUNDED_FUNCTION String8 str8Substring(String8 str, u64 first, u64 last);
 GROUNDED_FUNCTION bool str8Compare(String8 a, String8 b);
 GROUNDED_FUNCTION u64 str8GetFirstOccurence(String8 str, char c); // Returns UINT64_MAX if not found
 GROUNDED_FUNCTION u64 str8GetLastOccurence(String8 str, char c); // Returns UINT64_MAX if not found
+GROUNDED_FUNCTION bool str8IsPrefixOf(String8 prefix, String8 str);
+GROUNDED_FUNCTION bool str8IsPostfixOf(String8 postfix, String8 str);
+GROUNDED_FUNCTION bool str8IsSubstringOf(String8 substring, String8 str);
 
 struct MemoryArena;
 GROUNDED_FUNCTION String8 str8FromFormat(struct MemoryArena* arena, const char* format, ...);
@@ -100,6 +103,7 @@ GROUNDED_FUNCTION char* str8GetCstrOrNull(struct MemoryArena* arena, String8 str
 GROUNDED_FUNCTION void str8ListPushExplicit(String8List* list, String8 str, String8Node* nodeMemory);
 GROUNDED_FUNCTION void str8ListPush(struct MemoryArena* arena, String8List* list, String8 str);
 GROUNDED_FUNCTION void str8ListPushCopy(struct MemoryArena* arena, String8List* list, String8 str);
+GROUNDED_FUNCTION void str8ListPushCopyAndNullTerminate(struct MemoryArena* arena, String8List* list, String8 str);
 GROUNDED_FUNCTION String8 str8ListJoin(struct MemoryArena* arena, String8List* list, StringJoin* optionalJoin);
 GROUNDED_FUNCTION String8List str8Split(struct MemoryArena* arena, String8 str, u8* splitCharacters, u64 count);
 

@@ -64,18 +64,66 @@ GROUNDED_FUNCTION u64 str8GetLastOccurence(String8 str, char c) {
     return UINT64_MAX;
 }
 
+GROUNDED_FUNCTION bool str8IsPrefixOf(String8 prefix, String8 str) {
+    bool result = false;
+    if(prefix.size <= str.size) {
+        result = true;
+        for(u64 i = 0; i < prefix.size; ++i) {
+            if(prefix.base[i] != str.base[i]) {
+                result = false;
+                break;
+            }
+        }
+    }
+    return result;
+}
+
+GROUNDED_FUNCTION bool str8IsPostfixOf(String8 postfix, String8 str) {
+    bool result = false;
+    if(postfix.size <= str.size) {
+        result = true;
+        for(u64 i = 0; i < postfix.size; ++i) {
+            if(postfix.base[postfix.size-i-1] != str.base[str.size-i-1]) {
+                result = false;
+                break;
+            }
+        }
+    }
+    return result;
+}
+
+GROUNDED_FUNCTION bool str8IsSubstringOf(String8 substring, String8 str) {
+    bool result = false;
+    if(substring.size <= str.size) {
+        for(u64 i = 0; i < (str.size - substring.size + 1); ++i) {
+            result = true;
+            for(u64 j = 0; j < substring.size; ++j) {
+                ASSERT(i+j < str.size);
+                if(substring.base[j] != str.base[i+j]) {
+                    result = false;
+                    break;
+                }
+            }
+            if(result) {
+                break;
+            }
+        }
+    }
+    return result;
+}
+
 static String8 str8FromFormatVaList(struct MemoryArena* arena, const char* format, va_list args) {
-    // in case we need to try a second time
+    // In case we need to try a second time
     va_list args2;
     va_copy(args2, args);
     
-    // try to build the string in 1024 bytes
+    // Try to build the string in 1024 bytes
     u64 bufferSize = 1024;
     ArenaMarker firstBufferMarker = arenaCreateMarker(arena);
     u8* buffer = ARENA_PUSH_ARRAY(arena, bufferSize, u8);
     u64 actualSize = vsnprintf((char*)buffer, bufferSize, format, args);
     
-    String8 result = {};
+    String8 result = {0};
     if (actualSize < bufferSize){
         // Release excess memory
         arenaPopTo(arena, buffer + actualSize + 1);
@@ -105,7 +153,10 @@ GROUNDED_FUNCTION String8 str8Copy(MemoryArena* arena, String8 str) {
     String8 result;
     result.base = ARENA_PUSH_ARRAY(arena, str.size, u8);
     result.size = str.size;
-    MEMORY_COPY(result.base, str.base, str.size);
+    // Copy of 0 bytes is UB
+    if(str.size > 0) {
+        MEMORY_COPY(result.base, str.base, str.size);
+    }
     return result;
 }
 
@@ -158,6 +209,11 @@ GROUNDED_FUNCTION void str8ListPushCopy(struct MemoryArena* arena, String8List* 
     str8ListPushExplicit(list, str8Copy(arena, str), node);
 }
 
+GROUNDED_FUNCTION void str8ListPushCopyAndNullTerminate(struct MemoryArena* arena, String8List* list, String8 str) {
+    String8Node* node = ARENA_PUSH_ARRAY(arena, 1, String8Node);
+    str8ListPushExplicit(list, str8CopyAndNullTerminate(arena, str), node);
+}
+
 GROUNDED_FUNCTION String8 str8ListJoin(MemoryArena* arena, String8List* list, StringJoin* optionalJoin) {
     static StringJoin dummyJoin = {0};
     StringJoin* join = optionalJoin;
@@ -198,7 +254,7 @@ GROUNDED_FUNCTION String8 str8ListJoin(MemoryArena* arena, String8List* list, St
     }
 
     String8 result = {str, (ptr - str)};
-    str[ptr - str - 1] = '\0';
+    str[ptr - str] = '\0';
     return result;
 }
 
@@ -382,7 +438,7 @@ GROUNDED_FUNCTION String8 str8FromStr16(MemoryArena* arena, String16 str) {
     u16* opl = str.base + str.size;
 
     for(;ptr < opl;) {
-        StringDecode decode = strDecodeUtf16(ptr, (u64)(opl - ptr));
+        StringDecode decode = strDecodeUtf16(ptr, (u32)(opl - ptr));
         if(decode.size == 0) break;
         u32 encodedSize = strEncodeUtf8(dptr, decode.codepoint);
         ptr += decode.size;
@@ -426,7 +482,7 @@ GROUNDED_FUNCTION String16 str16FromStr8(MemoryArena* arena, String8 str) {
     u8* opl = str.base + str.size;
 
     for(;ptr < opl;) {
-        StringDecode decode = strDecodeUtf8(ptr, (u64)(opl - ptr));
+        StringDecode decode = strDecodeUtf8(ptr, (u32)(opl - ptr));
         if(decode.size == 0) break;
         u32 encodedSize = strEncodeUtf16(dptr, decode.codepoint);
         ptr += decode.size;
@@ -470,7 +526,7 @@ GROUNDED_FUNCTION String32 str32FromStr8(MemoryArena* arena, String8 str) {
     u8* opl = str.base + str.size;
 
     for(;ptr < opl;) {
-        StringDecode decode = strDecodeUtf8(ptr, (u64)(opl - ptr));
+        StringDecode decode = strDecodeUtf8(ptr, (u32)(opl - ptr));
         if(decode.size == 0) break;
         *dptr = decode.codepoint;
         ptr += decode.size;
@@ -493,7 +549,7 @@ GROUNDED_FUNCTION String32 str32FromStr16(struct MemoryArena* arena, String16 st
     u16* opl = str.base + str.size;
 
     for(;ptr < opl;) {
-        StringDecode decode = strDecodeUtf16(ptr, (u64)(opl - ptr));
+        StringDecode decode = strDecodeUtf16(ptr, (u32)(opl - ptr));
         if(decode.size == 0) break;
         *dptr = decode.codepoint;
         ptr += decode.size;

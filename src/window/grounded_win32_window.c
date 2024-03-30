@@ -1,5 +1,8 @@
 #include <grounded/window/grounded_window.h>
 
+//TODO: Temporary
+//#define GROUNDED_OPENGL_SUPPORT
+
 #if 0
 #include "grounded_win32_types.h"
 #else
@@ -7,10 +10,28 @@
 //#include <winuser.h>
 //#include <ntdef.h>
 #include <windows.h>
+#include <objbase.h>
+#include <INITGUID.H>
 #endif
 
 #include <stdio.h>
 #include <grounded/threading/grounded_threading.h>
+#include <grounded/memory/grounded_memory.h>
+
+#ifdef GROUNDED_OPENGL_SUPPORT
+struct GroundedOpenGLContext {
+    HGLRC hGLRC;
+};
+#endif
+
+// Our very own COM object...
+// https://www.codeproject.com/Articles/13601/COM-in-plain-C
+typedef struct {
+    IDropTargetVtbl* vTable;
+    ULONG referenceCount;
+    HWND hWnd;
+    GroundedWindowDndDropCallback* currentDropCallback;
+} MyDropTarget;
 
 typedef struct GroundedWin32Window {
     HWND hWnd;
@@ -18,6 +39,10 @@ typedef struct GroundedWin32Window {
     u32 minHeight;
     u32 maxWidth;
     u32 maxHeight;
+    bool openglFormatSelected;
+    HDC hDC;
+    MyDropTarget dropTarget;
+    GroundedWindowDndCallback* dndCallback;
 } GroundedWin32Window;
 
 MouseState win32MouseState;
@@ -71,12 +96,196 @@ static u8 translateWin32Keycode(WPARAM wParam) {
     return result;
 }
 
-GroundedWin32Window windows;
+GroundedWin32Window* currentlyCreatingWindow;
+
+static GroundedWin32Window* getGroundedWindow(HWND hWnd) {
+    GroundedWin32Window* result = GetWindowLongPtr(hWnd, GWLP_USERDATA);
+    if (!result) {
+        result = currentlyCreatingWindow;
+    }
+    return result;
+}
+
+// 9a5914c6-94f4-4ccd-973b-b191bbecf5d3
+DEFINE_GUID(CLSID_IDropTarget, 0x9a5914c6, 0x94f4, 0x4ccd, 0x97, 0x3b, 0xb1, 0x91, 0xbb, 0xec, 0xf5, 0xd3);
+
+// 07b81ceb-5208-4232-9e7e-5ec4e3191ded
+DEFINE_GUID(IID_IDropTarget, 0x07b81ceb, 0x5208, 0x4232, 0x9e, 0x7e, 0x5e, 0xc4, 0xe3, 0x19, 0x1d, 0xed);
+
+HRESULT STDMETHODCALLTYPE QueryInterface(MyDropTarget* This, REFIID vTableGuid, void** ppv) {
+    if (!IsEqualIID(vTableGuid, &IID_IDropTarget) && !IsEqualIID(vTableGuid, &IID_IUnknown) && !IsEqualIID(vTableGuid, &IID_IDropTarget)) {
+        *ppv = 0;
+        return(E_NOINTERFACE);
+    }
+
+    *ppv = This;
+    This->vTable->AddRef(This);
+    return(NOERROR);
+}
+
+ULONG STDMETHODCALLTYPE AddRef(MyDropTarget* This) {
+    ++This->referenceCount;
+    return(This->referenceCount);
+}
+
+ULONG STDMETHODCALLTYPE Release(MyDropTarget* This) {
+    --This->referenceCount;
+
+    if (This->referenceCount == 0) {
+        // As we did not allocated anything dynamically, we do not free anything
+        //GlobalFree(This);
+        return 0;
+    }
+
+    return(This->referenceCount);
+}
+
+/*
+Formats:
+https://learn.microsoft.com/en-us/windows/win32/dataxchg/standard-clipboard-formats
+CF_BITMAP
+CF_WAVE
+CF_HDROP
+CF_RIFF
+CF_SYLK
+CF_TEXT
+CF_TIFF
+CF_UNICODETEXT
+*/
+
+// IDropTarget implementation
+HRESULT STDMETHODCALLTYPE DragEnter(MyDropTarget* This, IDataObject* pDataObject, DWORD grfKeyState, POINTL pt, DWORD* pdwEffect) {
+    IEnumFORMATETC* enumFormatEtc;
+    FORMATETC hdropFormat;
+    bool hdropFound = false;
+    This->currentDropCallback = 0;
+
+    GroundedWin32Window* window = getGroundedWindow(This->hWnd);
+    
+    if (SUCCEEDED(pDataObject->lpVtbl->EnumFormatEtc(pDataObject, DATADIR_GET, &enumFormatEtc))) {
+        FORMATETC formatEtc;
+        ULONG fetched;
+        while (S_OK == enumFormatEtc->lpVtbl->Next(enumFormatEtc, 1, &formatEtc, &fetched)) {
+            if (formatEtc.cfFormat == CF_HDROP) {
+                hdropFound = true;
+                hdropFormat = formatEtc;
+            }
+
+            // Release memory allocated for the format
+            CoTaskMemFree(formatEtc.ptd);
+        }
+
+        enumFormatEtc->lpVtbl->Release(enumFormatEtc);
+    }
+
+    if (hdropFound) {
+        This->currentDropCallback = 0;
+        void* userData = 0; //TODO:
+        u32 newMimeIndex = window->dndCallback(0, window, pt.x, pt.y, 1, &STR8_LITERAL("text/uri-list"), &This->currentDropCallback, userData);
+
+        /*STGMEDIUM medium;
+        if (SUCCEEDED(pDataObject->lpVtbl->GetData(pDataObject, &hdropFormat, &medium))) {
+            HDROP hDrop = (HDROP)GlobalLock(medium.hGlobal);
+            //LPVOID pData = GlobalLock(medium.hGlobal);
+            if (hDrop) {
+                UINT numFiles = DragQueryFileW(hDrop, 0xFFFFFFFF, 0, 0);
+                GlobalUnlock(medium.hGlobal);
+            }
+            ReleaseStgMedium(&medium);
+        }*/
+        if (newMimeIndex != UINT32_MAX) {
+            *pdwEffect = DROPEFFECT_COPY;
+            return S_OK;
+        }
+    }
+
+    //pDataObject->lpVtbl->GetCanonicalFormatEtc(pDataObject,)
+    *pdwEffect = DROPEFFECT_COPY;
+    return S_OK;
+}
+
+HRESULT STDMETHODCALLTYPE DragOver(MyDropTarget* This, DWORD grfKeyState, POINTL pt, DWORD* pdwEffect) {
+    GroundedWin32Window* window = getGroundedWindow(This->hWnd);
+    if (window && window->dndCallback) {
+        This->currentDropCallback = 0;
+        void* userData = 0; //TODO:
+        u32 newMimeIndex = window->dndCallback(0, window, pt.x, pt.y, 1, &STR8_LITERAL("text/uri-list"), &This->currentDropCallback, userData);
+        if (newMimeIndex != UINT32_MAX) {
+            *pdwEffect = DROPEFFECT_COPY;
+            return S_OK;
+        }
+    }
+
+    *pdwEffect = DROPEFFECT_NONE;
+    return S_OK;
+}
+
+HRESULT STDMETHODCALLTYPE DragLeave(MyDropTarget* This) {
+    
+    return S_OK;
+}
+
+HRESULT STDMETHODCALLTYPE Drop(MyDropTarget* This, IDataObject* pDataObject, DWORD grfKeyState, POINTL pt, DWORD* pdwEffect) {
+    GroundedWin32Window* window = getGroundedWindow(This->hWnd);
+    if (window && window->dndCallback && This->currentDropCallback) {
+        String8 data = EMPTY_STRING8;
+        MemoryArena* scratch = threadContextGetScratch(0);
+        ArenaTempMemory temp = arenaBeginTemp(scratch);
+
+        //TODO: Retrieve data from correct mime
+        FORMATETC format = { CF_HDROP, 0, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+        STGMEDIUM medium;
+        if (SUCCEEDED(pDataObject->lpVtbl->GetData(pDataObject, &format, &medium))) {
+            HDROP hDrop = (HDROP)GlobalLock(medium.hGlobal);
+            if (hDrop) {
+                UINT numFiles = DragQueryFileW(hDrop, 0xFFFFFFFF, 0, 0);
+                if (numFiles > 0) {
+                    u32 filenameSize = DragQueryFileW(hDrop, 0, 0, 0) + 1; //TODO: For whatever reason do we have to add this +1 here???
+                    STATIC_ASSERT(sizeof(wchar_t) == 2);
+                    wchar_t* filenameBuffer = ARENA_PUSH_ARRAY_NO_CLEAR(scratch, filenameSize, wchar_t);
+                    filenameSize = DragQueryFileW(hDrop, 0, filenameBuffer, filenameSize);
+                    data = str8FromStr16(scratch, str16FromBlock(filenameBuffer, filenameSize));
+                }
+                GlobalUnlock(medium.hGlobal);
+            }
+            ReleaseStgMedium(&medium);
+        }
+
+        This->currentDropCallback(0, data, window, pt.x, pt.y, STR8_LITERAL("text/uri-list"));
+        *pdwEffect = DROPEFFECT_COPY;
+        arenaEndTemp(temp);
+    } else {
+        *pdwEffect = DROPEFFECT_NONE;
+    }
+
+    return S_OK;
+}
+
+// Initialize IDropTarget vtable
+IDropTargetVtbl MyDropTargetVtbl = {
+    .QueryInterface = QueryInterface,
+    .AddRef = AddRef,
+    .Release = Release,
+    .DragEnter = DragEnter,
+    .DragOver = DragOver,
+    .DragLeave = DragLeave,
+    .Drop = Drop,
+};
 
 // This can be called directly from the thread that created the window with this message loop. For example by calls to createWindow, ShowWindow etc.
 // Not all messages go through the queue eg. GetMessage/PollMessage. But also non-queued messages are only delivered if the creating thread is blocking
 static LRESULT CALLBACK win32MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch(uMsg) {
+        case WM_CREATE: {
+            GroundedWin32Window* window = getGroundedWindow(hWnd);
+
+            window->dropTarget.hWnd = hWnd;
+            window->dropTarget.referenceCount = 1;
+            window->dropTarget.vTable = &MyDropTargetVtbl;
+            RegisterDragDrop(hWnd, &window->dropTarget);
+
+            return DefWindowProcW(hWnd, uMsg, wParam, lParam);
+        } break;
         case WM_CLOSE: {
             // Get window from hWnd parameter
             PostQuitMessage(0);
@@ -166,8 +375,7 @@ static LRESULT CALLBACK win32MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam,
         } break;
         case WM_GETMINMAXINFO: {
             // Sent when size is about to change. We can specify min and max size here
-
-            GroundedWin32Window* window = &windows;
+            GroundedWin32Window* window = getGroundedWindow(hWnd);
 
             LPMINMAXINFO minMaxInfo = (LPMINMAXINFO)lParam;
             if (window->minWidth) {
@@ -221,24 +429,35 @@ GROUNDED_FUNCTION void groundedInitWindowSystem() {
     if(!atom) {
         error = "Could not register window class";
     }
+
+    HRESULT result = OleInitialize(0);
+    if (result != S_OK) {
+        error = "Could not initialize ole";
+    }
 }
 
 GROUNDED_FUNCTION void groundedShutdownWindowSystem() {
     //TODO: Release resources
+    HINSTANCE instance = GetModuleHandle(0);
+    UnregisterClassW(L"GroundedDefaultWindowClass", instance);
+    OleUninitialize();
 }
 
-GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(struct GroundedWindowCreateParameters* parameters) {
+GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(MemoryArena* arena, struct GroundedWindowCreateParameters* parameters) {
     if (!parameters) {
         static struct GroundedWindowCreateParameters defaultParameters = {0};
         parameters = &defaultParameters;
     }
-    MemoryArena* scratch = threadContextGetScratch(0);
+    MemoryArena* scratch = threadContextGetScratch(arena);
     ArenaTempMemory temp = arenaBeginTemp(scratch);
 
     const char* error = 0;
     HINSTANCE instance = GetModuleHandle(0);
-    GroundedWin32Window* result = &windows;
+    //GroundedWin32Window* result = &windows;
+    GroundedWin32Window* result = ARENA_PUSH_STRUCT(arena, GroundedWin32Window);
     *result = (GroundedWin32Window){0};
+    currentlyCreatingWindow = result;
+    result->dndCallback = parameters->dndCallback;
     HWND parentWindow = 0;
     // str16FromStr8 guarantees 0-termination
     String16 utf16Title = str16FromStr8(scratch, parameters->title);
@@ -260,8 +479,10 @@ GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(struct GroundedWindowCrea
     if(!result->hWnd) {
         error = "Could not create win32 window";
     }
-
+    
     if(!error) {
+        SetWindowLongPtr(result->hWnd, GWLP_USERDATA, result);
+        currentlyCreatingWindow = 0;
         result->minWidth = parameters->minWidth;
         result->minHeight = parameters->minHeight;
         result->maxWidth = parameters->maxWidth;
@@ -274,15 +495,16 @@ GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(struct GroundedWindowCrea
     }
     
     arenaEndTemp(temp);
-    return result;
+    return (GroundedWindow*)result;
 }
 
 GROUNDED_FUNCTION void groundedDestroyWindow(GroundedWindow* window) {
+    ASSERT(window);
     GroundedWin32Window* win32Window = (GroundedWin32Window*)window;
     DestroyWindow(win32Window->hWnd);
 }
 
-GROUNDED_FUNCTION void groundedSetWindowTitle(GroundedWindow* window, String8 title) {
+GROUNDED_FUNCTION void groundedWindowSetTitle(GroundedWindow* window, String8 title) {
     GroundedWin32Window* win32Window = (GroundedWin32Window*)window;
     MemoryArena* scratch = threadContextGetScratch(0);
     ArenaTempMemory temp = arenaBeginTemp(scratch);
@@ -294,7 +516,7 @@ GROUNDED_FUNCTION void groundedSetWindowTitle(GroundedWindow* window, String8 ti
     arenaEndTemp(temp);
 }
 
-GROUNDED_FUNCTION GroundedEvent* groundedGetEvents(u32* eventCount, u32 maxWaitingTimeInMs) {
+GROUNDED_FUNCTION GroundedEvent* groundedWindowGetEvents(u32* eventCount, u32 maxWaitingTimeInMs) {
     *eventCount = 0;
     eventQueueIndex = 0;
 
@@ -322,7 +544,7 @@ GROUNDED_FUNCTION GroundedEvent* groundedGetEvents(u32* eventCount, u32 maxWaiti
     return eventQueue;
 }
 
-GROUNDED_FUNCTION GroundedEvent* groundedPollEvents(u32* eventCount) {
+GROUNDED_FUNCTION GroundedEvent* groundedWindowPollEvents(u32* eventCount) {
     *eventCount = 0;
     eventQueueIndex = 0;
 
@@ -342,21 +564,22 @@ GROUNDED_FUNCTION GroundedEvent* groundedPollEvents(u32* eventCount) {
     return eventQueue;
 }
 
-GROUNDED_FUNCTION u32 groundedGetWindowWidth(GroundedWindow* opaqueWindow) {
+GROUNDED_FUNCTION u32 groundedWindowGetWidth(GroundedWindow* opaqueWindow) {
     GroundedWin32Window* window = (GroundedWin32Window*)opaqueWindow;
     RECT size = {0};
     GetWindowRect(window->hWnd, &size);
     return ABS(size.right - size.left);
 }
 
-GROUNDED_FUNCTION u32 groundedGetWindowHeight(GroundedWindow* opaqueWindow) {
+GROUNDED_FUNCTION u32 groundedWindowGetHeight(GroundedWindow* opaqueWindow) {
     GroundedWin32Window* window = (GroundedWin32Window*)opaqueWindow;
     RECT size = {0};
     GetWindowRect(window->hWnd, &size);
     return ABS(size.top - size.bottom);
 }
 
-GROUNDED_FUNCTION void groundedFetchMouseState(GroundedWin32Window* window, MouseState* mouseState) {
+GROUNDED_FUNCTION void groundedWindowFetchMouseState(GroundedWindow* opaqueWindow, MouseState* mouseState) {
+    GroundedWin32Window* window = (GroundedWin32Window*)opaqueWindow;
     mouseState->lastX = mouseState->x;
     mouseState->lastY = mouseState->y;
     ASSERT(sizeof(mouseState->buttons) == sizeof(mouseState->lastButtons));
@@ -392,7 +615,7 @@ GROUNDED_FUNCTION void groundedFetchMouseState(GroundedWin32Window* window, Mous
     //printf("Mouse delta: %i,%i\n", mouseState->deltaX, mouseState->deltaY);
 }
 
-GROUNDED_FUNCTION void groundedFetchKeyboardState(GroundedKeyboardState* keyState) {
+GROUNDED_FUNCTION void groundedWindowFetchKeyboardState(GroundedKeyboardState* keyState) {
     memcpy(keyState->lastKeys, keyState->keys, sizeof(keyState->lastKeys));
 
     memcpy(keyState->keys, win32KeyboardState.keys, sizeof(keyState->keys));
@@ -421,18 +644,55 @@ GROUNDED_FUNCTION u64 groundedGetCounter() {
 GROUNDED_FUNCTION void groundedSetCursorType(enum GroundedMouseCursor cursorType) {
     HCURSOR hCursor = 0;
     switch (cursorType) {
+        case GROUNDED_MOUSE_CURSOR_DEFAULT: {
+            // Skip switch and use same as fallback
+        } break;
         case GROUNDED_MOUSE_CURSOR_IBEAM: {
-            hCursor = LoadCursorA(0, IDC_IBEAM);
+            hCursor = LoadCursorA(0, (LPCSTR)IDC_IBEAM);
         } break;
         case GROUNDED_MOUSE_CURSOR_LEFTRIGHT: {
-            hCursor = LoadCursorA(0, IDC_SIZEWE);
+            hCursor = LoadCursorA(0, (LPCSTR)IDC_SIZEWE);
         } break;
         case GROUNDED_MOUSE_CURSOR_UPDOWN: {
-            hCursor = LoadCursorA(0, IDC_SIZENS);
+            hCursor = LoadCursorA(0, (LPCSTR)IDC_SIZENS);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_UPRIGHT: {
+            hCursor = LoadCursorA(0, (LPCSTR)IDC_SIZENESW);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_UPLEFT: {
+            hCursor = LoadCursorA(0, (LPCSTR)IDC_SIZENWSE);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_DOWNRIGHT: {
+            hCursor = LoadCursorA(0, (LPCSTR)IDC_SIZENWSE);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_DOWNLEFT: {
+            hCursor = LoadCursorA(0, (LPCSTR)IDC_SIZENESW);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_POINTER: {
+            hCursor = LoadCursorA(0, (LPCSTR)IDC_HAND);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_DND_NO_DROP: {
+            hCursor = LoadCursorA(0, (LPCSTR)IDC_NO);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_DND_MOVE: {
+            //TODO: No good icon
+            hCursor = LoadCursorA(0, (LPCSTR)IDC_SIZEALL);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_DND_COPY: {
+            //TODO: No good icon
+            hCursor = LoadCursorA(0, (LPCSTR)IDC_SIZEALL);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_GRABBING: {
+            //TODO: No good icon
+            hCursor = LoadCursorA(0, (LPCSTR)IDC_HAND);
+        } break;
+        default: {
+            // Unknown cursor type
+            ASSERT(false);
         } break;
     }
     if (!hCursor) {
-        hCursor = LoadCursorA(0, IDC_ARROW);
+        hCursor = LoadCursorA(0, (LPCSTR)IDC_ARROW);
     }
 
     if (hCursor) {
@@ -444,7 +704,7 @@ GROUNDED_FUNCTION void groundedSetCustomCursor(u8* data, u32 width, u32 height) 
     BITMAPV5HEADER bitmapInfo = {
         .bV5Size = sizeof(bitmapInfo),
         .bV5Width = width,
-        .bV5Height = -height,
+        .bV5Height = -(s32)height,
         .bV5Planes = 1,
         .bV5BitCount = 32,
         .bV5Compression = BI_BITFIELDS,
@@ -455,7 +715,7 @@ GROUNDED_FUNCTION void groundedSetCustomCursor(u8* data, u32 width, u32 height) 
     };
     HDC dc = GetDC(NULL);
     u8* colorBitmapData = 0;
-    HBITMAP color = CreateDIBSection(dc, &bitmapInfo, DIB_RGB_COLORS, (void**)&colorBitmapData, 0, 0);
+    HBITMAP color = CreateDIBSection(dc, (const BITMAPINFO*) &bitmapInfo, DIB_RGB_COLORS, (void**)&colorBitmapData, 0, 0);
     ReleaseDC(0, dc);
 
     HBITMAP mask = CreateBitmap(width, height, 1, 1, 0);
@@ -485,14 +745,304 @@ GROUNDED_FUNCTION void groundedSetCustomCursor(u8* data, u32 width, u32 height) 
     }
 }
 
+// *********
+// DND stuff
+struct GroundedWindowDragPayloadDescription {
+    MemoryArena arena;
+    u32 mimeTypeCount;
+    String8* mimeTypes;
+    GroundedWindowDndDataCallback* dataCallback;
+    GroundedWindowDndDragFinishCallback* dragFinishCallback;
+};
+
+GROUNDED_FUNCTION GroundedWindowDragPayloadDescription* groundedWindowPrepareDragPayload(GroundedWindow* window) {
+    GroundedWindowDragPayloadDescription* result = ARENA_BOOTSTRAP_PUSH_STRUCT(createGrowingArena(osGetMemorySubsystem(), KB(4)), GroundedWindowDragPayloadDescription, arena);
+    return result;
+}
+
+GROUNDED_FUNCTION MemoryArena* groundedWindowDragPayloadGetArena(GroundedWindowDragPayloadDescription* desc) {
+    return &desc->arena;
+}
+
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetImage(GroundedWindowDragPayloadDescription* desc, u8* data, u32 width, u32 height) {
+    //TODO: Implement
+}
+
+//TODO: Could create linked list of mime types. This would allow an API where the user can add mime types to a list. 
+// Even different handling functions per mime type would be possible but is this actually desirable?
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetMimeTypes(GroundedWindowDragPayloadDescription* desc, u32 mimeTypeCount, String8* mimeTypes) {
+    // Only allowed to set mime types once
+    ASSERT(!desc->mimeTypeCount);
+    ASSERT(!desc->mimeTypes);
+
+    desc->mimeTypes = ARENA_PUSH_ARRAY_NO_CLEAR(&desc->arena, mimeTypeCount, String8);
+    for (u64 i = 0; i < mimeTypeCount; ++i) {
+        desc->mimeTypes[i] = str8CopyAndNullTerminate(&desc->arena, mimeTypes[i]);
+    }
+    desc->mimeTypeCount = mimeTypeCount;
+}
+
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetDataCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndDataCallback* callback) {
+    desc->dataCallback = callback;
+}
+
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetDragFinishCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndDragFinishCallback* callback) {
+    desc->dragFinishCallback = callback;
+}
+
+GROUNDED_FUNCTION void groundedWindowBeginDragAndDrop(GroundedWindowDragPayloadDescription* desc, void* userData) {
+    // Serial is the last pointer serial. Should probably be pointer button serial
+    MemoryArena* scratch = threadContextGetScratch(0);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
+
+    //TODO: Implement
+
+    arenaEndTemp(temp);
+}
+
+
+
 // ************
 // OpenGL stuff
 #ifdef GROUNDED_OPENGL_SUPPORT
-GROUNDED_FUNCTION void groundedWindowGlSwapBuffers(GroundedWindow* window) {
-    HDC hDC = GetDC(window->hWnd);
-    SwapBuffers(hDC);
-    ReleaseDC(window->hWnd, hDC);
+
+#include <gl/gl.h>
+#include "wgl/wglext.h"
+
+static PFNWGLGETPIXELFORMATATTRIBFVARBPROC wglGetPixelFormatAttribivARB;
+static PFNWGLGETPIXELFORMATATTRIBFVARBPROC wglGetPixelFormatAttribfvARB;
+static PFNWGLCHOOSEPIXELFORMATARBPROC wglChoosePixelFormatARB;
+static PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB;
+static PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
+static bool wglLoaded;
+
+//TODO: Spec says we require CS_OWNDC on windows that use opengl
+static const wchar_t* openGLDummyClassName = L"Grounded OpenGL Initialization Dummy Window";
+
+static bool loadWGL() {
+    HWND dummyWindowHwnd = 0;
+    HDC dummyDC = 0;
+    HGLRC dummyGLRC = 0;
+    HINSTANCE hInstance = GetModuleHandle(0);
+    bool loaded = false;
+
+    WNDCLASS wc = { 0 };
+    wc.style = CS_OWNDC;
+    wc.hInstance = hInstance;
+    wc.lpszClassName = openGLDummyClassName;
+    wc.lpfnWndProc = DefWindowProc;
+
+    if (!RegisterClass(&wc)) {
+        GROUNDED_LOG_ERROR("Error registering OpenGL Initialization Dummy Window class");
+        return false;
+    }
+
+    // WS_CLIPCHILDREN | WS_CLIPSIBLINGS because opengl is only allowed to draw into exactly this window. Should be irrelevant for the dummy window however
+    //TODO: WS_CLIPCHILDREN | WS_CLIPSIBLINGS for actual opengl windows?
+    // WS_EX_APPWINDOW
+    // TODO: Is CreateWindowEx faster?
+    dummyWindowHwnd = CreateWindowW(wc.lpszClassName, L"", 0, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, hInstance, 0);
+    if (dummyWindowHwnd == 0) {
+        GROUNDED_LOG_ERROR("Error creating OpenGL Initialization Dummy Window");
+        goto exit;
+    }
+
+    dummyDC = GetDC(dummyWindowHwnd);
+    if (dummyDC == 0) {
+        GROUNDED_LOG_ERROR("Error creating dummy DC");
+        goto exit;
+    }
+
+    PIXELFORMATDESCRIPTOR pfd = {0};
+    pfd.nSize = sizeof(PIXELFORMATDESCRIPTOR);
+    pfd.nVersion = 1;
+    pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
+    pfd.iPixelType = PFD_TYPE_RGBA;
+    pfd.cColorBits = 32;
+    pfd.iLayerType = PFD_MAIN_PLANE;
+
+    int formatIndex = ChoosePixelFormat(dummyDC, &pfd);
+    if (formatIndex == 0) {
+        GROUNDED_LOG_WARNING("Failed to select pixel format for dummy window. Trying first option.");
+        formatIndex = 1;
+    }
+
+    if (!SetPixelFormat(dummyDC, formatIndex, &pfd)) {
+        GROUNDED_LOG_ERROR("Error setting pixel format of dummy window");
+        goto exit;
+    }
+
+    dummyGLRC = wglCreateContext(dummyDC);
+    if (dummyGLRC == 0) {
+        GROUNDED_LOG_ERROR("Error creating dummy WGL context");
+        goto exit;
+    }
+
+    if (!wglMakeCurrent(dummyDC, dummyGLRC)) {
+        GROUNDED_LOG_ERROR("Error making dummy context current");
+        goto exit;
+    }
+
+    // Techincally the extensions should be looked for with wglGetExtensionsString.
+    // As the chance that a symbol might be aliased with something different is very low the functions are retrieved directly with wglGetProcAddress
+    // Load function pointers
+    //TODO: What extensions do we want to hard require?
+    wglGetPixelFormatAttribivARB = (PFNWGLGETPIXELFORMATATTRIBFVARBPROC)wglGetProcAddress("wglGetPixelFormatAttribivARB");
+    wglGetPixelFormatAttribfvARB = (PFNWGLGETPIXELFORMATATTRIBFVARBPROC)wglGetProcAddress("wglGetPixelFormatAttribfvARB");
+    wglChoosePixelFormatARB = (PFNWGLCHOOSEPIXELFORMATARBPROC)wglGetProcAddress("wglChoosePixelFormatARB");
+    wglCreateContextAttribsARB = (PFNWGLCREATECONTEXTATTRIBSARBPROC)wglGetProcAddress("wglCreateContextAttribsARB");
+    wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC)wglGetProcAddress("wglSwapIntervalEXT");
+    if (!(wglGetPixelFormatAttribivARB && wglGetPixelFormatAttribfvARB && wglChoosePixelFormatARB && wglCreateContextAttribsARB && wglSwapIntervalEXT)) {
+        GROUNDED_LOG_ERROR("Not all extension pointers could be loaded");
+        wglMakeCurrent(0, 0);
+        goto exit;
+    }
+
+    if (!wglMakeCurrent(0, 0)) {
+        GROUNDED_LOG_ERROR("Error releasing dummy context");
+        // We continue from this as it is a shutdown error and might not interfere with correct initialization
+    }
+
+    loaded = true;
+
+exit:
+    {
+        if (dummyGLRC) wglDeleteContext(dummyGLRC);
+        if (dummyDC) ReleaseDC(dummyWindowHwnd, dummyDC);
+        if (dummyWindowHwnd) DestroyWindow(dummyWindowHwnd);
+        // We let the class registered so we can create dummy windows for context pixel format selection
+        //UnregisterClass(wc.lpszClassName, hInstance);
+        return loaded;
+    }
 }
+
+GROUNDED_FUNCTION void* groundedWindowLoadGlFunction(const char* symbol) {
+    if (!wglLoaded) {
+        wglLoaded = loadWGL();
+    }
+
+    void* result = wglGetProcAddress(symbol);
+    return result;
+}
+
+//TODO: On Windows it seems to be the case that we have to know the pixel format at window creation. How to solve this nicely?
+// This is also the case for linux I think. But on windows we acually require the window to set the pixel format. This is the actual problem
+// HDC is required for context creation...
+// Can share a single hglrc between multiple windows
+GROUNDED_FUNCTION GroundedOpenGLContext* groundedCreateOpenGLContext(MemoryArena* arena, GroundedOpenGLContext* contextToShareResources) {
+    GroundedOpenGLContext* result = ARENA_PUSH_STRUCT(arena, GroundedOpenGLContext);
+    if (!wglLoaded) {
+        wglLoaded = loadWGL();
+    }
+
+    // Workaround for context creation is to create a dummy window for each context
+    HINSTANCE hInstance = (HINSTANCE)GetModuleHandle(0);
+    HWND dummyWindowHwnd = CreateWindowW(openGLDummyClassName, L"", 0, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, hInstance, 0);
+    if (dummyWindowHwnd == 0) {
+        GROUNDED_LOG_ERROR("Error creating OpenGL Initialization Dummy Window");
+    }
+
+    HDC dummyDC = GetDC(dummyWindowHwnd);
+    if (dummyDC == 0) {
+        GROUNDED_LOG_ERROR("Error creating dummy DC");
+    }
+
+    // Try R8G8B8A8
+    int desiredAttributes[] = {
+        WGL_DRAW_TO_WINDOW_ARB, 1,
+        WGL_ACCELERATION_ARB, WGL_FULL_ACCELERATION_ARB,
+        WGL_RED_BITS_ARB, 8, // 10
+        WGL_GREEN_BITS_ARB, 8, // 10
+        WGL_BLUE_BITS_ARB, 8, // 10
+        WGL_ALPHA_BITS_ARB, 8, // 2
+        WGL_DOUBLE_BUFFER_ARB, 1,
+        0,0,
+    };
+
+    int pixelFormatIndex = 0;
+    UINT numFormats = 0;
+    wglChoosePixelFormatARB(dummyDC, desiredAttributes, 0, 1, &pixelFormatIndex, &numFormats);
+    // TODO: Describe pixel format?
+    // Needs to be called before wglCreateContext to set the pixel format
+    SetPixelFormat(dummyDC, pixelFormatIndex, 0);
+
+    const int contextAttributes[] = {
+        WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
+        WGL_CONTEXT_MINOR_VERSION_ARB, 2,
+        //WGL_CONTEXT_PROFILE_MASK_ARB,
+        WGL_CONTEXT_PROFILE_MASK_ARB,
+        // WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+        WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+        0
+    };
+
+    HGLRC shareContext = contextToShareResources ? contextToShareResources->hGLRC : 0;
+    result->hGLRC = wglCreateContextAttribsARB(dummyDC, shareContext, contextAttributes);
+
+    // Already done at context creation
+    /*if (windowContextToShareResources) {
+        if (!wglShareLists(windowContextToShareResources->hGLRC, window->hGLRC)) {
+            LOG_ERROR("Error requesting shared resources between two wgl contexts");
+            // Hard error as the caller likely expect resource share availability if we would succeed
+            return false;
+        }
+    }*/
+
+    ReleaseDC(dummyWindowHwnd, dummyDC);
+    //TODO: Can we maybe also destroy the window?
+
+    return result;
+}
+
+GROUNDED_FUNCTION void groundedMakeOpenGLContextCurrent(GroundedWindow* opaqueWindow, GroundedOpenGLContext* context) {
+    GroundedWin32Window* window = (GroundedWin32Window*)opaqueWindow;
+    assert(context->hGLRC);
+
+    HDC hDC = window->hDC;
+
+    if(!window->openglFormatSelected) {
+        window->hDC = GetDC(window->hWnd);
+        hDC = window->hDC;
+        // Try R8G8B8A8
+        int desiredAttributes[] = {
+            WGL_DRAW_TO_WINDOW_ARB, 1,
+            WGL_ACCELERATION_ARB, WGL_FULL_ACCELERATION_ARB,
+            WGL_RED_BITS_ARB, 8, // 10
+            WGL_GREEN_BITS_ARB, 8, // 10
+            WGL_BLUE_BITS_ARB, 8, // 10
+            WGL_ALPHA_BITS_ARB, 8, // 2
+            WGL_DOUBLE_BUFFER_ARB, 1,
+            0,0,
+        };
+
+        int pixelFormatIndex = 0;
+        UINT numFormats = 0;
+        wglChoosePixelFormatARB(hDC, desiredAttributes, 0, 1, &pixelFormatIndex, &numFormats);
+        SetPixelFormat(hDC, pixelFormatIndex, 0);
+        window->openglFormatSelected = true;
+    }
+
+    wglMakeCurrent(hDC, context->hGLRC);
+    //ReleaseDC(window->hWnd, hDC);
+}
+
+GROUNDED_FUNCTION void groundedWindowGlSwapBuffers(GroundedWindow* w) {
+    GroundedWin32Window* window = (GroundedWin32Window*)w;
+    //HDC hDC = GetDC(window->hWnd);
+    SwapBuffers(window->hDC);
+    //ReleaseDC(window->hWnd, hDC);
+}
+
+GROUNDED_FUNCTION void groundedWindowSetGlSwapInterval(int interval) {
+    if (wglSwapIntervalEXT) {
+        wglSwapIntervalEXT(interval);
+    }
+}
+
+GROUNDED_FUNCTION void groundedWindowDestroyOpenglGontext(GroundedOpenGLContext* context) {
+    wglDeleteContext(context->hGLRC);
+}
+
 #endif // GROUNDED_OPENGL_SUPPORT
 
 

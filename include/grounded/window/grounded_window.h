@@ -5,6 +5,10 @@
 #include "../memory/grounded_arena.h"
 #include "../string/grounded_string.h"
 
+//TODO: Maybe make the dnd API more async in nature. Instead of directly accessing the data of a mime type, it is requested and the callback called again on move or when the data has arrived.
+// Drop is only processed once no transfers are running.
+//TODO: How good would this rewrite fit the windows API. Xcb seems to be the only platform which would benefit from it
+
 typedef struct GroundedWindow GroundedWindow;
 
 void groundedInitWindowSystem();
@@ -18,33 +22,45 @@ typedef enum GroundedEventType {
 	GROUNDED_EVENT_TYPE_KEY_UP,
 	GROUNDED_EVENT_TYPE_BUTTON_DOWN,
 	GROUNDED_EVENT_TYPE_BUTTON_UP,
+	GROUNDED_EVENT_TYPE_DISPLAY,
     GROUNDED_EVENT_TYPE_COUNT,
 } GroundedEventType;
 typedef struct GroundedEvent {
     GroundedEventType type;
+	GroundedWindow* window; // The window this event is associated to. Is 0 for global events
     union {
         struct {
-            // The window which recieved the close request
-            GroundedWindow* window;
+			// No additional data
+			u32 dummy;
         } closeRequest;
 		struct {
 			u32 width;
 			u32 height;
-			GroundedWindow* window;
 		} resize;
 		struct {
 			u32 keycode;
 			u32 modifiers;
+			u32 codepoint; // The unicode codepoint of this key. Can be 0 if it can not be translated into a codepoint (modifiers. etc)
 		} keyDown;
 		struct {
 			u32 keycode;
 		} keyUp;
 		struct {
 			u32 button;
+			s32 mousePositionX;
+			s32 mousePositionY;
+			u64 timestamp; // ms precision
 		} buttonDown;
 		struct {
 			u32 button;
+			s32 mousePositionX;
+			s32 mousePositionY;
+			u64 timestamp; // ms precision
 		} buttonUp;
+		struct {
+			struct GroundedWindowDisplay* display;
+			bool connected; // true on connect, false on disconnect
+		} display;
     };
 } GroundedEvent;
 
@@ -78,32 +94,97 @@ typedef struct MouseState {
 	u16 buttonUpTransitions[32];
 } MouseState;
 
+// Monitor, Display, Screen
+typedef struct GroundedWindowDisplay {
+	s32 virtualX, virtualY;
+	u32 width, height;
+	String8 name;
+	String8 manufacturer;
+	bool primary;
+} GroundedWindowDisplay;
+
+typedef struct GroundedWindowDragPayloadDescription GroundedWindowDragPayloadDescription;
+
 typedef enum GroundedMouseCursor {
 	GROUNDED_MOUSE_CURSOR_ARROW = 0,
 	GROUNDED_MOUSE_CURSOR_DEFAULT = GROUNDED_MOUSE_CURSOR_ARROW,
     GROUNDED_MOUSE_CURSOR_IBEAM, // The default text edit cursor
     GROUNDED_MOUSE_CURSOR_LEFTRIGHT,
     GROUNDED_MOUSE_CURSOR_UPDOWN,
+	GROUNDED_MOUSE_CURSOR_UPRIGHT,
+	GROUNDED_MOUSE_CURSOR_UPLEFT,
+	GROUNDED_MOUSE_CURSOR_DOWNRIGHT,
+	GROUNDED_MOUSE_CURSOR_DOWNLEFT,
 	GROUNDED_MOUSE_CURSOR_POINTER, // Usually used when mouse hovers a clickable element
+	GROUNDED_MOUSE_CURSOR_DND_NO_DROP,
+	GROUNDED_MOUSE_CURSOR_DND_MOVE,
+	GROUNDED_MOUSE_CURSOR_DND_COPY,
+	//GROUNDED_MOUSE_CURSOR_DND_LINK,
+	GROUNDED_MOUSE_CURSOR_GRABBING,
 	GROUNDED_MOUSE_CURSOR_CUSTOM,
     GROUNDED_MOUSE_CURSOR_COUNT
 } GroundedMouseCursor;
 
+typedef enum GroundedWindowCustomTitlebarHit {
+	GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_NONE,
+	GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_BAR, // Click on this will initiate move
+	GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_MINIMIZE,
+	GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_MAXIMIZE,
+	GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_CLOSE,
+	GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_BORDER, // Click on this will initiate move
+	GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_HELP, // Click here will open some kind of help dialog by the application
+	GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_COUNT,
+} GroundedWindowCustomTitlebarHit;
+#define GROUNDED_WINDOW_CUSTOM_TITLEBAR_CALLBACK(name) GroundedWindowCustomTitlebarHit name(GroundedWindow* window, u32 x, u32 y)
+typedef GROUNDED_WINDOW_CUSTOM_TITLEBAR_CALLBACK(GroundedWindowCustomTitlebarCallback);
+
+struct GroundedDragPayload;
+typedef enum GroundedDragFinishType {
+	GROUNDED_DRAG_FINISH_TYPE_CANCEL,
+	GROUNDED_DRAG_FINISH_TYPE_COPY,
+	GROUNDED_DRAG_FINISH_TYPE_MOVE,
+} GroundedDragFinishType;
+
+#define GROUNDED_WINDOW_DND_DROP_CALLBACK(name) void name(struct GroundedDragPayload* payload, String8 data, GroundedWindow* window, s32 x, s32 y, String8 mimeType)
+typedef GROUNDED_WINDOW_DND_DROP_CALLBACK(GroundedWindowDndDropCallback);
+#define GROUNDED_WINDOW_DND_CALLBACK(name) u32 name(struct GroundedDragPayload* payload, GroundedWindow* window, s32 x, s32 y, u32 mimeTypeCount, String8* mimeTypes, GroundedWindowDndDropCallback** onDropCallback, void* userData)
+typedef GROUNDED_WINDOW_DND_CALLBACK(GroundedWindowDndCallback);
+
+// There is no guarantee when the data callback is called. It can happen async to the main loop and also does not indicate whether a drop has occured or will occur
+#define GROUNDED_WINDOW_DND_DATA_CALLBACK(name) String8 name(MemoryArena* arena, String8 mimeType, u64 mimeIndex, void* userData)
+typedef GROUNDED_WINDOW_DND_DATA_CALLBACK(GroundedWindowDndDataCallback);
+#define GROUNDED_WINDOW_DND_DRAG_FINISH_CALLBACK(name) void name(MemoryArena* arena, void* userData, GroundedDragFinishType finishType)
+typedef GROUNDED_WINDOW_DND_DRAG_FINISH_CALLBACK(GroundedWindowDndDragFinishCallback);
+
 struct GroundedWindowCreateParameters {
 	String8 title;
+	String8 applicationId; // Should be the name of your application in lowercase. In contrast to the title this is not expected to change
 	u32 width; // 0 for a platform-specific default size
 	u32 height; // 0 for a platform-specific default size
 	u32 minWidth;
 	u32 minHeight;
 	u32 maxWidth;
 	u32 maxHeight;
+	bool borderless;
+	//bool fullscreen;
+	//bool hidden;
+	//bool transparent;
+	void* userData;
+	void* dndUserData;
+	bool inhibitIdle;
+	GroundedWindowCustomTitlebarCallback* customTitlebarCallback; //TODO: We should let clients with custom title bars know if they should show a titlebar or not
+	GroundedWindowDndCallback* dndCallback; // Application should return the index of the mime type it wants to accept. UINT32_MAX for none?
+	GroundedWindowDisplay* displayToStartOn; // 0 means no preference on which display to start on
 };
 
-GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(struct GroundedWindowCreateParameters* parameters);
+GROUNDED_FUNCTION GroundedWindowDisplay* groundedGetPrimaryDisplay();
+GROUNDED_FUNCTION GroundedWindowDisplay* groundedGetDisplays(MemoryArena* arena, u32* displayCount); // Result array is allocated on submitted arena
+
+GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(MemoryArena* arena, struct GroundedWindowCreateParameters* parameters);
 GROUNDED_FUNCTION void groundedDestroyWindow(GroundedWindow* window);
 
-GROUNDED_FUNCTION u32 groundedGetWindowWidth(GroundedWindow* window);
-GROUNDED_FUNCTION u32 groundedGetWindowHeight(GroundedWindow* window);
+GROUNDED_FUNCTION u32 groundedWindowGetWidth(GroundedWindow* window);
+GROUNDED_FUNCTION u32 groundedWindowGetHeight(GroundedWindow* window);
 
 GROUNDED_FUNCTION void groundedWindowSetSize(GroundedWindow* window, u32 width, u32 height);
 GROUNDED_FUNCTION void groundedWindowSetTitle(GroundedWindow* window, String8 title);
@@ -111,23 +192,65 @@ GROUNDED_FUNCTION void groundedWindowSetFullscreen(GroundedWindow* window, bool 
 GROUNDED_FUNCTION void groundedWindowSetBorderless(GroundedWindow* window, bool borderless);
 GROUNDED_FUNCTION void groundedWindowSetHidden(GroundedWindow* window, bool hidden);
 
+GROUNDED_FUNCTION void groundedWindowSetUserData(GroundedWindow* window, void* userData);
+GROUNDED_FUNCTION void* groundedWindowGetUserData(GroundedWindow* window);
+
+GROUNDED_FUNCTION void groundedWindowSetIcon(u8* data, u32 width, u32 height);
+
 GROUNDED_FUNCTION void groundedSetCursorGrab(GroundedWindow* window, bool grab);
 GROUNDED_FUNCTION void groundedSetCursorVisibility(bool visible);
 GROUNDED_FUNCTION void groundedSetCursorType(enum GroundedMouseCursor cursorType);
 // Maybe make custom cursors loadable and applyable. Then the cursors do not have to be recreated when application wants to switch cursors
 GROUNDED_FUNCTION void groundedSetCustomCursor(u8* data, u32 width, u32 height);
 
+GROUNDED_FUNCTION void groundedWindowConstrainPointer(GroundedWindow* window, bool constrain);
+
+GROUNDED_FUNCTION GroundedWindowDragPayloadDescription* groundedWindowPrepareDragPayload(GroundedWindow* window);
+GROUNDED_FUNCTION MemoryArena* groundedWindowDragPayloadGetArena(GroundedWindowDragPayloadDescription* desc);
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetImage(GroundedWindowDragPayloadDescription* desc, u8* data, u32 width, u32 height);
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetMimeTypes(GroundedWindowDragPayloadDescription* desc, u32 mimeTypeCount, String8* mimeTypes);
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetDataCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndDataCallback* callback);
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetDragFinishCallback(GroundedWindowDragPayloadDescription* desc, GroundedWindowDndDragFinishCallback* callback);
+GROUNDED_FUNCTION void groundedWindowBeginDragAndDrop(GroundedWindowDragPayloadDescription* desc, void* userData);
+GROUNDED_FUNCTION GroundedWindowDndCallback* groundedWindowGetDndCallback(GroundedWindow* window);
+
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetUserData(struct GroundedDragPayload* payload, void* userData);
+GROUNDED_FUNCTION void* groundedWindowDragPayloadGetUserData(struct GroundedDragPayload* payload);
+
+GROUNDED_FUNCTION void groundedWindowSetClipboardText(String8 text);
+GROUNDED_FUNCTION String8 groundedWindowGetClipboardText(MemoryArena* arena);
+
+//GROUNDED_FUNCTION void groundedStartDragAndDrop(GroundedWindow* window, u64 mimeTypeCount, String8* mimeTypes, GroundedWindowDndSendCallback* callback, GroundedWindowDragPayloadImage* image, void* userData);
+//GROUNDED_FUNCTION void groundedStartDragAndDropWithSingleDataType(GroundedWindow* window, String8 mimeType, u8* data, u64 size, GroundedWindowDragPayloadImage* image); // Data can be freed after this call
+//GROUNDED_FUNCTION String8 groundedGetDragAndDropDataAsMimeType(struct GroundedDragPayload* payload, String8 mimeType);
+//GROUNDED_FUNCTION MemoryArena* groundedGetPayloadMemoryArena(struct GroundedDragPayload* payload);
+//GROUNDED_FUNCTION GroundedWindowDragPayloadImage* groundedWindowCreateDragImage(MemoryArena* arena, u8* data, u32 width, u32 height);
+//TODO: Additional helpers for quick retrieval of text, single file and multiple files
+//TODO: Maybe create structs for DragPayload and DropPayload to differentiate between them
+
 // Retuned array must not be used anymore once get or poll events is called again
-GROUNDED_FUNCTION GroundedEvent* groundedGetEvents(u32* eventCount, u32 maxWaitingTimeInMs);
-GROUNDED_FUNCTION GroundedEvent* groundedPollEvents(u32* eventCount);
+GROUNDED_FUNCTION GroundedEvent* groundedWindowGetEvents(u32* eventCount, u32 maxWaitingTimeInMs);
+GROUNDED_FUNCTION GroundedEvent* groundedWindowPollEvents(u32* eventCount);
+GROUNDED_FUNCTION_INLINE GroundedEvent* groundedFilterEventsForWindow(MemoryArena* arena, GroundedWindow* window, GroundedEvent* events, u32 eventCount, u32* filteredCount) {
+	GroundedEvent* result = ARENA_PUSH_ARRAY(arena, eventCount, GroundedEvent);
+	u32 resultCount = 0;
+	for(u32 i = 0; i < eventCount; ++i) {
+		if(events[i].window == window || events[i].window == 0) {
+			result[resultCount++] = events[i];
+		}
+	}
+	*filteredCount = resultCount;
+	arenaPopTo(arena, (u8*)(result + resultCount));
+	return result;
+}
 
 // Get time in nanoseconds
 GROUNDED_FUNCTION u64 groundedGetCounter();
 
-GROUNDED_FUNCTION void groundedFetchKeyboardState(GroundedKeyboardState* keyboardState);
+GROUNDED_FUNCTION void groundedWindowFetchKeyboardState(GroundedKeyboardState* keyboardState);
 
 // Mouse state relative to given window
-GROUNDED_FUNCTION void groundedFetchMouseState(GroundedWindow* window, MouseState* mouseState);
+GROUNDED_FUNCTION void groundedWindowFetchMouseState(GroundedWindow* window, MouseState* mouseState);
 
 // Alias
 #define GROUNDED_KEY_ENTER 				GROUNDED_KEY_RETURN
@@ -152,6 +275,8 @@ GROUNDED_FUNCTION void groundedFetchMouseState(GroundedWindow* window, MouseStat
 #define GROUNDED_KEY_BACKSPACE  8 // 0x08      ASCII
 #define GROUNDED_KEY_TAB        9 // 0x09      ASCII
 #define GROUNDED_KEY_RETURN    13 // 0x0D      ASCII Alias with Enter
+#define GROUNDED_KEY_LCTRL	   14 // 0x0E
+#define GROUNDED_KEY_RCTRL	   15 // 0x0F
 #define GROUNDED_KEY_LSHIFT    16
 #define GROUNDED_KEY_RSHIFT    17
 #define GROUNDED_KEY_ESCAPE    27 // 0x1B      ASCII
@@ -251,10 +376,14 @@ GROUNDED_FUNCTION_INLINE u32 groundedGetUnicodeCodepointForKeycode(u8 keycode) {
 // ********************
 // OpenGL related stuff
 #ifdef GROUNDED_OPENGL_SUPPORT
-GROUNDED_FUNCTION bool groundedCreateOpenGLContext(GroundedWindow* window, u32 flags, GroundedWindow* windowContextToShareResources);
-GROUNDED_FUNCTION void groundedMakeOpenGLContextCurrent(GroundedWindow* window);
+typedef struct GroundedOpenGLContext GroundedOpenGLContext;
+GROUNDED_FUNCTION GroundedOpenGLContext* groundedCreateOpenGLContext(MemoryArena* arena, GroundedOpenGLContext* contextToShareResources);
+GROUNDED_FUNCTION void groundedWindowDestroyOpenglGontext(GroundedOpenGLContext* context);
+GROUNDED_FUNCTION void groundedMakeOpenGLContextCurrent(GroundedWindow* window, GroundedOpenGLContext* context);
 GROUNDED_FUNCTION void groundedWindowGlSwapBuffers(GroundedWindow* window);
 GROUNDED_FUNCTION void groundedWindowSetGlSwapInterval(int interval);
+GROUNDED_FUNCTION void* groundedWindowLoadGlFunction(const char* symbol);
+//GROUNDED_FUNCTION GroundedWindowDragPayloadImage* groundedCreateDragImageOpenGL(int texture);
 #endif // GROUNDED_VULKAN_SUPPORT
 
 // ********************

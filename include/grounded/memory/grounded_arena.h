@@ -27,6 +27,7 @@ typedef struct MemoryArena MemoryArena;
 #define ARENA_PUSH_STRUCT_ALIGNED(arena, type, alignment) (type*)_arenaPushSize(arena, sizeof(type), alignment, true, __LINE__, STR8_LITERAL(__FILE__))
 #define ARENA_PUSH_ARRAY(arena, count, type) (type*)_arenaPushSize(arena, sizeof(type)*(count), ALIGNMENT_OF(type), true, __LINE__, STR8_LITERAL(__FILE__))
 #define ARENA_PUSH_ARRAY_ALIGNED(arena, count, type, alignment) (type*)_arenaPushSize(arena, sizeof(type)*(count), alignment, true, __LINE__, STR8_LITERAL(__FILE__))
+#define ARENA_BOOTSTRAP(arena) (MemoryArena*)_arenaBootstrap(arena, __LINE__, STR8_LITERAL(__FILE__))
 #define ARENA_BOOTSTRAP_PUSH_STRUCT(arena, type, member) (type*)_arenaBootstrapPushSize(arena, sizeof(type), OFFSET_OF_MEMBER(type, member), ALIGNMENT_OF(type), __LINE__, STR8_LITERAL(__FILE__))
 #define ARENA_PUSH_STRUCT_NO_CLEAR(arena, type) (type*)_arenaPushSize(arena, sizeof(type), ALIGNMENT_OF(type), false, __LINE__, STR8_LITERAL(__FILE__))
 #define ARENA_PUSH_STRUCT_NO_CLEAR_ALIGNED(arena, type, alignment) (type*)_arenaPushSize(arena, sizeof(type), alignment, false, __LINE__, STR8_LITERAL(__FILE__))
@@ -214,6 +215,12 @@ GROUNDED_FUNCTION_INLINE void arenaPopTo(MemoryArena* arena, u8* newHead) {
     } else {
         _arenaPopTo(arena, newHead);
     }
+}
+
+GROUNDED_FUNCTION_INLINE MemoryArena* _arenaBootstrap(MemoryArena arena, u64 line, String8 filename) {
+    MemoryArena* result = (MemoryArena*) _arenaPushSize(&arena, sizeof(MemoryArena), ALIGNMENT_OF(MemoryArena), false, line, filename);
+    *result = arena;
+    return result;
 }
 
 GROUNDED_FUNCTION_INLINE void* _arenaBootstrapPushSize(MemoryArena arena, u64 structSize, u64 offsetToArena, u64 alignment, u64 line, String8 filename) {

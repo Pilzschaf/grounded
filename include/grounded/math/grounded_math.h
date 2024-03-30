@@ -595,12 +595,12 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(quat) quatCreateEuler(GROUNDED_MAT
 GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(quat) quatCreateWithAxis(GROUNDED_MATH_PREFIX(vec3) axis, float angleInRad) {
     axis = v3Normalize(axis);
     axis = v3MultiplyScalar(axis, sinf(angleInRad*0.5f));
-    GROUNDED_MATH_PREFIX(quat) result = {axis.x, axis.y, axis.z, cosf(angleInRad*0.5f)};
+    GROUNDED_MATH_PREFIX(quat) result = {{axis.x, axis.y, axis.z, cosf(angleInRad*0.5f)}};
     return result;
 }
 
 GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(quat) quatCreateIdentity() {
-    GROUNDED_MATH_PREFIX(quat) result = {0.0f, 0.0f, 0.0f, 1.0f};
+    GROUNDED_MATH_PREFIX(quat) result = {{0.0f, 0.0f, 0.0f, 1.0f}};
     return result;
 }
 
@@ -709,12 +709,12 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) quatToMat(GROUNDED_MATH_PREF
 /////////
 // Matrix
 GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreateIdentity() {
-    GROUNDED_MATH_PREFIX(mat4) result = {
+    GROUNDED_MATH_PREFIX(mat4) result = {{
         1, 0, 0, 0,
         0, 1, 0, 0,
         0, 0, 1, 0,
         0, 0, 0, 1
-    };
+    }};
     return result;
 }
 
@@ -744,45 +744,45 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreatePerspectiveProjecti
 }
 
 GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreateOrthographicProjection(float aspectRatio, float nearPlane, float farPlane) {
-    GROUNDED_MATH_PREFIX(mat4) result = {
+    GROUNDED_MATH_PREFIX(mat4) result = {{
         1.0f, 0.0f, 0.0f, 0.0f,
         0.0f, aspectRatio, 0.0f, 0.0f,
         0.0f, 0.0f, 1.0f / (nearPlane - farPlane), (nearPlane + farPlane) / (nearPlane - farPlane),
         0.0f, 0.0f, 0.0f, 1.0f,
-    };
+    }};
     
     return result;
 }
 
 GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreateOrthographicProjectionFromCoordinates(float left, float right, float top, float bottom) {
-    GROUNDED_MATH_PREFIX(mat4) result = {
+    GROUNDED_MATH_PREFIX(mat4) result = {{
         2/(right - left), 0.0f, 0.0f, - (right + left) / (right - left),
         0.0f, 2/(top-bottom), 0.0f, -(top + bottom) / (top - bottom),
         0.0f, 0.0f, 1.0f, 0.0f,
         0.0f, 0.0f, 0.0f, 1.0f,
-    };
+    }};
     
     return result;
 }
 
 GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreateTranslationMatrix(GROUNDED_MATH_PREFIX(vec3) translation) {
-    GROUNDED_MATH_PREFIX(mat4) result = {
+    GROUNDED_MATH_PREFIX(mat4) result = {{
         1.0f, 0.0f, 0.0f, translation.x,
         0.0f, 1.0f, 0.0f, translation.y,
         0.0f, 0.0f, 1.0f, translation.z,
         0.0f, 0.0f, 0.0f, 1.0f,
-    };
+    }};
     
     return result;
 }
 
 GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreateScaleMatrix(GROUNDED_MATH_PREFIX(vec3) scale) {
-    GROUNDED_MATH_PREFIX(mat4) result = {
+    GROUNDED_MATH_PREFIX(mat4) result = {{
         scale.x, 0.0f, 0.0f, 0.0f,
         0.0f, scale.y, 0.0f, 0.0f,
         0.0f, 0.0f, scale.z, 0.0f,
         0.0f, 0.0f, 0.0f, 1.0f
-    };
+    }};
     
     return result;
 }
@@ -791,12 +791,12 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreateXRotationMatrix(flo
     float c = cosf(angleInRad);
     float s = sinf(angleInRad);
 
-    GROUNDED_MATH_PREFIX(mat4) result = {
+    GROUNDED_MATH_PREFIX(mat4) result = {{
         1.0f, 0.0f, 0.0f, 0.0f,
         0.0f, c,    -s,   0.0f,
         0.0f, s,    c,    0.0f,
         0.0f, 0.0f, 0.0f, 1.0f,
-    };
+    }};
 
     return result;
 }
@@ -805,12 +805,12 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreateYRotationMatrix(flo
     float c = cosf(angleInRad);
     float s = sinf(angleInRad);
 
-    GROUNDED_MATH_PREFIX(mat4) result = {
+    GROUNDED_MATH_PREFIX(mat4) result = {{
         c,    0.0f, s,    0.0f,
         0.0f, 1.0f, 0.0f, 0.0f,
         -s,   0.0f, c,    0.0f,
         0.0f, 0.0f, 0.0f, 1.0f,
-    };
+    }};
     
     return result;
 }
@@ -819,12 +819,12 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreateZRotationMatrix(flo
     float c = cosf(angleInRad);
     float s = sinf(angleInRad);
 
-    GROUNDED_MATH_PREFIX(mat4) result = {
+    GROUNDED_MATH_PREFIX(mat4) result = {{
         c,    -s,   0.0f, 0.0f,
         s,    c,    0.0f, 0.0f,
         0.0f, 0.0f, 1.0f, 0.0f,
         0.0f, 0.0f, 0.0f, 1.0f,
-    };
+    }};
     
     return result;
 }
@@ -883,7 +883,7 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreateLookAt(GROUNDED_MAT
 }
 
 GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matMultiply( GROUNDED_MATH_PREFIX(mat4) a,  GROUNDED_MATH_PREFIX(mat4) b) {
-    GROUNDED_MATH_PREFIX(mat4) result = {
+    GROUNDED_MATH_PREFIX(mat4) result = {{
         b.m11 * a.m11 + b.m21 * a.m12 + b.m31 * a.m13 + b.m41 * a.m14,
         b.m12 * a.m11 + b.m22 * a.m12 + b.m32 * a.m13 + b.m42 * a.m14,
         b.m13 * a.m11 + b.m23 * a.m12 + b.m33 * a.m13 + b.m43 * a.m14,
@@ -900,7 +900,7 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matMultiply( GROUNDED_MATH_P
         b.m12 * a.m41 + b.m22 * a.m42 + b.m32 * a.m43 + b.m42 * a.m44,
         b.m13 * a.m41 + b.m23 * a.m42 + b.m33 * a.m43 + b.m43 * a.m44,
         b.m14 * a.m41 + b.m24 * a.m42 + b.m34 * a.m43 + b.m44 * a.m44
-    };
+    }};
 
     return result;
 }
@@ -916,12 +916,12 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matMultiplyScalar(GROUNDED_M
 }
 
 GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec4) matMultiplyVec4(GROUNDED_MATH_PREFIX(mat4) m, GROUNDED_MATH_PREFIX(vec4) v) {
-    GROUNDED_MATH_PREFIX(vec4) result = {
+    GROUNDED_MATH_PREFIX(vec4) result = {{
         m.m11 * v.x + m.m12 * v.y + m.m13 * v.z + m.m14 * v.w,
         m.m21 * v.x + m.m22 * v.y + m.m23 * v.z + m.m24 * v.w,
         m.m31 * v.x + m.m32 * v.y + m.m33 * v.z + m.m34 * v.w,
         m.m41 * v.x + m.m42 * v.y + m.m43 * v.z + m.m44 * v.w,
-    };
+    }};
     return result;
 }
 
@@ -931,21 +931,21 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec3) matMultiplyVec3(GROUNDED_MAT
     temp.w = 1.0f;
     temp = matMultiplyVec4(m, temp);
 
-    GROUNDED_MATH_PREFIX(vec3) result = {
+    GROUNDED_MATH_PREFIX(vec3) result = {{
         temp.x / temp.w,
         temp.y / temp.w,
         temp.z / temp.w,
-    };
+    }};
     return result;
 }
 
 GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matTranspose(GROUNDED_MATH_PREFIX(mat4) m) {
-    GROUNDED_MATH_PREFIX(mat4) result = {
+    GROUNDED_MATH_PREFIX(mat4) result = {{
         m.m11, m.m21, m.m31, m.m41,
         m.m12, m.m22, m.m32, m.m42,
         m.m13, m.m23, m.m33, m.m43,
         m.m14, m.m24, m.m34, m.m44,
-    };
+    }};
     return result;
 }
 
@@ -957,12 +957,12 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec4) matGetRow(GROUNDED_MATH_PREF
 
 GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec4) matGetColumn(GROUNDED_MATH_PREFIX(mat4) m, u32 index) {
     ASSERT(index < 4);
-    GROUNDED_MATH_PREFIX(vec4) result = {
+    GROUNDED_MATH_PREFIX(vec4) result = {{
         m.m[0][index],
         m.m[1][index],
         m.m[2][index],
         m.m[3][index],
-    };
+    }};
     return result;
 }
 
@@ -991,25 +991,25 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matInverse(GROUNDED_MATH_PRE
     float coef22 = m.m[1][0] * m.m[3][1] - m.m[3][0] * m.m[1][1];
     float coef23 = m.m[1][0] * m.m[2][1] - m.m[2][0] * m.m[1][1];
 
-    GROUNDED_MATH_PREFIX(vec4) fac0 = (GROUNDED_MATH_PREFIX(vec4)){coef00, coef00, coef02, coef03};
-    GROUNDED_MATH_PREFIX(vec4) fac1 = (GROUNDED_MATH_PREFIX(vec4)){coef04, coef04, coef06, coef07};
-    GROUNDED_MATH_PREFIX(vec4) fac2 = (GROUNDED_MATH_PREFIX(vec4)){coef08, coef08, coef10, coef11};
-    GROUNDED_MATH_PREFIX(vec4) fac3 = (GROUNDED_MATH_PREFIX(vec4)){coef12, coef12, coef14, coef15};
-    GROUNDED_MATH_PREFIX(vec4) fac4 = (GROUNDED_MATH_PREFIX(vec4)){coef16, coef16, coef18, coef19};
-    GROUNDED_MATH_PREFIX(vec4) fac5 = (GROUNDED_MATH_PREFIX(vec4)){coef20, coef20, coef22, coef23};
+    GROUNDED_MATH_PREFIX(vec4) fac0 = (GROUNDED_MATH_PREFIX(vec4)){{coef00, coef00, coef02, coef03}};
+    GROUNDED_MATH_PREFIX(vec4) fac1 = (GROUNDED_MATH_PREFIX(vec4)){{coef04, coef04, coef06, coef07}};
+    GROUNDED_MATH_PREFIX(vec4) fac2 = (GROUNDED_MATH_PREFIX(vec4)){{coef08, coef08, coef10, coef11}};
+    GROUNDED_MATH_PREFIX(vec4) fac3 = (GROUNDED_MATH_PREFIX(vec4)){{coef12, coef12, coef14, coef15}};
+    GROUNDED_MATH_PREFIX(vec4) fac4 = (GROUNDED_MATH_PREFIX(vec4)){{coef16, coef16, coef18, coef19}};
+    GROUNDED_MATH_PREFIX(vec4) fac5 = (GROUNDED_MATH_PREFIX(vec4)){{coef20, coef20, coef22, coef23}};
 
-    GROUNDED_MATH_PREFIX(vec4) tmpVec0 = (GROUNDED_MATH_PREFIX(vec4)){m.m[1][0], m.m[0][0], m.m[0][0], m.m[0][0]};
-    GROUNDED_MATH_PREFIX(vec4) tmpVec1 = (GROUNDED_MATH_PREFIX(vec4)){m.m[1][1], m.m[0][1], m.m[0][1], m.m[0][1]};
-    GROUNDED_MATH_PREFIX(vec4) tmpVec2 = (GROUNDED_MATH_PREFIX(vec4)){m.m[1][2], m.m[0][2], m.m[0][2], m.m[0][2]};
-    GROUNDED_MATH_PREFIX(vec4) tmpVec3 = (GROUNDED_MATH_PREFIX(vec4)){m.m[1][3], m.m[0][3], m.m[0][3], m.m[0][3]};
+    GROUNDED_MATH_PREFIX(vec4) tmpVec0 = (GROUNDED_MATH_PREFIX(vec4)){{m.m[1][0], m.m[0][0], m.m[0][0], m.m[0][0]}};
+    GROUNDED_MATH_PREFIX(vec4) tmpVec1 = (GROUNDED_MATH_PREFIX(vec4)){{m.m[1][1], m.m[0][1], m.m[0][1], m.m[0][1]}};
+    GROUNDED_MATH_PREFIX(vec4) tmpVec2 = (GROUNDED_MATH_PREFIX(vec4)){{m.m[1][2], m.m[0][2], m.m[0][2], m.m[0][2]}};
+    GROUNDED_MATH_PREFIX(vec4) tmpVec3 = (GROUNDED_MATH_PREFIX(vec4)){{m.m[1][3], m.m[0][3], m.m[0][3], m.m[0][3]}};
 
     GROUNDED_MATH_PREFIX(vec4) inv0 = v4Add(v4Subtract(v4Hadamard(tmpVec1, fac0), v4Hadamard(tmpVec2, fac1)), v4Hadamard(tmpVec3, fac2));
     GROUNDED_MATH_PREFIX(vec4) inv1 = v4Add(v4Subtract(v4Hadamard(tmpVec0, fac0), v4Hadamard(tmpVec2, fac3)), v4Hadamard(tmpVec3, fac4));
     GROUNDED_MATH_PREFIX(vec4) inv2 = v4Add(v4Subtract(v4Hadamard(tmpVec0, fac1), v4Hadamard(tmpVec1, fac3)), v4Hadamard(tmpVec3, fac5));
     GROUNDED_MATH_PREFIX(vec4) inv3 = v4Add(v4Subtract(v4Hadamard(tmpVec0, fac2), v4Hadamard(tmpVec1, fac4)), v4Hadamard(tmpVec2, fac5));
 
-    GROUNDED_MATH_PREFIX(vec4) signA = (GROUNDED_MATH_PREFIX(vec4)){+1, -1, +1, -1};
-    GROUNDED_MATH_PREFIX(vec4) signB = (GROUNDED_MATH_PREFIX(vec4)){-1, +1, -1, +1};
+    GROUNDED_MATH_PREFIX(vec4) signA = (GROUNDED_MATH_PREFIX(vec4)){{+1, -1, +1, -1}};
+    GROUNDED_MATH_PREFIX(vec4) signB = (GROUNDED_MATH_PREFIX(vec4)){{-1, +1, -1, +1}};
     GROUNDED_MATH_PREFIX(mat4) result;
     result.rows[0] = v4Hadamard(inv0, signA);
     result.rows[1] = v4Hadamard(inv1, signB);

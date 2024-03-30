@@ -12,5 +12,5 @@ GROUNDED_FUNCTION GROUNDED_LOG_FUNCTION(groundedDefaultConsoleLogger) {
         colorStart = "\033[31m";
         colorEnd = "\033[0m";
     }
-    printf("%s[%s]:%lu %s%s\n", colorStart, filename, lineNumber, message, colorEnd);
+    printf("%s[%s:%lu] %s%s\n", colorStart, filename, lineNumber, message, colorEnd);
 }

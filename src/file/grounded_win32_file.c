@@ -2,6 +2,7 @@
 #include <grounded/threading/grounded_threading.h>
 
 #include <windows.h>
+#include <stdio.h>
 
 //TODO: Remove the UTF conversions from here
 inline static const char* UTF16ToUTF8(MemoryArena* arena, const wchar_t* s) {
@@ -240,8 +241,9 @@ GROUNDED_FUNCTION GroundedFile* groundedOpenFile(MemoryArena* arena, String8 fil
 
 static enum GroundedStreamErrorCode fileRefill(BufferedStreamReader* r) {
     struct GroundedFile* f = (struct GroundedFile*)r->implementationPointer;
-    s64 bytesRead = 0;
-    if (!ReadFile(f->handle, f->buffer, f->bufferSize, &bytesRead, 0)) {
+    s32 bytesRead = 0;
+    s32 bytesToRead = (s32)CLAMP(0, f->bufferSize, INT32_MAX);
+    if (!ReadFile(f->handle, f->buffer, bytesToRead, &bytesRead, 0)) {
         refillZeros(r);
         r->refill = refillZeros;
         r->error = GROUNDED_STREAM_IO_ERROR;
@@ -290,7 +292,7 @@ GROUNDED_FUNCTION BufferedStreamReader groundedFileGetStreamReaderFromFilename(M
     return result;
 }
 
-static enum ErrorCode fileSubmit(BufferedStreamWriter* w, u8* opl) {
+static enum GroundedStreamErrorCode fileSubmit(BufferedStreamWriter* w, u8* opl) {
     struct GroundedFile* f = (struct GroundedFile*)w->implementationPointer;
     u64 size = opl - f->buffer;
 	//TODO: Handle sizes larger than DWORD

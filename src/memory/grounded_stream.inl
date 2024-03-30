@@ -1,6 +1,7 @@
 #include <grounded/memory/grounded_stream.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 
 // Returns 0 and does not advance if reader is at whitespace
 GROUNDED_FUNCTION u64 textualReaderReadUntilWhitespace(TextualReader* reader, u8* buffer, u64 bufferSize) {
