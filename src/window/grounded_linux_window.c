@@ -424,10 +424,10 @@ GROUNDED_FUNCTION VkSurfaceKHR groundedWindowGetVulkanSurface(GroundedWindow* wi
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
         case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
-            return waylandGetVulkanSurface(window, instance);
+            return waylandGetVulkanSurface((GroundedWaylandWindow*)window, instance);
         } break;
         case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
-            return xcbGetVulkanSurface(window, instance);
+            return xcbGetVulkanSurface((GroundedXcbWindow*)window, instance);
         }break;
         default:break;
     }
