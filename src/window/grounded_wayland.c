@@ -506,7 +506,7 @@ static void pointerHandleEnter(void *data, struct wl_pointer *wl_pointer, uint32
     } else {
         waylandSetCursorType(waylandCurrentCursorType);
     }
-    printf("Enter with serial %u\n", serial);
+    //printf("Enter with serial %u\n", serial);
 
     pointerEnterSerial = serial;
 }
