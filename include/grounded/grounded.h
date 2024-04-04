@@ -85,6 +85,19 @@ STATIC_ASSERT(sizeof(void*) == 8);
     #endif
 #endif
 
+#ifndef GROUNDED_API
+    #ifdef _WIN32
+        #if defined(GROUNDED_WIN32_DYNAMIC_EXPORT)
+        #define GROUNDED_API __declspec(dllexport)
+        #elif defined(GROUNDED_WIN32_DYNAMIC_IMPORT)
+        #define GROUNDED_API __declspec(dllimport)
+        #endif
+    #endif
+    #ifndef GROUNDED_API
+    #define GROUNDED_API
+    #endif
+#endif
+
 // GROUNDED_FUNCTION should be used for all grounded functions that are not defined in header files
 // GROUNDED_FUNCTION_INLINE should be used for all grounded functions that are defined in header files
 #ifdef GROUNDED_SINGLE_COMPILATION_UNIT
@@ -96,7 +109,7 @@ STATIC_ASSERT(sizeof(void*) == 8);
     #endif
 #else
     #ifndef GROUNDED_FUNCTION
-    #define GROUNDED_FUNCTION GROUNDED_EXTERN_C_SPECIFIER
+    #define GROUNDED_FUNCTION GROUNDED_EXTERN_C_SPECIFIER GROUNDED_API
     #endif
     
     #ifndef GROUNDED_FUNCTION_INLINE

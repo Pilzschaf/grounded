@@ -11,8 +11,8 @@
 
 typedef struct GroundedWindow GroundedWindow;
 
-void groundedInitWindowSystem();
-void groundedShutdownWindowSystem();
+GROUNDED_FUNCTION void groundedInitWindowSystem();
+GROUNDED_FUNCTION void groundedShutdownWindowSystem();
 
 typedef enum GroundedEventType {
     GROUNDED_EVENT_TYPE_NONE,
