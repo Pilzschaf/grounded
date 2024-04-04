@@ -1058,6 +1058,7 @@ typedef struct VkWin32SurfaceCreateInfoKHR {
     HWND                            hwnd;
 } VkWin32SurfaceCreateInfoKHR;
 
+typedef PFN_vkVoidFunction(VKAPI_PTR* PFN_vkGetInstanceProcAddr)(VkInstance instance, const char* pName);
 typedef VkResult (VKAPI_PTR *PFN_vkCreateWin32SurfaceKHR)(VkInstance instance, const VkWin32SurfaceCreateInfoKHR* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkSurfaceKHR* pSurface);
 typedef VkBool32 (VKAPI_PTR *PFN_vkGetPhysicalDeviceWin32PresentationSupportKHR)(VkPhysicalDevice physicalDevice, uint32_t queueFamilyIndex);
 
@@ -1074,12 +1075,28 @@ VkSurfaceKHR groundedWindowGetVulkanSurface(GroundedWindow* w, VkInstance instan
     GroundedWin32Window* window = (GroundedWin32Window*)w;
     const char* error = 0;
     VkSurfaceKHR surface = 0;
-    static PFN_vkCreateWin32SurfaceKHR vkCreateWin32SurfaceKHR = 0;
-    if(!vkCreateWin32SurfaceKHR) {
-        vkCreateWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(instance, "vkCreateWin32SurfaceKHR");    
+
+    static PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = 0;
+    if (!vkGetInstanceProcAddr) {
+        HMODULE vulkanModule = GetModuleHandleA("vulkan-1.dll");
+        if (!vulkanModule) {
+            error = "Could not open vulkan module. Is Vulkan loaded correctly into the application?";
+        } else {
+            vkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)GetProcAddress(vulkanModule, "vkGetInstanceProcAddr");
+        }
     }
-    if(!vkCreateWin32SurfaceKHR) {
-        error = "Could not load vkCreateWin32SurfaceKHR. Is the win32 surface instance extension enabled and available?";
+    if (!vkGetInstanceProcAddr) {
+        error = "Could not find vkGetInstanceProcAddr";
+    }
+
+    static PFN_vkCreateWin32SurfaceKHR vkCreateWin32SurfaceKHR = 0;
+    if (!error) {
+        if (!vkCreateWin32SurfaceKHR) {
+            vkCreateWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(instance, "vkCreateWin32SurfaceKHR");
+        }
+        if (!vkCreateWin32SurfaceKHR) {
+            error = "Could not load vkCreateWin32SurfaceKHR. Is the win32 surface instance extension enabled and available?";
+        }
     }
 
     if(!error) {
