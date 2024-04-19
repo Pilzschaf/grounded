@@ -113,7 +113,7 @@ STATIC_ASSERT(sizeof(void*) == 8);
     #endif
     
     #ifndef GROUNDED_FUNCTION_INLINE
-    #define GROUNDED_FUNCTION_INLINE GROUNDED_EXTERN_C_SPECIFIER static inline
+    #define GROUNDED_FUNCTION_INLINE static inline
     #endif
 #endif
 
