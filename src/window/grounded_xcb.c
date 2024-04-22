@@ -1790,7 +1790,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
         case XCB_GE_GENERIC:{
             // Some custom event we are probably not interested in
             printf("Unknown generic event\n");
-            ASSERT(false);
+            //ASSERT(false);
         } break;
         default:{
             // Check for non-constant event types
