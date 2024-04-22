@@ -27,6 +27,65 @@ GROUNDED_FUNCTION GroundedLogFunction* threadContextGetLogFunction();
 
 GROUNDED_FUNCTION void threadContextClear();
 
+typedef void GroundedThread;
+
+#define GROUNDED_THREAD_PROC(name) void name(void* userData)
+typedef GROUNDED_THREAD_PROC(GroundedThreadProc);
+
+
+//TODO: Maybe the arena to create the thread can also be used for its temp storage
+
+// This thread can not and must not be managed by the creating thread. It frees resources automatically after it has finished executing
+GROUNDED_FUNCTION void groundedDispatchThread(MemoryArena* arena, GroundedThreadProc* proc, void* userData, const char* threadName);
+
+// This allocation must not be freed before the created thread has stopped
+GROUNDED_FUNCTION GroundedThread* groundedStartThread(MemoryArena* arena, GroundedThreadProc* proc, void* userData, const char* threadName);
+// Only safe to call once the thread has finished executing
+GROUNDED_FUNCTION void groundedDestroyThread(GroundedThread* thread);
+
+GROUNDED_FUNCTION bool groundedThreadWaitForFinish(GroundedThread* thread, u32 timeout); // Timeout in ms
+GROUNDED_FUNCTION bool groundedThreadIsRunning(GroundedThread* thread);
+GROUNDED_FUNCTION void groundedThreadRequestStop(GroundedThread* thread);
+GROUNDED_FUNCTION bool groundedThreadShouldStop(GroundedThread* thread);
+//TODO: Maybe implement a function which allows to get the current thread from somewhere in threadlocal storage?
+
+
+//////////
+// Mutexes
+struct GroundedMutex;
+typedef struct GroundedMutex GroundedMutex;
+
+GROUNDED_FUNCTION_INLINE GroundedMutex groundedCreateMutex();
+GROUNDED_FUNCTION_INLINE void groundedDestroyMutex(GroundedMutex* mutex);
+GROUNDED_FUNCTION_INLINE void groundedLockMutex(GroundedMutex* mutex);
+GROUNDED_FUNCTION_INLINE void groundedUnlockMutex(GroundedMutex* mutex);
+
+
+/////////////
+// Semaphores
+struct GroundedSemaphore;
+typedef struct GroundedSemaphore GroundedSemaphore;
+
+// Max count might not be effective on every platform
+GROUNDED_FUNCTION_INLINE GroundedSemaphore groundedCreateSemaphore(u32 initValue, u32 maxCount);
+GROUNDED_FUNCTION_INLINE void groundedDestroySemaphore(GroundedSemaphore* semaphore);
+// Also called Post semaphore
+GROUNDED_FUNCTION_INLINE void groundedIncrementSemaphore(GroundedSemaphore* semaphore);
+// Also called Wait semaphore
+GROUNDED_FUNCTION_INLINE void groundedDecrementSemaphore(GroundedSemaphore* semaphore);
+
+
+/////////////////////
+// Condition Variable
+struct GroundedConditionVariable;
+typedef struct GroundedConditionVariable GroundedConditionVariable;
+
+GROUNDED_FUNCTION_INLINE GroundedConditionVariable groundedCreateConditionVariable();
+GROUNDED_FUNCTION_INLINE void groundedDestroyConditionVariable(GroundedConditionVariable* conditionVariable);
+GROUNDED_FUNCTION_INLINE void groundedConditionVariableSignal(GroundedConditionVariable* conditionVariable);
+// Waits until condition variable is signaled and releases the mutex while waiting, reacquiring it upon wakeup
+GROUNDED_FUNCTION_INLINE void groundedConditionVariableWait(GroundedConditionVariable* conditionVariable, GroundedMutex* mutex);
+
 
 /////////
 // Fences

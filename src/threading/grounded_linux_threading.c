@@ -33,3 +33,130 @@ GROUNDED_FUNCTION GroundedLogFunction* threadContextGetLogFunction() {
 GROUNDED_FUNCTION void threadContextClear() {
     threadContext = (GroundedThreadContext){0};
 }
+
+struct LinuxThread {
+    pthread_t thread;
+    pthread_mutex_t terminateMutex;
+    pthread_cond_t terminateCond; // Cond variable so we can easily block to wait for it
+    volatile bool terminated;
+    volatile bool stopRequested;
+    GroundedThreadProc* proc;
+    void* userData;
+    MemoryArena* arena;
+    ArenaMarker marker;
+};
+
+static void signalTermination(void* arg) {
+    struct LinuxThread* thread = (struct LinuxThread*) arg;
+    pthread_mutex_lock(&thread->terminateMutex);
+    thread->terminated = true;
+    pthread_cond_signal(&thread->terminateCond);
+    pthread_mutex_unlock(&thread->terminateMutex);
+}
+
+static void* linuxThreadProc(void* arg) {
+    struct LinuxThread* thread = (struct LinuxThread*) arg;
+
+    pthread_cleanup_push(signalTermination, thread);
+
+    // Clear thread context. Probably unnecessary
+    threadContextClear();
+    threadContext.scratchArenas[0] = *thread->arena;
+
+    thread->proc(thread->userData);
+
+    // Remove cleanup handler and call it
+    pthread_cleanup_pop(1);
+    return 0;
+}
+
+GROUNDED_FUNCTION GroundedThread* groundedStartThread(MemoryArena* arena, GroundedThreadProc* proc, void* userData, const char* threadName) {
+    ArenaMarker marker = arenaCreateMarker(arena);
+    struct LinuxThread* result = ARENA_PUSH_STRUCT(arena, struct LinuxThread);
+    result->marker = marker;
+
+    pthread_attr_t threadAttributes;
+    if(result) {
+        int errors = pthread_attr_init(&threadAttributes);
+        if(errors != 0) {
+            result = 0;
+        }
+    }
+
+    // This can be used to start threads in detached state. This makes them not joinable
+    if(result) {
+        int errors = pthread_attr_setdetachstate(&threadAttributes, PTHREAD_CREATE_DETACHED);
+        if(errors != 0) {
+            result = 0;
+        }
+    }
+
+    if(result) {
+        pthread_mutex_init(&result->terminateMutex, 0);
+        pthread_cond_init(&result->terminateCond, 0);
+        result->proc = proc;
+        result->userData = userData;
+        result->arena = arena;
+    }
+
+    //TODO: This can be used in the new thread to signal the terminated cond variable. This is useful because it also handles cancelation! But we probably dont want to support cancelation
+    // But it does not handle return from the thread proc. So there should also be a set to the cond variable in all cases
+    //pthread_cleanup_push();
+
+    if(result) {
+        if(pthread_create(&result->thread, &threadAttributes, linuxThreadProc, result) != 0) {
+            result = 0;
+        }
+    }
+
+    
+
+    if(result && threadName) {
+        //TODO: Seems like linux only supports up to 16 characters?
+        pthread_setname_np(result->thread, threadName);
+#ifdef TRACY_ENABLE
+        TracyCSetThreadName(threadName);
+#endif
+    }
+
+    return result;
+}
+
+GROUNDED_FUNCTION void groundedDestroyThread(GroundedThread* opaqueThread) {
+    struct LinuxThread* thread = (struct LinuxThread*) opaqueThread;
+    ASSERT(!groundedThreadIsRunning(opaqueThread));
+    pthread_mutex_destroy(&thread->terminateMutex);
+    pthread_cond_destroy(&thread->terminateCond);
+    arenaResetToMarker(thread->marker);
+}
+
+GROUNDED_FUNCTION bool groundedThreadWaitForFinish(GroundedThread* opaqueThread, u32 timeout) {
+    struct LinuxThread* thread = (struct LinuxThread*) opaqueThread;
+    //TODO: Timeout
+    //struct timespec;
+    //pthread_cond_timedwait(&thread->terminated, 0, )
+    pthread_mutex_lock(&thread->terminateMutex);
+    while(!thread->terminated) {
+        pthread_cond_wait(&thread->terminateCond, &thread->terminateMutex);
+    }
+    pthread_mutex_unlock(&thread->terminateMutex);
+
+    return true;
+}
+
+GROUNDED_FUNCTION bool groundedThreadIsRunning(GroundedThread* opaqueThread) {
+    struct LinuxThread* thread = (struct LinuxThread*) opaqueThread;
+    return !thread->terminated;
+}
+
+GROUNDED_FUNCTION void groundedThreadRequestStop(GroundedThread* opaqueThread) {
+    struct LinuxThread* thread = (struct LinuxThread*) opaqueThread;
+    thread->stopRequested = true;
+    groundedWriteReleaseFence();
+}
+
+GROUNDED_FUNCTION bool groundedThreadShouldStop(GroundedThread* opaqueThread) {
+    struct LinuxThread* thread = (struct LinuxThread*) opaqueThread;
+    groundedReadAcquireFence();
+    return thread->stopRequested;
+}
