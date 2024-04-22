@@ -192,6 +192,8 @@ GROUNDED_FUNCTION void groundedWindowSetFullscreen(GroundedWindow* window, bool 
 GROUNDED_FUNCTION void groundedWindowSetBorderless(GroundedWindow* window, bool borderless);
 GROUNDED_FUNCTION void groundedWindowSetHidden(GroundedWindow* window, bool hidden);
 
+GROUNDED_FUNCTION bool groundedWindowIsFullscreen(GroundedWindow* window);
+
 GROUNDED_FUNCTION void groundedWindowSetUserData(GroundedWindow* window, void* userData);
 GROUNDED_FUNCTION void* groundedWindowGetUserData(GroundedWindow* window);
 
