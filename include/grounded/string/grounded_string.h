@@ -54,10 +54,12 @@ typedef struct {
     u64 hash;
 } StringAtom;
 
-#define STR8_LITERAL(s) ((String8){(u8*)(s), sizeof(s) - 1})
+
 #ifndef __cplusplus
+#define STR8_LITERAL(s) ((String8){(u8*)(s), sizeof(s) - 1})
 #define EMPTY_STRING8 ((String8){0, 0})
 #else
+#define STR8_LITERAL(s) (String8{(u8*)(s), sizeof(s) - 1})
 #define EMPTY_STRING8 (String8{0, 0})
 #endif
 
