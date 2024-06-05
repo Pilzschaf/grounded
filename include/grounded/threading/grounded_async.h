@@ -92,12 +92,14 @@ GROUNDED_FUNCTION_INLINE bool createAsyncSystem(GroundedAsyncSystem* system, u64
 }
 
 GROUNDED_FUNCTION_INLINE void destroyAsyncSystem(GroundedAsyncSystem* system) {
-    groundedThreadRequestStop(system->thread);
-    // "Tickle" the thread by signaling the task acquire variable
-    groundedConditionVariableSignal(&system->taskAcquireConditionVariable);
+    if(system->thread) {
+        groundedThreadRequestStop(system->thread);
+        // "Tickle" the thread by signaling the task acquire variable
+        groundedConditionVariableSignal(&system->taskAcquireConditionVariable);
+        groundedThreadWaitForFinish(system->thread, 0);
+        groundedDestroyThread(system->thread);
+    }
     
-    groundedThreadWaitForFinish(system->thread, 0);
-    groundedDestroyThread(system->thread);
     groundedDestroyCircularBuffer(&system->circularBuffer.buffer);
     groundedDestroyMutex(&system->mutex);
     groundedDestroyConditionVariable(&system->taskAcquireConditionVariable);
