@@ -156,7 +156,7 @@ GROUNDED_FUNCTION void groundedThreadRequestStop(GroundedThread* opaqueThread) {
 }
 
 GROUNDED_FUNCTION bool groundedThreadShouldStop(GroundedThread* opaqueThread) {
-    struct LinuxThread* thread = (struct LinuxThread*) opaqueThread;
+    struct LinuxThread* thread = (struct LinuxThread*) opaqueThread; //TODO: Crashes here!
     groundedReadAcquireFence();
     return thread->stopRequested;
 }
