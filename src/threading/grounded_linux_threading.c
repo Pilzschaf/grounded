@@ -115,7 +115,8 @@ GROUNDED_FUNCTION GroundedThread* groundedStartThread(MemoryArena* arena, Ground
         //TODO: Seems like linux only supports up to 16 characters?
         pthread_setname_np(result->thread, threadName);
 #ifdef TRACY_ENABLE
-        TracyCSetThreadName(threadName);
+        __attribute__((visibility("default"))) void ___tracy_set_thread_name( const char* name );
+        ___tracy_set_thread_name(threadName);
 #endif
     }
 
