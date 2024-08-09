@@ -141,6 +141,23 @@ GROUNDED_FUNCTION  bool groundedWriteFile(String8 filename, const void* data, u6
     return fileHandle >= 0;
 }
 
+GROUNDED_FUNCTION bool groundedDoesDirectoryExist(String8 directory) {
+    MemoryArena* scratch = threadContextGetScratch(0);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
+
+    bool result = true;
+    DIR* dir = opendir(str8GetCstr(scratch, directory));
+    if(dir) {
+        closedir(dir);
+    } else {
+        // Does not exist if ENOENT == errno
+        // But we want to also return false in other cases
+        result = false;
+    }
+
+    arenaEndTemp(temp);
+    return result;
+}
 
 GROUNDED_FUNCTION  bool groundedCreateDirectory(String8 directory) {
     MemoryArena* scratch = threadContextGetScratch(0);
