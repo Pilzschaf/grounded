@@ -2,6 +2,7 @@
 
 #include <pthread.h>
 #include <semaphore.h>
+#include <stdarg.h>
 
 /////////////////
 // Thread context
@@ -32,6 +33,34 @@ GROUNDED_FUNCTION GroundedLogFunction* threadContextGetLogFunction() {
 
 GROUNDED_FUNCTION void threadContextClear() {
     threadContext = (GroundedThreadContext){0};
+}
+
+GROUNDED_FUNCTION void groundedPushError(String8 str, String8 filename, u64 line) {
+    if(!str8IsEmpty(threadContext.errorString)) {
+        // We already have an error so print it!
+        groundedFlushErrors();
+    }
+    threadContext.errorFilename = filename;
+    threadContext.errorLine = line;
+    threadContext.errorString = str8Copy(&threadContext.errorArena, str);
+}
+
+GROUNDED_FUNCTION void groundedPushErrorf(String8 filename, u64 line, const char* fmt, ...) {
+    if(!str8IsEmpty(threadContext.errorString)) {
+        // We already have an error so print it!
+        groundedFlushErrors();
+    }
+    va_list args;
+    va_start(args, fmt);
+    String8 str = str8FromFormat(&threadContext.errorArena, fmt, args);
+    va_end(args);
+}
+
+GROUNDED_FUNCTION void groundedFlushErrors() {
+    if(threadContext.logFunction) {
+        threadContext.logFunction((const char*)threadContext.errorString.base, GROUNDED_LOG_LEVEL_ERROR, (const char*)threadContext.errorFilename.base, threadContext.errorLine);
+    }
+    arenaResetToMarker(threadContext.errorMarker);
 }
 
 struct LinuxThread {

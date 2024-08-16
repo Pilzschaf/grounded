@@ -222,7 +222,7 @@ static void waylandWindowSetMaximized(GroundedWaylandWindow* window, bool maximi
 GROUNDED_FUNCTION void waylandSetCursorType(enum GroundedMouseCursor cursorType);
 
 static void reportWaylandError(const char* message) {
-    printf("Error: %s\n", message);
+    GROUNDED_PUSH_ERRORF("Error: %s\n", message);
 }
 
 static void randname(char *buf) {
@@ -1177,7 +1177,7 @@ static bool initWayland() {
         #include "types/grounded_wayland_functions.h"
         #undef X
         if(firstMissingFunctionName) {
-            printf("Could not load wayland function: %s\n", firstMissingFunctionName);
+            GROUNDED_PUSH_ERRORF("Could not load wayland function: %s\n", firstMissingFunctionName);
             error = "Could not load all wayland functions. Your wayland version is incompatible";
         }
     }
@@ -1212,7 +1212,7 @@ static bool initWayland() {
             #include "types/grounded_wayland_cursor_functions.h"
             #undef X
             if(firstMissingFunctionName) {
-                printf("Could not load wayland cursor function: %s\n", firstMissingFunctionName);
+                GROUNDED_PUSH_ERRORF("Could not load wayland cursor function: %s\n", firstMissingFunctionName);
                 GROUNDED_LOG_WARNING("Could not load all wayland cursor functions. Wayland cursor support might be limited");
             } else {
                 waylandCursorLibraryPresent = true;
@@ -1839,7 +1839,7 @@ static VkSurfaceKHR waylandGetVulkanSurface(GroundedWaylandWindow* window, VkIns
     }
 
     if(error) {
-        printf("Error creating vulkan surface: %s\n", error);
+        GROUNDED_PUSH_ERRORF("Error creating vulkan surface: %s\n", error);
     }
     
     return surface;
