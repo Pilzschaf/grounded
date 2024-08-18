@@ -31,7 +31,7 @@ typedef unsigned int uint;
 #endif
 
 #ifndef ALIGNMENT_OF
-    #define ALIGNMENT_OF(T) (alignof(T))
+#define ALIGNMENT_OF(T) (alignof(T))
 #endif
 
 #ifndef INT_FROM_PTR
