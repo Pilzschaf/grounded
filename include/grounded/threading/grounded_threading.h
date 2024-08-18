@@ -7,16 +7,9 @@
 
 #include <emmintrin.h> // For _mm_mfence
 
-//TODO: Consider moving the thread context stuff to grounded.h as it is required basically everywhere. Maybe check that arena is always just a pointer. maybe keep thread context init here
 //TODO: Custom data in thread context. Maybe by using a user* data pointer
 // or by using somehting similar to a BOOTSTRAP_PUH_STRUCT. As the user data could be directly
 // stored in the scratch arena.
-
-typedef struct GroundedError {
-    String8 text;
-    u64 line;
-    String8 filename;
-} GroundedError;
 
 #define GROUNDED_HANDLE_ERROR_FUNCTION(name) void name(GroundedError error)
 typedef GROUNDED_HANDLE_ERROR_FUNCTION(GroundedHandleErrorFunction);
@@ -33,9 +26,6 @@ typedef struct GroundedThreadContext {
 } GroundedThreadContext;
 
 GROUNDED_FUNCTION void threadContextInit(MemoryArena scratchArena0, MemoryArena scratchArena1, GroundedLogFunction* logFunction);
-// If the current function already uses an arena for persisting allocations, it should be passed as conflictArena
-// The returned arena should be used for temporary allocations that are reset in the same scope (temporary stack based allocations)
-GROUNDED_FUNCTION MemoryArena* threadContextGetScratch(MemoryArena* conflictArena);
 
 // Returns original log function
 GROUNDED_FUNCTION GroundedLogFunction* threadContextSetLogFunction(GroundedLogFunction* logFunction);
@@ -43,19 +33,6 @@ GROUNDED_FUNCTION GroundedLogFunction* threadContextGetLogFunction();
 
 GROUNDED_FUNCTION void threadContextClear();
 
-#ifndef GROUNDED_PUSH_ERROR
-#define GROUNDED_PUSH_ERROR(str) groundedPushError(str8FromCstr(str), STR8_LITERAL(__FILE__), __LINE__)
-#endif
-#ifndef GROUNDED_PUSH_ERRORF
-#define GROUNDED_PUSH_ERRORF(str, ...) groundedPushErrorf(STR8_LITERAL(__FILE__), __LINE__, str, __VA_ARGS__)
-#endif
-#ifndef GROUNDED_PUSH_ERROR_STR8
-#define GROUNDED_PUSH_ERROR_STR8(str) groundedPushError(str, STR8_LITERAL(__FILE__), __LINE__)
-#endif
-GROUNDED_FUNCTION void groundedPushError(String8 str, String8 filename, u64 line);
-GROUNDED_FUNCTION void groundedPushErrorf(String8 filename, u64 line, const char* fmt, ...);
-GROUNDED_FUNCTION bool groundedHasError();
-GROUNDED_FUNCTION GroundedError* groundedPopError();
 GROUNDED_FUNCTION void groundedFlushErrors();
 GROUNDED_FUNCTION void groundedSetUnhandledErrorFunction(GroundedHandleErrorFunction* func);
 GroundedHandleErrorFunction groundedDefaultUnhandledErrorHandler;

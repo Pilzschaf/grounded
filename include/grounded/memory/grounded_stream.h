@@ -3,7 +3,6 @@
 
 #include <grounded/string/grounded_string.h>
 #include <grounded/memory/grounded_memory.h>
-#include <grounded/threading/grounded_threading.h>
 
 enum GroundedStreamErrorCode {
     GROUNDED_STREAM_SUCCESS,
