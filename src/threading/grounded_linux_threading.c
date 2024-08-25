@@ -70,6 +70,8 @@ GROUNDED_FUNCTION GroundedError* groundedPopError() {
     GroundedError* result = 0;
     if(!str8IsEmpty(threadContext.lastError.text)) {
         result = &threadContext.lastError;
+        threadContext.lastError.text = EMPTY_STRING8;
+        arenaResetToMarker(threadContext.errorMarker);
     }
     return result;
 }
@@ -77,6 +79,7 @@ GROUNDED_FUNCTION GroundedError* groundedPopError() {
 GROUNDED_FUNCTION void groundedFlushErrors() {
     if(threadContext.unhandledErrorHandler && groundedHasError()) {
         threadContext.unhandledErrorHandler(threadContext.lastError);
+        threadContext.lastError.text = EMPTY_STRING8;
     }
     arenaResetToMarker(threadContext.errorMarker);
 }
@@ -226,7 +229,7 @@ GROUNDED_FUNCTION void groundedThreadRequestStop(GroundedThread* opaqueThread) {
 }
 
 GROUNDED_FUNCTION bool groundedThreadShouldStop(GroundedThread* opaqueThread) {
-    struct LinuxThread* thread = (struct LinuxThread*) opaqueThread; //TODO: Crashes here!
+    struct LinuxThread* thread = (struct LinuxThread*) opaqueThread;
     groundedReadAcquireFence();
     return thread->stopRequested;
 }

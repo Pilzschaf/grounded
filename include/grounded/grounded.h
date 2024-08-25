@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <stdalign.h>
+#include <stddef.h> // For offsetof
 
 typedef int8_t s8;
 typedef int16_t s16;
