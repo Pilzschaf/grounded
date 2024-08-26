@@ -66,12 +66,16 @@ typedef struct GroundedWaylandWindow {
     struct xdg_toplevel* xdgToplevel;
     struct zwp_idle_inhibitor_v1* idleInhibitor;
     struct zwp_confined_pointer_v1* confinedPointer;
-    u32 width;
-    u32 height;
+    u32 width, minWidth, maxWidth;
+    u32 height, minHeight, maxHeight;
     void* userData;
     void* dndUserData;
     GroundedWindowCustomTitlebarCallback* customTitlebarCallback;
     MouseState mouseState;
+    String8 applicationId;
+    String8 title; // Guaranteed to be 0-terminated
+    char titleBuffer[256];
+    bool borderless, inhibitIdle;
 
     GroundedWindowDndCallback* dndCallback;
 
@@ -1319,12 +1323,16 @@ static void shutdownWayland() {
 }
 
 static void waylandSetWindowTitle(GroundedWaylandWindow* window, String8 title) {
-    MemoryArena* scratch = threadContextGetScratch(0);
-    ArenaTempMemory temp = arenaBeginTemp(scratch);
+    u64 titleSize = MIN(255, title.size);
+    MEMORY_COPY(window->titleBuffer, title.base, titleSize);
+    window->titleBuffer[titleSize] = '\0';
+    window->title.base = (u8*)window->titleBuffer;
+    window->title.size = titleSize;
 
-    xdg_toplevel_set_title(window->xdgToplevel, str8GetCstr(scratch, title));
-
-    arenaEndTemp(temp);
+    // Title is guaranteed to be 0-terminated
+    if(window->xdgToplevel) {
+        xdg_toplevel_set_title(window->xdgToplevel, (const char*)window->title.base);
+    }
 }
 
 static void waylandWindowSetFullsreen(GroundedWaylandWindow* window, bool fullscreen) {
@@ -1336,22 +1344,7 @@ static void waylandWindowSetFullsreen(GroundedWaylandWindow* window, bool fullsc
 }
 
 static void waylandWindowSetBorderless(GroundedWaylandWindow* window, bool borderless) {
-    ASSERT(false);
-}
-
-static void waylandWindowSetHidden(GroundedWaylandWindow* window, bool hidden) {
-    ASSERT(false);
-}
-
-static void waylandWindowSetMaximized(GroundedWaylandWindow* window, bool maximized) {
-    if(maximized) {
-        xdg_toplevel_set_maximized(window->xdgToplevel);
-    } else {
-        xdg_toplevel_unset_maximized(window->xdgToplevel);
-    }
-}
-
-static void waylandSetBorderless(GroundedWaylandWindow* window, bool borderless) {
+    window->borderless = borderless;
     if(decorationManager) {
         ASSERT(window->xdgToplevel);
         if(window->xdgToplevel) {
@@ -1365,21 +1358,94 @@ static void waylandSetBorderless(GroundedWaylandWindow* window, bool borderless)
     }
 }
 
-static void waylandWindowSetUserData(GroundedWaylandWindow* window, void* userData) {
-    window->userData = userData;
-}
-
-static void* waylandWindowGetUserData(GroundedWaylandWindow* window) {
-    return window->userData;
-}
-
 static void waylandSetInhibitIdle(GroundedWaylandWindow* window, bool inhibitIdle) {
+    window->inhibitIdle = inhibitIdle;
     if(inhibitIdle && !window->idleInhibitor) {
         window->idleInhibitor = zwp_idle_inhibit_manager_v1_create_inhibitor(idleInhibitManager, window->surface);
     } else if(!inhibitIdle && window->idleInhibitor) {
         zwp_idle_inhibitor_v1_destroy(window->idleInhibitor);
         window->idleInhibitor = 0;
     }
+}
+
+static void waylandWindowSetHidden(GroundedWaylandWindow* window, bool hidden) {
+    // Wayland does not directly support this concept
+    // Instead an xdg_surface and toplevel should only be created once the window is shown
+    // This however requires to store all intermediate data like title, applicationid, min and max size and inhibit idle
+    if(hidden && window->xdgSurface) {
+        if (window->xdgToplevel) {
+            xdg_toplevel_destroy(window->xdgToplevel);
+        }
+
+        if (window->xdgSurface) {
+            xdg_surface_destroy(window->xdgSurface);
+        }
+
+        window->xdgToplevel = 0;
+        window->xdgSurface = 0;
+
+        wl_surface_attach(window->surface, 0, 0, 0);
+        wl_surface_commit(window->surface);
+    } else if(!hidden && !window->xdgSurface) {
+        window->xdgSurface = xdg_wm_base_get_xdg_surface(xdgWmBase, window->surface);
+        ASSERT(window->xdgSurface);
+        xdg_surface_add_listener(window->xdgSurface, &xdgSurfaceListener, window);
+        //xdg_surface_set_window_geometry(window->xdgSurface, x, y, window->width, window->height)
+        window->xdgToplevel = xdg_surface_get_toplevel(window->xdgSurface);
+        xdg_toplevel_add_listener(window->xdgToplevel, &xdgToplevelListener, window);
+        if(!str8IsEmpty(window->applicationId)) {
+            // ApplicationId is guaranteed to be 0-terminated
+            xdg_toplevel_set_app_id(window->xdgToplevel, (const char*)window->applicationId.base);
+        }
+        ASSERT(window->xdgToplevel);
+        
+        // Window Title
+        if(window->title.size > 0) {
+            // Title is guaranteed to be 0-terminated
+            xdg_toplevel_set_title(window->xdgToplevel, (const char*)window->title.base);
+        }
+        if(window->minWidth || window->minHeight) {
+            xdg_toplevel_set_min_size(window->xdgToplevel, window->minWidth, window->minHeight);
+        }
+        if(window->maxWidth || window->maxHeight) {
+            // 0 means no max Size in that dimension
+            xdg_toplevel_set_max_size(window->xdgToplevel, window->maxWidth, window->maxHeight);
+        }
+
+        // Set decorations
+        if(window->customTitlebarCallback) {
+            waylandWindowSetBorderless(window, true);
+        } else {
+            waylandWindowSetBorderless(window, window->borderless);
+        }
+        //struct zxdg_toplevel_decoration_v1* decoration = zxdg_decoration_manager_v1_get_toplevel_decoration(decorationManager, window->xdgToplevel);
+        //zxdg_toplevel_decoration_v1_add_listener(decoration, &decorationListener, window);
+        //zxdg_toplevel_decoration_v1_set_mode(decoration, ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
+
+        if(window->inhibitIdle) {
+            waylandSetInhibitIdle(window, true);
+        }
+
+        wl_surface_commit(window->surface);
+        wl_display_roundtrip(waylandDisplay);
+    }
+    
+}
+
+static void waylandWindowSetMaximized(GroundedWaylandWindow* window, bool maximized) {
+    if(maximized) {
+        xdg_toplevel_set_maximized(window->xdgToplevel);
+    } else {
+        xdg_toplevel_unset_maximized(window->xdgToplevel);
+    }
+}
+
+static void waylandWindowSetUserData(GroundedWaylandWindow* window, void* userData) {
+    window->userData = userData;
+}
+
+static void* waylandWindowGetUserData(GroundedWaylandWindow* window) {
+    return window->userData;
 }
 
 static GroundedWindow* waylandCreateWindow(MemoryArena* arena, struct GroundedWindowCreateParameters* parameters) {
@@ -1395,45 +1461,27 @@ static GroundedWindow* waylandCreateWindow(MemoryArena* arena, struct GroundedWi
     window->height = parameters->height;
     if(!window->width) window->width = 1920;
     if(!window->height) window->height = 1080;
+    window->minWidth = parameters->minWidth;
+    window->minHeight = parameters->minHeight;
+    window->maxWidth = parameters->maxWidth;
+    window->maxHeight = parameters->maxHeight;
+    window->borderless = parameters->borderless;
+    window->inhibitIdle = parameters->inhibitIdle;
     window->surface = wl_compositor_create_surface(compositor);
     wl_surface_set_user_data(window->surface, window);
-    window->xdgSurface = xdg_wm_base_get_xdg_surface(xdgWmBase, window->surface);
-    ASSERT(window->xdgSurface);
-    xdg_surface_add_listener(window->xdgSurface, &xdgSurfaceListener, window);
-    //xdg_surface_set_window_geometry(window->xdgSurface, x, y, window->width, window->height)
-    window->xdgToplevel = xdg_surface_get_toplevel(window->xdgSurface);
-    xdg_toplevel_add_listener(window->xdgToplevel, &xdgToplevelListener, window);
+
     if(!str8IsEmpty(parameters->applicationId)) {
-        xdg_toplevel_set_app_id(window->xdgToplevel, str8GetCstr(scratch, parameters->applicationId));
+        window->applicationId = str8CopyAndNullTerminate(arena, parameters->applicationId);
     }
-    ASSERT(window->xdgToplevel);
-    
-    // Window Title
-    if(parameters->title.size > 0) {
+    if(!str8IsEmpty(parameters->title)) {
         waylandSetWindowTitle(window, parameters->title);
     }
-    if(parameters->minWidth || parameters->minHeight) {
-        xdg_toplevel_set_min_size(window->xdgToplevel, parameters->minWidth, parameters->minHeight);
-    }
-    if(parameters->maxWidth || parameters->maxHeight) {
-        // 0 means no max Size in that dimension
-        xdg_toplevel_set_max_size(window->xdgToplevel, parameters->maxWidth, parameters->maxHeight);
-    }
-
-    // Set decorations
     if(parameters->customTitlebarCallback) {
         window->customTitlebarCallback = parameters->customTitlebarCallback;
-        waylandSetBorderless(window, true);
-    } else {
-        waylandSetBorderless(window, parameters->borderless);
     }
-    //struct zxdg_toplevel_decoration_v1* decoration = zxdg_decoration_manager_v1_get_toplevel_decoration(decorationManager, window->xdgToplevel);
-    //zxdg_toplevel_decoration_v1_add_listener(decoration, &decorationListener, window);
-    //zxdg_toplevel_decoration_v1_set_mode(decoration, ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
 
-    if(parameters->inhibitIdle) {
-        waylandSetInhibitIdle(window, true);
-    }
+    // Creates all necessary xdg objects if we should be visible
+    waylandWindowSetHidden(window, parameters->hidden);
 
     if(parameters->userData) {
         waylandWindowSetUserData(window, parameters->userData);
@@ -1749,6 +1797,10 @@ GROUNDED_FUNCTION GroundedOpenGLContext* waylandCreateOpenGLContext(MemoryArena*
 }
 
 static bool waylandCreateEglSurface(GroundedWaylandWindow* window) {
+    if(!window->xdgSurface) {
+        // No surface yet. Window is probably not visible. We have to make it visible to go further
+        waylandWindowSetHidden(window, false);
+    }
     // if config is 0 the total number of configs is returned
     EGLConfig config;
     int numConfigs = 0;

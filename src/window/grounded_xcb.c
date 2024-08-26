@@ -1015,7 +1015,9 @@ static GroundedWindow* xcbCreateWindow(MemoryArena* arena, struct GroundedWindow
         result->dndUserData = parameters->dndUserData;
 
         // Make window visible
-        xcb_map_window(xcbConnection, result->window);
+        if(!parameters->hidden) {
+            xcb_map_window(xcbConnection, result->window);
+        }
 
         // Flush all pending requests to the X server
         xcb_flush(xcbConnection);

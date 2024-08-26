@@ -11,7 +11,16 @@
 
 typedef struct GroundedWindow GroundedWindow;
 
+typedef enum GroundedWindowBackend {
+	GROUNDED_WINDOW_BACKEND_NONE,
+	GROUNDED_WINDOW_BACKEND_WIN32,
+	GROUNDED_WINDOW_BACKEND_XCB,
+	GROUNDED_WINDOW_BACKEND_WAYLAND,
+	GROUNDED_WINDOW_BACKEND_COUNT,
+} GroundedWindowBackend;
+
 GROUNDED_FUNCTION void groundedInitWindowSystem();
+GROUNDED_FUNCTION GroundedWindowBackend groundedWindowSystemGetSelectedBackend();
 GROUNDED_FUNCTION void groundedShutdownWindowSystem();
 
 typedef enum GroundedEventType {
@@ -167,7 +176,7 @@ struct GroundedWindowCreateParameters {
 	u32 maxHeight;
 	bool borderless;
 	//bool fullscreen;
-	//bool hidden;
+	bool hidden;
 	//bool transparent;
 	void* userData;
 	void* dndUserData;
