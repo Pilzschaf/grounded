@@ -638,7 +638,7 @@ GROUNDED_FUNCTION GroundedOpenGLContext* groundedCreateOpenGLContext(MemoryArena
         }break;
         default:break;
     }
-    return false;
+    return 0;
 }
 
 GROUNDED_FUNCTION void* groundedWindowLoadGlFunction(const char* symbol) {

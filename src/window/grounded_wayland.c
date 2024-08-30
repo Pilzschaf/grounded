@@ -1727,7 +1727,7 @@ GROUNDED_FUNCTION GroundedOpenGLContext* waylandCreateOpenGLContext(MemoryArena*
         if(!waylandEglLibrary) {
             const char* error = "No wayland-egl library found";
             GROUNDED_LOG_ERROR(error);
-            return false;
+            return 0;
         } else {
             const char* firstMissingFunctionName = 0;
             #define X(N, R, P) N = (grounded_wayland_##N *) dlsym(waylandEglLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
@@ -1739,7 +1739,7 @@ GROUNDED_FUNCTION GroundedOpenGLContext* waylandCreateOpenGLContext(MemoryArena*
                 GROUNDED_LOG_ERROR(error);
                 dlclose(waylandEglLibrary);
                 waylandEglLibrary = 0;
-                return false;
+                return 0;
             }
         }
     }
@@ -1751,7 +1751,7 @@ GROUNDED_FUNCTION GroundedOpenGLContext* waylandCreateOpenGLContext(MemoryArena*
             dlclose(waylandEglLibrary);
             waylandEglLibrary = 0;
             waylandEglDisplay = 0;
-            return false;
+            return 0;
         }
         int eglVersionMajor = 0;
         int eglVersionMinor = 0;
@@ -1761,7 +1761,7 @@ GROUNDED_FUNCTION GroundedOpenGLContext* waylandCreateOpenGLContext(MemoryArena*
             dlclose(waylandEglLibrary);
             waylandEglLibrary = 0;
             waylandEglDisplay = 0;
-            return false;
+            return 0;
         }
         //LOG_INFO("Using EGL version ", eglVersionMajor, ".", eglVersionMinor);
 
@@ -1775,7 +1775,7 @@ GROUNDED_FUNCTION GroundedOpenGLContext* waylandCreateOpenGLContext(MemoryArena*
         dlclose(waylandEglLibrary);
         waylandEglLibrary = 0;
         waylandEglDisplay = 0;
-        return false;
+        return 0;
     }
 
     //TODO: Config is required when creating the context and when creating the window
@@ -1784,14 +1784,14 @@ GROUNDED_FUNCTION GroundedOpenGLContext* waylandCreateOpenGLContext(MemoryArena*
     int attribList[] = {EGL_RED_SIZE, 1, EGL_GREEN_SIZE, 1, EGL_BLUE_SIZE, 1, EGL_NONE};
     if(!eglChooseConfig(waylandEglDisplay, attribList, &config, 1, &numConfigs) || numConfigs <= 0) {
         GROUNDED_LOG_ERROR("Error choosing OpenGL config");
-        return false;
+        return 0;
     }
 
     EGLContext shareContext = contextToShareResources ? contextToShareResources->eglContext : EGL_NO_CONTEXT;
     result->eglContext = eglCreateContext(waylandEglDisplay, config, shareContext, 0);
     if(result->eglContext == EGL_NO_CONTEXT) {
         GROUNDED_LOG_ERROR("Error creating EGL Context");
-        return false;
+        return 0;
     }
     return result;
 }
