@@ -51,6 +51,8 @@ GROUNDED_FUNCTION void groundedPushError(String8 str, String8 filename, u64 line
     threadContext.lastError.text = str8Copy(&threadContext.errorArena, str);
 }
 
+// Predeclare str8FromFormatVaList from grounded_string so we do not have to include stdarg.h in our headers
+String8 str8FromFormatVaList(struct MemoryArena* arena, const char* format, va_list args);
 GROUNDED_FUNCTION void groundedPushErrorf(String8 filename, u64 line, const char* fmt, ...) {
     if(!str8IsEmpty(threadContext.lastError.text)) {
         // We already have an error so print it!
@@ -58,7 +60,8 @@ GROUNDED_FUNCTION void groundedPushErrorf(String8 filename, u64 line, const char
     }
     va_list args;
     va_start(args, fmt);
-    String8 str = str8FromFormat(&threadContext.errorArena, fmt, args);
+    String8 str = str8FromFormatVaList(&threadContext.errorArena, fmt, args);
+    groundedPushError(str, filename, line);
     va_end(args);
 }
 

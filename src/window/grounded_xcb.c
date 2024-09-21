@@ -761,6 +761,11 @@ static void xcbWindowSetHidden(GroundedXcbWindow* window, bool hidden) {
     //xcb_flush(xcbConnection);
 }
 
+static bool xcbWindowIsFullscreen(GroundedXcbWindow* window) {
+    ASSERT(false);
+    return false;
+}
+
 static void xcbWindowSetUserData(GroundedXcbWindow* window, void* userData) {
     window->userData = userData;
 }

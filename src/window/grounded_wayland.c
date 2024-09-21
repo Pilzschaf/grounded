@@ -75,7 +75,7 @@ typedef struct GroundedWaylandWindow {
     String8 applicationId;
     String8 title; // Guaranteed to be 0-terminated
     char titleBuffer[256];
-    bool borderless, inhibitIdle;
+    bool borderless, inhibitIdle, fullscreen;
 
     GroundedWindowDndCallback* dndCallback;
 
@@ -1089,7 +1089,7 @@ static void xdgToplevelHandleConfigure(void* data,  struct xdg_toplevel* topleve
             case XDG_TOPLEVEL_STATE_MAXIMIZED:{
             } break;
             case XDG_TOPLEVEL_STATE_FULLSCREEN:{
-
+                //TODO: Actually it might be better to only set the window->fullscreen flag when we get the configure here?
             } break;
             case XDG_TOPLEVEL_STATE_RESIZING:{
                 // Nothing additional to do
@@ -1341,6 +1341,7 @@ static void waylandWindowSetFullsreen(GroundedWaylandWindow* window, bool fullsc
     } else {
         xdg_toplevel_unset_fullscreen(window->xdgToplevel);
     }
+    window->fullscreen = fullscreen;
 }
 
 static void waylandWindowSetBorderless(GroundedWaylandWindow* window, bool borderless) {
@@ -1438,6 +1439,10 @@ static void waylandWindowSetMaximized(GroundedWaylandWindow* window, bool maximi
     } else {
         xdg_toplevel_unset_maximized(window->xdgToplevel);
     }
+}
+
+static bool waylandWindowIsFullscreen(GroundedWaylandWindow* window) {
+    return window->fullscreen;
 }
 
 static void waylandWindowSetUserData(GroundedWaylandWindow* window, void* userData) {

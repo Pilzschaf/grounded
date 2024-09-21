@@ -242,6 +242,16 @@ typedef struct {
 #define EMPTY_STRING8 (String8{0, 0})
 #endif
 
+GROUNDED_FUNCTION_INLINE u32 groundedNextPow2u32(u32 value) {
+    ASSERT(value <= INT32_MAX);
+    value = value - 1;
+    value = value | (value >> 1);
+    value = value | (value >> 2);
+    value = value | (value >> 4);
+    value = value | (value >> 8);
+    value = value | (value >> 16);
+    return value + 1;
+}
 
 ////////////////
 // Scratch arena

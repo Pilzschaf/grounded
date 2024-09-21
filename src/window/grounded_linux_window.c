@@ -201,6 +201,20 @@ GROUNDED_FUNCTION void groundedWindowSetHidden(GroundedWindow* window, bool hidd
     }
 }
 
+GROUNDED_FUNCTION bool groundedWindowIsFullscreen(GroundedWindow* window) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            return waylandWindowIsFullscreen((GroundedWaylandWindow*)window);
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            return xcbWindowIsFullscreen((GroundedXcbWindow*)window);
+        } break;
+        default:break;
+    }
+    return false;
+}
+
 GROUNDED_FUNCTION void groundedWindowSetUserData(GroundedWindow* window, void* userData) {
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
