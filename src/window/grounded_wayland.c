@@ -560,6 +560,7 @@ static void pointerHandleMotion(void *data, struct wl_pointer *wl_pointer, uint3
     if(activeWindow) {
         activeWindow->mouseState.x = posX;
         activeWindow->mouseState.y = posY;
+        bool handled = false;
         if(activeWindow->customTitlebarCallback) {
             GroundedWindowCustomTitlebarHit hit = activeWindow->customTitlebarCallback((GroundedWindow*)activeWindow, activeWindow->mouseState.x, activeWindow->mouseState.y);
             if(hit == GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_BORDER) {
@@ -591,9 +592,18 @@ static void pointerHandleMotion(void *data, struct wl_pointer *wl_pointer, uint3
                     case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_LEFT: cursorType = GROUNDED_MOUSE_CURSOR_DOWNLEFT; break;
                 }
                 setCursorOverwrite(cursorType);
+                handled = true;
             } else if(isCursorOverwriteActive()) {
                 removeCursorOverwrite();
             }
+        } 
+        if(!handled) {
+            eventQueue[eventQueueIndex++] = (GroundedEvent){
+                .type = GROUNDED_EVENT_TYPE_MOUSE_MOVE,
+                .window = (GroundedWindow*)activeWindow,
+                .mouseMove.mousePositionX = activeWindow->mouseState.x,
+                .mouseMove.mousePositionY = activeWindow->mouseState.y,
+            };
         }
     }
 }
@@ -1080,7 +1090,7 @@ static const struct wl_registry_listener registryListener = {
 static void xdgToplevelHandleConfigure(void* data,  struct xdg_toplevel* toplevel,  int32_t width, int32_t height, struct wl_array* states) {
     GroundedWaylandWindow* window = (GroundedWaylandWindow*)data;
 
-    //printf("Configure\n");
+    //printf("Toplevel Configure\n");
 
     // States array tells us in which state the new window is
     u32* state;
@@ -1134,6 +1144,8 @@ static const struct xdg_toplevel_listener xdgToplevelListener = {
 // See https://wayland-book.com/xdg-shell-basics/xdg-surface.html
 static void xdgSurfaceHandleConfigure(void* data, struct xdg_surface* surface, uint32_t serial) {
     xdg_surface_ack_configure(surface, serial);
+
+    //printf("Xdg Configure\n");
 
     GroundedWaylandWindow* window = (GroundedWaylandWindow*) data;
     
@@ -1593,8 +1605,15 @@ static GroundedEvent* waylandGetEvents(u32* eventCount, u32 maxWaitingTimeInMs) 
         }
     }*/
 
-    if(waylandPoll(maxWaitingTimeInMs)) {
-        wl_display_dispatch(waylandDisplay);
+    // Loop as we are otherwise waked up by egl rendering feedback calls
+    while(!eventQueueIndex) {
+        if(waylandPoll(maxWaitingTimeInMs)) {
+            // This should be a blocking call
+            wl_display_dispatch(waylandDisplay);
+        } else {
+            // Timeout
+            break;
+        }
     }
 
     *eventCount = eventQueueIndex;
@@ -1852,7 +1871,10 @@ static void waylandWindowGlSwapBuffers(GroundedWaylandWindow* window) {
 }
 
 static void waylandWindowSetGlSwapInterval(int interval) {
-    eglSwapInterval(waylandEglDisplay, interval);
+    EGLBoolean result = eglSwapInterval(waylandEglDisplay, interval);
+    if(!result) {
+        GROUNDED_PUSH_ERROR("Failed to set swap interval");
+    }
 }
 
 static void waylandDestroyOpenGLContext(GroundedOpenGLContext* context) {
