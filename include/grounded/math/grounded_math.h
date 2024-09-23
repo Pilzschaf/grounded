@@ -140,6 +140,17 @@ typedef union GROUNDED_MATH_PREFIX(quat) {
     float elements[4];
 } GROUNDED_MATH_PREFIX(quat);
 
+typedef union GROUNDED_MATH_PREFIX(mat2) {
+    float elements[4];
+    struct {
+        float   m11, m12,
+                m21, m22;
+    };
+    float m[2][2];
+    GROUNDED_MATH_PREFIX(vec2) rows[2];
+} GROUNDED_MATH_PREFIX(mat2);
+STATIC_ASSERT(sizeof(GROUNDED_MATH_PREFIX(mat2)) == sizeof(float)*4);
+
 //TODO: Specify matrix multiplication order and storage order
 typedef union GROUNDED_MATH_PREFIX(mat4) {
     float elements[16];
@@ -153,6 +164,7 @@ typedef union GROUNDED_MATH_PREFIX(mat4) {
     float m[4][4];
     GROUNDED_MATH_PREFIX(vec4) rows[4];
 } GROUNDED_MATH_PREFIX(mat4);
+STATIC_ASSERT(sizeof(GROUNDED_MATH_PREFIX(mat4)) == sizeof(float)*16);
 
 #include <math.h> // For sqrtf, sinf, cosf, tanf
 
@@ -706,8 +718,107 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) quatToMat(GROUNDED_MATH_PREF
     return result;
 }
 
-/////////
-// Matrix
+//////////
+// Matrix2
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat2) mat2CreateIdentity() {
+    GROUNDED_MATH_PREFIX(mat2) result = {{
+        1, 0,
+        0, 1
+    }};
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat2) mat2CreateScaleMatrix(GROUNDED_MATH_PREFIX(vec2) scale) {
+    GROUNDED_MATH_PREFIX(mat2) result = {{
+        scale.x, 0.0f,
+        0.0f, scale.y,
+    }};
+    
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat2) mat2CreateRotationMatrix(float angleInRad) {
+    float c = cosf(angleInRad);
+    float s = sinf(angleInRad);
+
+    GROUNDED_MATH_PREFIX(mat2) result = {{
+        c,    -s,
+        s,    c,
+    }};
+
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat2) mat2Multiply( GROUNDED_MATH_PREFIX(mat2) a,  GROUNDED_MATH_PREFIX(mat2) b) {
+    GROUNDED_MATH_PREFIX(mat2) result = {{
+        b.m11 * a.m11 + b.m21 * a.m12,
+        b.m12 * a.m11 + b.m22 * a.m12,
+        b.m11 * a.m21 + b.m21 * a.m22,
+        b.m12 * a.m21 + b.m22 * a.m22,
+    }};
+
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat2) mat2MultiplyScalar(GROUNDED_MATH_PREFIX(mat2) m, float c) {
+    GROUNDED_MATH_PREFIX(mat2) result;
+    result.rows[0] = v2MultiplyScalar(m.rows[0], c);
+    result.rows[1] = v2MultiplyScalar(m.rows[1], c);
+
+    return result;    
+}
+
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec2) mat2MultiplyVec2(GROUNDED_MATH_PREFIX(mat2) m, GROUNDED_MATH_PREFIX(vec2) v) {
+    GROUNDED_MATH_PREFIX(vec2) result = {{
+        m.m11 * v.x + m.m12 * v.y,
+        m.m21 * v.x + m.m22 * v.y,
+    }};
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat2) mat2Transpose(GROUNDED_MATH_PREFIX(mat2) m) {
+    GROUNDED_MATH_PREFIX(mat2) result = {{
+        m.m11, m.m21,
+        m.m12, m.m22,
+    }};
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec2) mat2GetRow(GROUNDED_MATH_PREFIX(mat2) m, u32 index) {
+    ASSERT(index < 2);
+    GROUNDED_MATH_PREFIX(vec2) result = m.rows[index];
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec2) mat2GetColumn(GROUNDED_MATH_PREFIX(mat2) m, u32 index) {
+    ASSERT(index < 2);
+    GROUNDED_MATH_PREFIX(vec2) result = {{
+        m.m[0][index],
+        m.m[1][index],
+    }};
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat2) mat2Inverse(GROUNDED_MATH_PREFIX(mat2) m) {
+    GROUNDED_MATH_PREFIX(mat2) result = m;
+
+    float determinant = m.m[0][0] * m.m[1][1] - m.m[0][1] * m.m[1][0];
+    if(determinant != 0.0f) {
+        float invDet = 1.0f / determinant;
+        result.m[0][0] =  m.m[1][1] * invDet;
+        result.m[0][1] = -m.m[0][1] * invDet;
+        result.m[1][0] = -m.m[1][0] * invDet;
+        result.m[1][1] =  m.m[0][0] * invDet;
+    } else {
+        // Matrix is not invertible.
+        ASSERT(false);
+    }
+
+    return result;
+}
+
+//////////
+// Matrix4
 GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreateIdentity() {
     GROUNDED_MATH_PREFIX(mat4) result = {{
         1, 0, 0, 0,
