@@ -406,6 +406,7 @@ static LRESULT CALLBACK win32MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam,
     return 0;
 }
 
+bool win32Initialized = false;
 GROUNDED_FUNCTION void groundedInitWindowSystem() {
     const char* error = 0;
     HINSTANCE instance = GetModuleHandle(0);
@@ -434,6 +435,20 @@ GROUNDED_FUNCTION void groundedInitWindowSystem() {
     if (result != S_OK) {
         error = "Could not initialize ole";
     }
+
+    if(error) {
+        GROUNDED_PUSH_ERROR(error);
+    } else {
+        win32Initialized = true;
+    }
+}
+
+GROUNDED_FUNCTION GroundedWindowBackend groundedWindowSystemGetSelectedBackend() {
+    GroundedWindowBackend result = GROUNDED_WINDOW_BACKEND_NONE;
+    if(win32Initialized) {
+        result = GROUNDED_WINDOW_BACKEND_WIN32;
+    }
+    return result;
 }
 
 GROUNDED_FUNCTION void groundedShutdownWindowSystem() {
@@ -441,6 +456,7 @@ GROUNDED_FUNCTION void groundedShutdownWindowSystem() {
     HINSTANCE instance = GetModuleHandle(0);
     UnregisterClassW(L"GroundedDefaultWindowClass", instance);
     OleUninitialize();
+    win32Initialized = false;
 }
 
 GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(MemoryArena* arena, struct GroundedWindowCreateParameters* parameters) {

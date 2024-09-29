@@ -796,6 +796,11 @@ static void xcbWindowSetHidden(GroundedXcbWindow* window, bool hidden) {
     //xcb_flush(xcbConnection);
 }
 
+static bool xcbWindowIsFullscreen(GroundedXcbWindow* window) {
+    ASSERT(false);
+    return false;
+}
+
 static void xcbWindowSetUserData(GroundedXcbWindow* window, void* userData) {
     window->userData = userData;
 }
@@ -1050,7 +1055,9 @@ static GroundedWindow* xcbCreateWindow(MemoryArena* arena, struct GroundedWindow
         result->dndUserData = parameters->dndUserData;
 
         // Make window visible
-        xcb_map_window(xcbConnection, result->window);
+        if(!parameters->hidden) {
+            xcb_map_window(xcbConnection, result->window);
+        }
 
         // Flush all pending requests to the X server
         xcb_flush(xcbConnection);
@@ -2170,15 +2177,13 @@ static xcb_window_t getXdndAwareTargetQueryTree(int posX, int posY, xcb_window_t
                             result = getXdndAwareTargetQueryTree(posX - geometryReply->x, posY - geometryReply->y, children[i-1], maxDepth-1);
                         }
                         free(queryTreeReply);
-                        if(!result) {
-                            result = window;
-                        }
                     }
                 }
             }
         }
     }
 
+    ASSERT(result == 0 || xcbIsWindowDndAware(result));
     return result;
 }
 
@@ -2220,6 +2225,7 @@ static xcb_window_t getXdndAwareTarget(int rootX, int rootY) {
             }
         }
     }
+    ASSERT(target == 0 || xcbIsWindowDndAware(target));
     return target;
 }
 

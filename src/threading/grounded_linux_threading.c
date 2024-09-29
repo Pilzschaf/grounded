@@ -1,7 +1,9 @@
 #include <grounded/threading/grounded_threading.h>
+#include <grounded/memory/grounded_memory.h>
 
 #include <pthread.h>
 #include <semaphore.h>
+#include <stdarg.h>
 
 /////////////////
 // Thread context
@@ -11,6 +13,9 @@ GROUNDED_FUNCTION void threadContextInit(MemoryArena arena0, MemoryArena arena1,
     threadContext.scratchArenas[0] = arena0;
     threadContext.scratchArenas[1] = arena1;
     threadContext.logFunction = logFunction;
+    threadContext.errorArena = createFixedSizeArena(osGetMemorySubsystem(), KB(8));
+    threadContext.errorMarker = arenaCreateMarker(&threadContext.errorArena);
+    threadContext.unhandledErrorHandler = &groundedDefaultUnhandledErrorHandler;
 }
 
 GROUNDED_FUNCTION MemoryArena* threadContextGetScratch(MemoryArena* conflictArena) {
@@ -32,6 +37,69 @@ GROUNDED_FUNCTION GroundedLogFunction* threadContextGetLogFunction() {
 
 GROUNDED_FUNCTION void threadContextClear() {
     threadContext = (GroundedThreadContext){0};
+}
+
+////////
+// Error
+GROUNDED_FUNCTION void groundedPushError(String8 str, String8 filename, u64 line) {
+    if(!str8IsEmpty(threadContext.lastError.text)) {
+        // We already have an error so print it!
+        groundedFlushErrors();
+    }
+    threadContext.lastError.filename = filename;
+    threadContext.lastError.line = line;
+    threadContext.lastError.text = str8Copy(&threadContext.errorArena, str);
+}
+
+// Predeclare str8FromFormatVaList from grounded_string so we do not have to include stdarg.h in our headers
+String8 str8FromFormatVaList(struct MemoryArena* arena, const char* format, va_list args);
+GROUNDED_FUNCTION void groundedPushErrorf(String8 filename, u64 line, const char* fmt, ...) {
+    if(!str8IsEmpty(threadContext.lastError.text)) {
+        // We already have an error so print it!
+        groundedFlushErrors();
+    }
+    va_list args;
+    va_start(args, fmt);
+    String8 str = str8FromFormatVaList(&threadContext.errorArena, fmt, args);
+    groundedPushError(str, filename, line);
+    va_end(args);
+}
+
+GROUNDED_FUNCTION bool groundedHasError() {
+    return !str8IsEmpty(threadContext.lastError.text);
+}
+
+GROUNDED_FUNCTION GroundedError* groundedPopError() {
+    GroundedError* result = 0;
+    if(!str8IsEmpty(threadContext.lastError.text)) {
+        result = &threadContext.lastError;
+        threadContext.lastError.text = EMPTY_STRING8;
+        arenaResetToMarker(threadContext.errorMarker);
+    }
+    return result;
+}
+
+GROUNDED_FUNCTION void groundedFlushErrors() {
+    if(threadContext.unhandledErrorHandler && groundedHasError()) {
+        threadContext.unhandledErrorHandler(threadContext.lastError);
+        threadContext.lastError.text = EMPTY_STRING8;
+    }
+    arenaResetToMarker(threadContext.errorMarker);
+}
+
+GROUNDED_FUNCTION void groundedSetUnhandledErrorFunction(GroundedHandleErrorFunction* func) {
+    if(threadContext.unhandledErrorHandler) {
+        groundedFlushErrors();
+    }
+    threadContext.unhandledErrorHandler = func;
+}
+
+GROUNDED_HANDLE_ERROR_FUNCTION(groundedDefaultUnhandledErrorHandler) {
+    MemoryArena* scratch = threadContextGetScratch(0);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
+    String8 message = str8FromFormat(scratch, "Unhandled error: %.*s", error.text.size, error.text.base);
+    threadContextGetLogFunction()(str8GetCstr(scratch, message), GROUNDED_LOG_LEVEL_ERROR, str8GetCstr(scratch, error.filename), error.line);
+    arenaEndTemp(temp);
 }
 
 struct LinuxThread {
@@ -61,9 +129,16 @@ static void* linuxThreadProc(void* arg) {
 
     // Clear thread context. Probably unnecessary
     threadContextClear();
+    threadContext.errorArena = createFixedSizeArena(osGetMemorySubsystem(), KB(8));
+    threadContext.errorMarker = arenaCreateMarker(&threadContext.errorArena);
     threadContext.scratchArenas[0] = *thread->arena;
+    threadContext.unhandledErrorHandler = groundedDefaultUnhandledErrorHandler;
 
     thread->proc(thread->userData);
+
+    // Flush possible errors
+    groundedFlushErrors();
+    arenaRelease(&threadContext.errorArena);
 
     // Remove cleanup handler and call it
     pthread_cleanup_pop(1);
@@ -115,7 +190,8 @@ GROUNDED_FUNCTION GroundedThread* groundedStartThread(MemoryArena* arena, Ground
         //TODO: Seems like linux only supports up to 16 characters?
         pthread_setname_np(result->thread, threadName);
 #ifdef TRACY_ENABLE
-        TracyCSetThreadName(threadName);
+        __attribute__((visibility("default"))) void ___tracy_set_thread_name( const char* name );
+        ___tracy_set_thread_name(threadName);
 #endif
     }
 

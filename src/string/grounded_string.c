@@ -112,7 +112,7 @@ GROUNDED_FUNCTION bool str8IsSubstringOf(String8 substring, String8 str) {
     return result;
 }
 
-static String8 str8FromFormatVaList(struct MemoryArena* arena, const char* format, va_list args) {
+String8 str8FromFormatVaList(struct MemoryArena* arena, const char* format, va_list args) {
     // In case we need to try a second time
     va_list args2;
     va_copy(args2, args);

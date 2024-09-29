@@ -1,4 +1,5 @@
 #include "grounded_threading.h"
+#include <grounded/memory/grounded_memory.h>
 
 // Very simple async system. Tasks are handled asynchronously in order.
 
@@ -42,6 +43,7 @@ GROUNDED_THREAD_PROC(asyncSystemThreadProc) {
     MemoryArena* scratch = threadContextGetScratch(0);
 
     GroundedAsyncSystem* system = (GroundedAsyncSystem*)userData;
+
     groundedLockMutex(&system->mutex);
     while(true) {
         while(!system->tasksSentinel.next) {
@@ -76,6 +78,7 @@ GROUNDED_FUNCTION_INLINE bool createAsyncSystem(GroundedAsyncSystem* system, u64
     system->circularBuffer.readHead = system->circularBuffer.buffer.buffer;
     system->circularBuffer.writeHead = system->circularBuffer.buffer.buffer;
     system->arena = createGrowingArena(osGetMemorySubsystem(), KB(64));
+    enableDebugMemoryOverflowDetectForArena(&system->arena);
     struct AsyncNode* nodes = ARENA_PUSH_ARRAY(&system->arena, entryCount, struct AsyncNode);
     for(u64 i = 0; i < entryCount; ++i) {
         nodes[i].next = system->freeTasksSentinel.next;
@@ -83,21 +86,24 @@ GROUNDED_FUNCTION_INLINE bool createAsyncSystem(GroundedAsyncSystem* system, u64
     }
     system->nextTaskIndex = 1;
     system->mutex = groundedCreateMutex();
+    groundedLockMutex(&system->mutex);
     system->taskAcquireConditionVariable = groundedCreateConditionVariable();
     system->taskWaitConditionVariable = groundedCreateConditionVariable();
     //groundedDispatchThread(&arena, &asyncSystemThreadProc, system, "AsyncSystemThread");
     system->thread = groundedStartThread(&system->arena, &asyncSystemThreadProc, system, "AsyncSystemThread");
-    
+    groundedUnlockMutex(&system->mutex);
     return true;
 }
 
 GROUNDED_FUNCTION_INLINE void destroyAsyncSystem(GroundedAsyncSystem* system) {
-    groundedThreadRequestStop(system->thread);
-    // "Tickle" the thread by signaling the task acquire variable
-    groundedConditionVariableSignal(&system->taskAcquireConditionVariable);
+    if(system->thread) {
+        groundedThreadRequestStop(system->thread);
+        // "Tickle" the thread by signaling the task acquire variable
+        groundedConditionVariableSignal(&system->taskAcquireConditionVariable);
+        groundedThreadWaitForFinish(system->thread, 0);
+        groundedDestroyThread(system->thread);
+    }
     
-    groundedThreadWaitForFinish(system->thread, 0);
-    groundedDestroyThread(system->thread);
     groundedDestroyCircularBuffer(&system->circularBuffer.buffer);
     groundedDestroyMutex(&system->mutex);
     groundedDestroyConditionVariable(&system->taskAcquireConditionVariable);

@@ -11,21 +11,31 @@
 // or by using somehting similar to a BOOTSTRAP_PUH_STRUCT. As the user data could be directly
 // stored in the scratch arena.
 
+#define GROUNDED_HANDLE_ERROR_FUNCTION(name) void name(GroundedError error)
+typedef GROUNDED_HANDLE_ERROR_FUNCTION(GroundedHandleErrorFunction);
+
 typedef struct GroundedThreadContext {
     MemoryArena scratchArenas[2];
     GroundedLogFunction* logFunction;
+
+    MemoryArena errorArena;
+    ArenaMarker errorMarker;
+
+    GroundedError lastError;
+    GroundedHandleErrorFunction* unhandledErrorHandler;
 } GroundedThreadContext;
 
 GROUNDED_FUNCTION void threadContextInit(MemoryArena scratchArena0, MemoryArena scratchArena1, GroundedLogFunction* logFunction);
-// If the current function already uses an arena for persisting allocations, it should be passed as conflictArena
-// The returned arena should be used for temporary allocations that are reset in the same scope (temporary stack based allocations)
-GROUNDED_FUNCTION MemoryArena* threadContextGetScratch(MemoryArena* conflictArena);
 
 // Returns original log function
 GROUNDED_FUNCTION GroundedLogFunction* threadContextSetLogFunction(GroundedLogFunction* logFunction);
 GROUNDED_FUNCTION GroundedLogFunction* threadContextGetLogFunction();
 
 GROUNDED_FUNCTION void threadContextClear();
+
+GROUNDED_FUNCTION void groundedFlushErrors();
+GROUNDED_FUNCTION void groundedSetUnhandledErrorFunction(GroundedHandleErrorFunction* func);
+GroundedHandleErrorFunction groundedDefaultUnhandledErrorHandler;
 
 typedef void GroundedThread;
 

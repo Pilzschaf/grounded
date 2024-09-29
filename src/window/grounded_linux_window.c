@@ -55,7 +55,7 @@ typedef enum WindowBackend {
 WindowBackend linuxWindowBackend = GROUNDED_LINUX_WINDOW_BACKEND_NONE;
 
 GROUNDED_FUNCTION void groundedInitWindowSystem() {
-    bool skipWayland = true;
+    bool skipWayland = false;
     if(!skipWayland && initWayland()) {
         linuxWindowBackend = GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND;
     } else {
@@ -63,6 +63,17 @@ GROUNDED_FUNCTION void groundedInitWindowSystem() {
         linuxWindowBackend = GROUNDED_LINUX_WINDOW_BACKEND_XCB;
     }
 }
+
+GROUNDED_FUNCTION GroundedWindowBackend groundedWindowSystemGetSelectedBackend() {
+    GroundedWindowBackend result = GROUNDED_WINDOW_BACKEND_NONE;
+    if(linuxWindowBackend == GROUNDED_LINUX_WINDOW_BACKEND_XCB) {
+        result = GROUNDED_WINDOW_BACKEND_XCB;
+    } else if(linuxWindowBackend == GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND) {
+        result = GROUNDED_WINDOW_BACKEND_WAYLAND;
+    }
+    return result;
+}
+
 GROUNDED_FUNCTION void groundedShutdownWindowSystem() {
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
@@ -188,6 +199,20 @@ GROUNDED_FUNCTION void groundedWindowSetHidden(GroundedWindow* window, bool hidd
         } break;
         default:break;
     }
+}
+
+GROUNDED_FUNCTION bool groundedWindowIsFullscreen(GroundedWindow* window) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            return waylandWindowIsFullscreen((GroundedWaylandWindow*)window);
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            return xcbWindowIsFullscreen((GroundedXcbWindow*)window);
+        } break;
+        default:break;
+    }
+    return false;
 }
 
 GROUNDED_FUNCTION void groundedWindowSetUserData(GroundedWindow* window, void* userData) {
@@ -641,7 +666,7 @@ GROUNDED_FUNCTION GroundedOpenGLContext* groundedCreateOpenGLContext(MemoryArena
         }break;
         default:break;
     }
-    return false;
+    return 0;
 }
 
 GROUNDED_FUNCTION void* groundedWindowLoadGlFunction(const char* symbol) {

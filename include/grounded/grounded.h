@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <stdalign.h>
+#include <stddef.h> // For offsetof
 
 typedef int8_t s8;
 typedef int16_t s16;
@@ -31,7 +32,7 @@ typedef unsigned int uint;
 #endif
 
 #ifndef ALIGNMENT_OF
-    #define ALIGNMENT_OF(T) (alignof(T))
+#define ALIGNMENT_OF(T) (alignof(T))
 #endif
 
 #ifndef INT_FROM_PTR
@@ -179,5 +180,108 @@ STATIC_ASSERT(sizeof(void*) == 8);
 #ifndef PI64
 #define PI64 (3.14159265358979323846)
 #endif
+
+
+//////////
+// Strings
+
+// String data should always be handled as being immutable.
+// Base does not guarantee to have a null-terminator. Always use str8GetCstr if a C-String is required
+// String data should always be UTF-8
+typedef struct {
+    u8* base;
+    u64 size;
+} String8;
+
+typedef struct String8Node {
+    struct String8Node* next;
+    String8 string;
+} String8Node;
+
+typedef struct {
+    struct String8Node* first;
+    struct String8Node* last;
+    u64 numNodes;
+    u64 totalSize;
+} String8List;
+
+typedef struct {
+    String8 pre;
+    String8 mid;
+    String8 post;
+} StringJoin;
+
+typedef struct {
+    u16* base;
+    u64 size; // Number of u16
+} String16;
+
+typedef struct {
+    u32* base;
+    u64 size; // Number of u32
+} String32;
+
+typedef struct {
+    u32 codepoint;
+    u32 size; // Size of this codepoint in the source string
+} StringDecode;
+
+// An atom contains a hash which can be used for fast comparisons.
+// Equality check always requires a string compare if the hash matches
+// Simply use compareAtoms
+typedef struct {
+    String8 string;
+    u64 hash;
+} StringAtom;
+
+#ifndef __cplusplus
+#define STR8_LITERAL(s) ((String8){(u8*)(s), sizeof(s) - 1})
+#define EMPTY_STRING8 ((String8){0, 0})
+#else
+#define STR8_LITERAL(s) (String8{(u8*)(s), sizeof(s) - 1})
+#define EMPTY_STRING8 (String8{0, 0})
+#endif
+
+GROUNDED_FUNCTION_INLINE u32 groundedNextPow2u32(u32 value) {
+    ASSERT(value <= INT32_MAX);
+    value = value - 1;
+    value = value | (value >> 1);
+    value = value | (value >> 2);
+    value = value | (value >> 4);
+    value = value | (value >> 8);
+    value = value | (value >> 16);
+    return value + 1;
+}
+
+////////////////
+// Scratch arena
+
+// If the current function already uses an arena for persisting allocations, it should be passed as conflictArena
+// The returned arena should be used for temporary allocations that are reset in the same scope (temporary stack based allocations)
+GROUNDED_FUNCTION struct MemoryArena* threadContextGetScratch(struct MemoryArena* conflictArena);
+
+
+/////////
+// Errors
+
+typedef struct GroundedError {
+    String8 text;
+    u64 line;
+    String8 filename;
+} GroundedError;
+
+#ifndef GROUNDED_PUSH_ERROR
+#define GROUNDED_PUSH_ERROR(str) groundedPushError(str8FromCstr(str), STR8_LITERAL(__FILE__), __LINE__)
+#endif
+#ifndef GROUNDED_PUSH_ERRORF
+#define GROUNDED_PUSH_ERRORF(str, ...) groundedPushErrorf(STR8_LITERAL(__FILE__), __LINE__, str, __VA_ARGS__)
+#endif
+#ifndef GROUNDED_PUSH_ERROR_STR8
+#define GROUNDED_PUSH_ERROR_STR8(str) groundedPushError(str, STR8_LITERAL(__FILE__), __LINE__)
+#endif
+GROUNDED_FUNCTION void groundedPushError(String8 str, String8 filename, u64 line);
+GROUNDED_FUNCTION void groundedPushErrorf(String8 filename, u64 line, const char* fmt, ...);
+GROUNDED_FUNCTION bool groundedHasError();
+GROUNDED_FUNCTION GroundedError* groundedPopError();
 
 #endif // GROUNDED_H

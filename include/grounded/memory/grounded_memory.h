@@ -21,6 +21,7 @@
 
 // Clears memory at ptr with the specified size to 0
 GROUNDED_FUNCTION_INLINE void groundedClearMemory(void* ptr, u64 size) {
+    ASSERT(ptr);
     memset(ptr, 0, size);
 }
 
@@ -32,6 +33,8 @@ GROUNDED_FUNCTION_INLINE bool groundedCompareMemory(void* a, void* b, u64 size) 
 }
 
 GROUNDED_FUNCTION_INLINE void groundedCopyMemory(void* dest, void* src, u64 size) {
+    ASSERT(src);
+    ASSERT(dest);
     memcpy(dest, src, size);
 }
 

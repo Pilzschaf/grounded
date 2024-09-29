@@ -11,7 +11,16 @@
 
 typedef struct GroundedWindow GroundedWindow;
 
+typedef enum GroundedWindowBackend {
+	GROUNDED_WINDOW_BACKEND_NONE,
+	GROUNDED_WINDOW_BACKEND_WIN32,
+	GROUNDED_WINDOW_BACKEND_XCB,
+	GROUNDED_WINDOW_BACKEND_WAYLAND,
+	GROUNDED_WINDOW_BACKEND_COUNT,
+} GroundedWindowBackend;
+
 GROUNDED_FUNCTION void groundedInitWindowSystem();
+GROUNDED_FUNCTION GroundedWindowBackend groundedWindowSystemGetSelectedBackend();
 GROUNDED_FUNCTION void groundedShutdownWindowSystem();
 
 typedef enum GroundedEventType {
@@ -23,6 +32,7 @@ typedef enum GroundedEventType {
 	GROUNDED_EVENT_TYPE_BUTTON_DOWN,
 	GROUNDED_EVENT_TYPE_BUTTON_UP,
 	GROUNDED_EVENT_TYPE_DISPLAY,
+	GROUNDED_EVENT_TYPE_MOUSE_MOVE,
     GROUNDED_EVENT_TYPE_COUNT,
 } GroundedEventType;
 typedef struct GroundedEvent {
@@ -61,6 +71,10 @@ typedef struct GroundedEvent {
 			struct GroundedWindowDisplay* display;
 			bool connected; // true on connect, false on disconnect
 		} display;
+		struct {
+			s32 mousePositionX;
+			s32 mousePositionY;
+		} mouseMove;
     };
 } GroundedEvent;
 
@@ -167,7 +181,7 @@ struct GroundedWindowCreateParameters {
 	u32 maxHeight;
 	bool borderless;
 	//bool fullscreen;
-	//bool hidden;
+	bool hidden;
 	//bool transparent;
 	void* userData;
 	void* dndUserData;
@@ -191,6 +205,8 @@ GROUNDED_FUNCTION void groundedWindowSetTitle(GroundedWindow* window, String8 ti
 GROUNDED_FUNCTION void groundedWindowSetFullscreen(GroundedWindow* window, bool fullscreen);
 GROUNDED_FUNCTION void groundedWindowSetBorderless(GroundedWindow* window, bool borderless);
 GROUNDED_FUNCTION void groundedWindowSetHidden(GroundedWindow* window, bool hidden);
+
+GROUNDED_FUNCTION bool groundedWindowIsFullscreen(GroundedWindow* window);
 
 GROUNDED_FUNCTION void groundedWindowSetUserData(GroundedWindow* window, void* userData);
 GROUNDED_FUNCTION void* groundedWindowGetUserData(GroundedWindow* window);

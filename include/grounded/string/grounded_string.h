@@ -5,62 +5,6 @@
 
 #include <string.h> // Required for strlen
 
-// String data should always be handled as being immutable.
-// Base does not guarantee to have a null-terminator. Always use str8GetCstr if a C-String is required
-// String data should always be UTF-8
-typedef struct {
-    u8* base;
-    u64 size;
-} String8;
-
-typedef struct String8Node {
-    struct String8Node* next;
-    String8 string;
-} String8Node;
-
-typedef struct {
-    struct String8Node* first;
-    struct String8Node* last;
-    u64 numNodes;
-    u64 totalSize;
-} String8List;
-
-typedef struct {
-    String8 pre;
-    String8 mid;
-    String8 post;
-} StringJoin;
-
-typedef struct {
-    u16* base;
-    u64 size; // Number of u16
-} String16;
-
-typedef struct {
-    u32* base;
-    u64 size; // Number of u32
-} String32;
-
-typedef struct {
-    u32 codepoint;
-    u32 size; // Size of this codepoint in the source string
-} StringDecode;
-
-// An atom contains a hash which can be used for fast comparisons.
-// Equality check always requires a string compare if the hash matches
-// Simply use compareAtoms
-typedef struct {
-    String8 string;
-    u64 hash;
-} StringAtom;
-
-#define STR8_LITERAL(s) ((String8){(u8*)(s), sizeof(s) - 1})
-#ifndef __cplusplus
-#define EMPTY_STRING8 ((String8){0, 0})
-#else
-#define EMPTY_STRING8 (String8{0, 0})
-#endif
-
 GROUNDED_FUNCTION_INLINE String8 str8FromBlock(u8* str, u64 size) {
     String8 result = {str, size};
     return result;
