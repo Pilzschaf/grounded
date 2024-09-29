@@ -376,10 +376,9 @@ GROUNDED_FUNCTION void groundedWindowFetchMouseState(GroundedWindow* window, Mou
 #define GROUNDED_KEY_F16 127 // 0x7F
 // Windows and Wayland actually support up to F24...
 
-#define GROUNDED_MOUSE_BUTTON_LEFT     1
-#define GROUNDED_MOUSE_BUTTON_MIDDLE   2
-#define GROUNDED_MOUSE_BUTTON_RIGHT    3
-
+#define GROUNDED_MOUSE_BUTTON_LEFT     0
+#define GROUNDED_MOUSE_BUTTON_MIDDLE   1
+#define GROUNDED_MOUSE_BUTTON_RIGHT    2
 
 GROUNDED_FUNCTION_INLINE u32 groundedGetUnicodeCodepointForKeycode(u8 keycode) {
 	if((keycode >= GROUNDED_KEY_A && keycode <= GROUNDED_KEY_Z) || (keycode >= GROUNDED_KEY_PLUS && keycode <= GROUNDED_KEY_9)) {
