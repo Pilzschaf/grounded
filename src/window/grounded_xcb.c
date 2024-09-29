@@ -713,9 +713,44 @@ static void xcbSetWindowTitle(GroundedXcbWindow* window, String8 title, bool flu
     }
 }
 
-//TODO: Doesn't work if window has already been mapped
+#define NET_WM_STATE_REMOVE 0
+#define NET_WM_STATE_ADD    1
+#define NET_WM_STATE_TOGGLE 2
+
+// https://specifications.freedesktop.org/wm-spec/wm-spec-latest.html
 static void xcbWindowSetFullscreen(GroundedXcbWindow* window, bool fullscreen) {
-    xcb_change_property(xcbConnection, XCB_PROP_MODE_REPLACE, window->window, xcbAtoms.xcbNetWmState, XCB_ATOM_ATOM, 32, fullscreen, &(xcbAtoms.xcbNetWmStateFullscreen));               
+    // Doesn't work if window has already been mapped
+    //xcb_change_property(xcbConnection, XCB_PROP_MODE_REPLACE, window->window, xcbAtoms.xcbNetWmState, XCB_ATOM_ATOM, 32, 1, &xcbAtoms.xcbNetWmStateFullscreen);
+    
+    u32 action = fullscreen ? NET_WM_STATE_ADD : NET_WM_STATE_REMOVE;
+
+    /* From ICCCM "Changing Window State" */
+    xcb_client_message_event_t event = {
+        .response_type = XCB_CLIENT_MESSAGE,
+        .format = 32,
+        .window = window->window,
+        .type = xcbAtoms.xcbNetWmState,
+        .data.data32 = {action, xcbAtoms.xcbNetWmStateFullscreen, 0, 1},
+    };
+    xcb_send_event(xcbConnection, 0, xcbScreen->root, XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT, (const char *)&event);
+}
+
+static bool xcbWindowIsFullscreen(GroundedXcbWindow* window) {
+    bool result = false;
+    xcb_get_property_cookie_t cookie = xcb_get_property(xcbConnection, 0, window->window, xcbAtoms.xcbNetWmState, XCB_ATOM_ATOM, 0, 1024);
+    xcb_get_property_reply_t *reply = xcb_get_property_reply(xcbConnection, cookie, 0);
+    if(reply) {
+        xcb_atom_t* atoms = xcb_get_property_value(reply);
+        u32 atomCount = xcb_get_property_value_length(reply) / sizeof(xcb_atom_t);
+        for(u32 i = 0; i < atomCount; ++i) {
+            if(atoms[i] == xcbAtoms.xcbNetWmStateFullscreen) {
+                result = true;
+                break;
+            }
+        }
+        free(reply);
+    }
+    return result;
 }
 
 static void xcbWindowSetBorderless(GroundedXcbWindow* window, bool borderless) {
