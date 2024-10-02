@@ -338,6 +338,35 @@ GROUNDED_FUNCTION void groundedWindowSetIcon(u8* data, u32 width, u32 height) {
     }
 }
 
+GROUNDED_FUNCTION GroundedWindowFramebuffer groundedWindowGetFramebuffer(GroundedWindow* window) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            return waylandGetFramebuffer((GroundedWaylandWindow*)window);
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            //return xcbGetFramebuffer((GroundedXcbWindow*)window);
+        } break;
+        default:break;
+    }
+    return (GroundedWindowFramebuffer){0};
+}
+
+GROUNDED_FUNCTION void groundedWindowSubmitFramebuffer(GroundedWindow* window, GroundedWindowFramebuffer* framebuffer) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            waylandSubmitFramebuffer((GroundedWaylandWindow*)window, framebuffer);
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            //xcbSubmitFramebuffer((GroundedXcbWindow*)window, framebuffer);
+        } break;
+        default:break;
+    }
+}
+
 static const char** getCursorNameCandidates(enum GroundedMouseCursor cursorType, u64* candidateCount) {
     // https://github.com/chromium/chromium/blob/db174a51cdde1785b378e532700af65dfd5b2e28/ui/base/cursor/cursor_factory.cc#L163
     //TODO: The tee icons might be interesting in some occasions but probably not supported on win32 natively

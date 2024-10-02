@@ -117,6 +117,12 @@ typedef struct GroundedWindowDisplay {
 	bool primary;
 } GroundedWindowDisplay;
 
+typedef struct GroundedWindowFramebuffer {
+	u32* buffer;
+	u32 width;
+	u32 height;
+} GroundedWindowFramebuffer;
+
 typedef struct GroundedWindowDragPayloadDescription GroundedWindowDragPayloadDescription;
 
 typedef enum GroundedMouseCursor {
@@ -212,6 +218,9 @@ GROUNDED_FUNCTION void groundedWindowSetUserData(GroundedWindow* window, void* u
 GROUNDED_FUNCTION void* groundedWindowGetUserData(GroundedWindow* window);
 
 GROUNDED_FUNCTION void groundedWindowSetIcon(u8* data, u32 width, u32 height);
+
+GROUNDED_FUNCTION GroundedWindowFramebuffer groundedWindowGetFramebuffer(GroundedWindow* window);
+GROUNDED_FUNCTION void groundedWindowSubmitFramebuffer(GroundedWindow* window, GroundedWindowFramebuffer* framebuffer);
 
 GROUNDED_FUNCTION void groundedSetCursorGrab(GroundedWindow* window, bool grab);
 GROUNDED_FUNCTION void groundedSetCursorVisibility(bool visible);

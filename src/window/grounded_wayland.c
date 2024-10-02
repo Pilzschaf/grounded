@@ -76,6 +76,11 @@ typedef struct GroundedWaylandWindow {
     String8 title; // Guaranteed to be 0-terminated
     char titleBuffer[256];
     bool borderless, inhibitIdle, fullscreen;
+    int shm; // Shared memory for framebuffers
+    struct wl_buffer* waylandBuffer;
+    void* framebufferMemory;
+	u32 framebufferWidth; // Those values need to exist because the window width and height can change asynchronously
+	u32 framebufferHeight;
 
     GroundedWindowDndCallback* dndCallback;
 
@@ -1660,6 +1665,143 @@ GROUNDED_FUNCTION void waylandSetIcon(u8* data, u32 width, u32 height) {
      */
 
     // TODO: Problem is that we have to save the image as png
+}
+
+static int set_cloexec_or_close(int fd) {
+    long flags;
+    
+    if (fd == -1)
+        return -1;
+    
+    flags = fcntl(fd, F_GETFD);
+    if (flags == -1)
+        goto err;
+    
+    if (fcntl(fd, F_SETFD, flags | FD_CLOEXEC) == -1)
+        goto err;
+    
+    return fd;
+    
+    err:
+    close(fd);
+    return -1;
+}
+
+static int create_tmpfile_cloexec(char *tmpname) {
+    int fd;
+    
+#ifdef HAVE_MKOSTEMP
+    fd = mkostemp(tmpname, O_CLOEXEC);
+    if (fd >= 0)
+        unlink(tmpname);
+#else
+    fd = mkstemp(tmpname);
+    if (fd >= 0) {
+        fd = set_cloexec_or_close(fd);
+        unlink(tmpname);
+    }
+#endif
+    
+    return fd;
+}
+
+
+static int os_create_anonymous_file(off_t size) {
+    const char *path;
+    char *name;
+    int fd;
+    
+    path = getenv("XDG_RUNTIME_DIR");
+    if (!path) {
+        errno = ENOENT;
+        return -1;
+    }
+    
+    //TODO: Replace malloc
+    name = (char*)malloc(strlen(path) + sizeof("/weston-shared-XXXXXX"));
+    if (!name)
+        return -1;
+    strcpy(name, path);
+    strcat(name, "/weston-shared-XXXXXX");
+    
+    fd = create_tmpfile_cloexec(name);
+    
+    free(name);
+    
+    if (fd < 0)
+        return -1;
+    
+    if (ftruncate(fd, size) < 0) {
+        close(fd);
+        return -1;
+    }
+    
+    return fd;
+}
+
+
+
+static void resizeWaylandFramebuffer(GroundedWaylandWindow* window) {
+    //TODO: Support framebuffer on devices without shm support or at least print an error
+    //TODO: Destroy wl_buffer of old framebuffer
+    ASSERT(waylandShm);
+
+    u32 newWidth = window->width;
+    u32 newHeight = window->height;
+
+    // Assumes 32bit per pixel for now
+    u32 size = newWidth * newHeight * 4;
+    printf("Resizing framebuffer to %ux%u", newWidth, newHeight);
+    if(window->framebufferMemory) {
+        ASSERT(window->waylandBuffer);
+        // Detach shm
+        shmdt(window->framebufferMemory);
+        
+        wl_buffer_destroy(window->waylandBuffer);
+    }
+
+    int fd = os_create_anonymous_file(size);
+
+    //window->waylandShm = shmget(IPC_PRIVATE, 640*480*4, IPC_CREAT | 0600);
+    window->shm = fd;
+    //window->framebufferMemory = shmat(window->waylandShm, 0, 0);
+    window->framebufferMemory = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    window->framebufferWidth = newWidth;
+    window->framebufferHeight = newHeight;
+
+    // Attach to wayland?
+    struct wl_shm_pool* pool = wl_shm_create_pool(waylandShm, window->shm, size);
+    //wl_buffer* buffer = wl_shm_pool_create_buffer(pool, 0, width, height, stride, WL_SHM_FORMAT_XRGB8888);
+    window->waylandBuffer = wl_shm_pool_create_buffer(pool, 0, newWidth, newHeight, newWidth*4, WL_SHM_FORMAT_XRGB8888);
+    //wl_shm_pool_destroy(pool);
+}
+
+
+GROUNDED_FUNCTION GroundedWindowFramebuffer waylandGetFramebuffer(GroundedWaylandWindow* window) {
+    GroundedWindowFramebuffer result = {0};
+
+    if(!window->shm || window->framebufferWidth != window->width || window->framebufferHeight != window->height) {
+        resizeWaylandFramebuffer(window);
+    }
+
+    ASSERT(window->shm);
+    ASSERT(window->framebufferMemory);
+    result.width = window->framebufferWidth;
+    result.height = window->framebufferHeight;
+    result.buffer = (u32*)window->framebufferMemory;
+
+    return result;
+}
+
+GROUNDED_FUNCTION void waylandSubmitFramebuffer(GroundedWaylandWindow* window, GroundedWindowFramebuffer* framebuffer) {
+    ASSERT(window->shm);
+    ASSERT(window->waylandBuffer);
+    ASSERT(window->framebufferMemory == framebuffer->buffer);
+
+    wl_surface_attach(window->surface, window->waylandBuffer, 0, 0);
+    // Always use damage buffer instead of damage
+    wl_surface_damage_buffer(window->surface, 0, 0, INT32_MAX, INT32_MAX);
+    wl_surface_commit(window->surface);
 }
 
 GROUNDED_FUNCTION void waylandSetCursorType(enum GroundedMouseCursor cursorType) {

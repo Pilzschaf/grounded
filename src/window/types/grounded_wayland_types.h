@@ -16,6 +16,7 @@
 #define WL_SURFACE_COMMIT 6
 #define WL_SURFACE_SET_BUFFER_TRANSFORM 7 // Since version 2
 #define WL_SURFACE_SET_BUFFER_SCALE 8
+#define WL_SURFACE_DAMAGE_BUFFER 9
 #define WL_SURFACE_OFFSET 10
 
 #define WL_SEAT_GET_POINTER 0
@@ -30,6 +31,8 @@
 #define WL_SHM_CREATE_POOL 0
 #define WL_SHM_POOL_CREATE_BUFFER 0
 #define WL_SHM_POOL_DESTROY 1
+
+#define WL_BUFFER_DESTROY 0
 
 #define WL_DATA_DEVICE_MANAGER_CREATE_DATA_SOURCE 0
 #define WL_DATA_DEVICE_MANAGER_GET_DATA_DEVICE 1
@@ -324,6 +327,10 @@ static inline void wl_surface_set_buffer_scale(struct wl_surface *wl_surface, in
 	wl_proxy_marshal_flags((struct wl_proxy *) wl_surface, WL_SURFACE_SET_BUFFER_SCALE, NULL, wl_proxy_get_version((struct wl_proxy *) wl_surface), 0, scale);
 }
 
+static inline void wl_surface_damage_buffer(struct wl_surface *wl_surface, int32_t x, int32_t y, int32_t width, int32_t height) {
+	wl_proxy_marshal_flags((struct wl_proxy *) wl_surface, WL_SURFACE_DAMAGE_BUFFER, NULL, wl_proxy_get_version((struct wl_proxy *) wl_surface), 0, x, y, width, height);
+}
+
 static inline void wl_surface_attach(struct wl_surface *wl_surface, struct wl_buffer *buffer, int32_t x, int32_t y) {
 	wl_proxy_marshal_flags((struct wl_proxy *) wl_surface, WL_SURFACE_ATTACH, NULL, wl_proxy_get_version((struct wl_proxy *) wl_surface), 0, buffer, x, y);
 }
@@ -360,6 +367,10 @@ static inline void wl_shm_pool_destroy(struct wl_shm_pool *wl_shm_pool) {
 
 static inline void wl_shm_destroy(struct wl_shm *wl_shm) {
 	wl_proxy_destroy((struct wl_proxy *) wl_shm);
+}
+
+static inline void wl_buffer_destroy(struct wl_buffer *wl_buffer) {
+	wl_proxy_marshal_flags((struct wl_proxy *) wl_buffer, WL_BUFFER_DESTROY, NULL, wl_proxy_get_version((struct wl_proxy *) wl_buffer), WL_MARSHAL_FLAG_DESTROY);
 }
 
 static inline struct wl_data_source * wl_data_device_manager_create_data_source(struct wl_data_device_manager *wl_data_device_manager) {
