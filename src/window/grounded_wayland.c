@@ -77,8 +77,8 @@ typedef struct GroundedWaylandWindow {
     char titleBuffer[256];
     bool borderless, inhibitIdle, fullscreen;
     int shm; // Shared memory for framebuffers
-    struct wl_buffer* waylandBuffer;
-    void* framebufferMemory;
+    struct wl_buffer* waylandBuffers[2]; // Double buffering. Index 0 is the one currently drawn to
+    void* framebufferPointers[2]; // Double buffering. Index 0 is the one currently drawn to
 	u32 framebufferWidth; // Those values need to exist because the window width and height can change asynchronously
 	u32 framebufferHeight;
 
@@ -1752,27 +1752,29 @@ static void resizeWaylandFramebuffer(GroundedWaylandWindow* window) {
     // Assumes 32bit per pixel for now
     u32 size = newWidth * newHeight * 4;
     printf("Resizing framebuffer to %ux%u", newWidth, newHeight);
-    if(window->framebufferMemory) {
-        ASSERT(window->waylandBuffer);
+    if(window->framebufferPointers[0]) {
+        ASSERT(window->waylandBuffers[0] && window->waylandBuffers[1] && window->framebufferPointers[1]);
         // Detach shm
-        shmdt(window->framebufferMemory);
+        shmdt(window->framebufferPointers[0]);
+        shmdt(window->framebufferPointers[1]);
         
-        wl_buffer_destroy(window->waylandBuffer);
+        wl_buffer_destroy(window->waylandBuffers[0]);
+        wl_buffer_destroy(window->waylandBuffers[1]);
     }
 
-    int fd = os_create_anonymous_file(size);
-
+    int fd = os_create_anonymous_file(size * 2);
     //window->waylandShm = shmget(IPC_PRIVATE, 640*480*4, IPC_CREAT | 0600);
     window->shm = fd;
     //window->framebufferMemory = shmat(window->waylandShm, 0, 0);
-    window->framebufferMemory = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    window->framebufferPointers[0] = mmap(0, size * 2, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    window->framebufferPointers[1] = ((u8*)window->framebufferPointers[0])+size;
     window->framebufferWidth = newWidth;
     window->framebufferHeight = newHeight;
 
     // Attach to wayland?
-    struct wl_shm_pool* pool = wl_shm_create_pool(waylandShm, window->shm, size);
-    //wl_buffer* buffer = wl_shm_pool_create_buffer(pool, 0, width, height, stride, WL_SHM_FORMAT_XRGB8888);
-    window->waylandBuffer = wl_shm_pool_create_buffer(pool, 0, newWidth, newHeight, newWidth*4, WL_SHM_FORMAT_XRGB8888);
+    struct wl_shm_pool* pool = wl_shm_create_pool(waylandShm, window->shm, size * 2);
+    window->waylandBuffers[0] = wl_shm_pool_create_buffer(pool, 0, newWidth, newHeight, newWidth*4, WL_SHM_FORMAT_XRGB8888);
+    window->waylandBuffers[1] = wl_shm_pool_create_buffer(pool, size, newWidth, newHeight, newWidth*4, WL_SHM_FORMAT_XRGB8888);
     //wl_shm_pool_destroy(pool);
 }
 
@@ -1785,23 +1787,31 @@ GROUNDED_FUNCTION GroundedWindowFramebuffer waylandGetFramebuffer(GroundedWaylan
     }
 
     ASSERT(window->shm);
-    ASSERT(window->framebufferMemory);
+    ASSERT(window->framebufferPointers[0]);
     result.width = window->framebufferWidth;
     result.height = window->framebufferHeight;
-    result.buffer = (u32*)window->framebufferMemory;
+    result.buffer = (u32*)window->framebufferPointers[0];
 
     return result;
 }
 
 GROUNDED_FUNCTION void waylandSubmitFramebuffer(GroundedWaylandWindow* window, GroundedWindowFramebuffer* framebuffer) {
     ASSERT(window->shm);
-    ASSERT(window->waylandBuffer);
-    ASSERT(window->framebufferMemory == framebuffer->buffer);
+    ASSERT(window->waylandBuffers[0]);
+    ASSERT(window->framebufferPointers[0] == framebuffer->buffer);
 
-    wl_surface_attach(window->surface, window->waylandBuffer, 0, 0);
+    wl_surface_attach(window->surface, window->waylandBuffers[0], 0, 0);
     // Always use damage buffer instead of damage
     wl_surface_damage_buffer(window->surface, 0, 0, INT32_MAX, INT32_MAX);
     wl_surface_commit(window->surface);
+
+    struct wl_buffer* nextBuffer = window->waylandBuffers[1];
+    window->waylandBuffers[1] = window->waylandBuffers[0];
+    window->waylandBuffers[0] = nextBuffer;
+
+    void* nextFramebuffer = window->framebufferPointers[1];
+    window->framebufferPointers[1] = window->framebufferPointers[0];
+    window->framebufferPointers[0] = nextFramebuffer;
 }
 
 GROUNDED_FUNCTION void waylandSetCursorType(enum GroundedMouseCursor cursorType) {
