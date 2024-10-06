@@ -1743,7 +1743,7 @@ static int os_create_anonymous_file(off_t size) {
 
 static void resizeWaylandFramebuffer(GroundedWaylandWindow* window) {
     //TODO: Support framebuffer on devices without shm support or at least print an error
-    //TODO: Destroy wl_buffer of old framebuffer
+    //TODO: Destroy wl_buffer of old framebuffer, old shm pool
     ASSERT(waylandShm);
 
     u32 newWidth = window->width;
