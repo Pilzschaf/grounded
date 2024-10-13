@@ -505,18 +505,21 @@ static const struct wl_keyboard_listener keyboard_listener = {
 static void pointerHandleEnter(void *data, struct wl_pointer *wl_pointer, uint32_t serial, struct wl_surface *surface, wl_fixed_t surface_x, wl_fixed_t surface_y) {
     ASSERT(wl_pointer == pointer);
 
-    GroundedWaylandWindow* window = (GroundedWaylandWindow*)wl_surface_get_user_data(surface);
-    activeWindow = window;
-    lastPointerSerial = serial;
+    // Can be called when surface has already been destroyed. So we check if we have valid surface first
+    if(surface) {
+        GroundedWaylandWindow* window = (GroundedWaylandWindow*)wl_surface_get_user_data(surface);
+        activeWindow = window;
+        lastPointerSerial = serial;
 
-    if(waylandCurrentCursorType == GROUNDED_MOUSE_CURSOR_CUSTOM) {
-        wl_pointer_set_cursor(pointer, serial, cursorSurface, 0, 0);
-    } else {
-        waylandSetCursorType(waylandCurrentCursorType);
+        if(waylandCurrentCursorType == GROUNDED_MOUSE_CURSOR_CUSTOM) {
+            wl_pointer_set_cursor(pointer, serial, cursorSurface, 0, 0);
+        } else {
+            waylandSetCursorType(waylandCurrentCursorType);
+        }
+        //printf("Enter with serial %u\n", serial);
+
+        pointerEnterSerial = serial;
     }
-    //printf("Enter with serial %u\n", serial);
-
-    pointerEnterSerial = serial;
 }
 
 static void pointerHandleLeave(void *data, struct wl_pointer *wl_pointer, uint32_t serial, struct wl_surface *surface) {

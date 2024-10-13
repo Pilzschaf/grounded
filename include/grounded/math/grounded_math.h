@@ -1169,10 +1169,10 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec4) u32ToColor(u32 color) {
 
 // ARGB layout
 GROUNDED_FUNCTION_INLINE u32 colorToU32(GROUNDED_MATH_PREFIX(vec4) color) {
-    u32 r = (u32)(color.r * 255.0f);
-    u32 g = (u32)(color.g * 255.0f);
-    u32 b = (u32)(color.b * 255.0f);
-    u32 a = (u32)(color.a * 255.0f);
+    u32 r = (u32)(CLAMP(0.0f, color.r, 1.0f) * 255.0f);
+    u32 g = (u32)(CLAMP(0.0f, color.g, 1.0f) * 255.0f);
+    u32 b = (u32)(CLAMP(0.0f, color.b, 1.0f) * 255.0f);
+    u32 a = (u32)(CLAMP(0.0f, color.a, 1.0f) * 255.0f);
     u32 result = (a << 24) | (r << 16) | (g << 8) | b;
     return result;
 }
