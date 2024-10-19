@@ -158,6 +158,7 @@ struct wl_registry* registry;
 struct xdg_wm_base* xdgWmBase;
 struct wl_keyboard* keyboard;
 struct wl_pointer* pointer;
+struct zwp_relative_pointer_v1* relativePointer;
 u32 lastPointerSerial;
 struct wl_seat* pointerSeat;
 struct wl_data_device* dataDevice; // Data device tied to pointerSeat
@@ -456,6 +457,18 @@ static u8 translateWaylandKeycode(u32 key) {
         case KEY_ESC:
         result = GROUNDED_KEY_ESCAPE;
         break;
+        case KEY_LEFT:
+        result = GROUNDED_KEY_LEFT;
+        break;
+        case KEY_RIGHT:
+        result = GROUNDED_KEY_RIGHT;
+        break;
+        case KEY_UP:
+        result = GROUNDED_KEY_UP;
+        break;
+        case KEY_DOWN:
+        result = GROUNDED_KEY_DOWN;
+        break;
         default:
         GROUNDED_LOG_WARNING("Unknown keycode");
         break;
@@ -565,6 +578,8 @@ static void setCursorOverwrite(GroundedMouseCursor newCursor) {
 static void pointerHandleMotion(void *data, struct wl_pointer *wl_pointer, uint32_t time, wl_fixed_t surface_x, wl_fixed_t surface_y) {
     s32 posX = wl_fixed_to_int(surface_x);
     s32 posY = wl_fixed_to_int(surface_y);
+    //float posXf = (float)wl_fixed_to_double(surface_x);
+    //float posYf = (float)wl_fixed_to_double(surface_y);
     if(activeWindow) {
         activeWindow->mouseState.x = posX;
         activeWindow->mouseState.y = posY;
@@ -802,6 +817,21 @@ static String8 readIntoBuffer(MemoryArena* arena, int fd) {
 
 extern const struct wl_data_device_listener dataDeviceListener;
 
+static void relativePointerHandleMotion(void* userData,
+                                        struct zwp_relative_pointer_v1* movedPointer, u32 utime_hi, u32 utime_lo, s32 dx, s32 dy, s32 dx_unaccel, s32 dy_unaccel){
+    
+    if(activeWindow) {
+        float relativeX = (float)wl_fixed_to_double(dx);
+        float relativeY = (float)wl_fixed_to_double(dy);
+        activeWindow->mouseState.relativeX += relativeX;
+        activeWindow->mouseState.relativeY += relativeY;
+    }
+}
+
+static const struct zwp_relative_pointer_v1_listener relativePointerListener = {
+    .relative_motion = relativePointerHandleMotion,
+};
+
 static void seatHandleCapabilities(void *data, struct wl_seat *seat, u32 c) {
     enum wl_seat_capability caps = (enum wl_seat_capability) c;
     if (caps & WL_SEAT_CAPABILITY_POINTER) {
@@ -811,6 +841,10 @@ static void seatHandleCapabilities(void *data, struct wl_seat *seat, u32 c) {
         pointerSeat = seat;
         dataDevice = wl_data_device_manager_get_data_device(dataDeviceManager, seat);
         wl_data_device_add_listener(dataDevice, &dataDeviceListener, 0);
+        if(relativePointerManager) {
+            relativePointer = zwp_relative_pointer_manager_v1_get_relative_pointer(relativePointerManager, pointer);
+            zwp_relative_pointer_v1_add_listener(relativePointer, &relativePointerListener, 0);
+        }
     } else if (!(caps & WL_SEAT_CAPABILITY_POINTER) && pointer) {
         wl_pointer_destroy(pointer);
     }
@@ -1643,9 +1677,13 @@ static void waylandFetchMouseState(GroundedWaylandWindow* window, MouseState* mo
     mouseState->horizontalScrollDelta = window->mouseState.horizontalScrollDelta;
     mouseState->deltaX = mouseState->x - mouseState->lastX;
     mouseState->deltaY = mouseState->y - mouseState->lastY;
+    mouseState->relativeX = window->mouseState.relativeX;
+    mouseState->relativeY = window->mouseState.relativeY;
 
     window->mouseState.scrollDelta = 0.0f;
     window->mouseState.horizontalScrollDelta = 0.0f;
+    window->mouseState.relativeX = 0.0f;
+    window->mouseState.relativeY = 0.0f;
 }
 
 GROUNDED_FUNCTION void waylandSetIcon(u8* data, u32 width, u32 height) {

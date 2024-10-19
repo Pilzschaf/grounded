@@ -106,6 +106,8 @@ typedef struct MouseState {
 
 	u16 buttonDownTransitions[32];
 	u16 buttonUpTransitions[32];
+
+	float relativeX, relativeY;
 } MouseState;
 
 // Monitor, Display, Screen
