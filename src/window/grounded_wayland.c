@@ -523,6 +523,7 @@ static void pointerHandleEnter(void *data, struct wl_pointer *wl_pointer, uint32
         GroundedWaylandWindow* window = (GroundedWaylandWindow*)wl_surface_get_user_data(surface);
         activeWindow = window;
         lastPointerSerial = serial;
+        pointerEnterSerial = serial;
 
         if(waylandCurrentCursorType == GROUNDED_MOUSE_CURSOR_CUSTOM) {
             wl_pointer_set_cursor(pointer, serial, cursorSurface, 0, 0);

@@ -166,6 +166,10 @@ typedef union GROUNDED_MATH_PREFIX(mat4) {
 } GROUNDED_MATH_PREFIX(mat4);
 STATIC_ASSERT(sizeof(GROUNDED_MATH_PREFIX(mat4)) == sizeof(float)*16);
 
+typedef struct GROUNDED_MATH_PREFIX(frustum) {
+    vec4 frustumPlanes[6];
+} GROUNDED_MATH_PREFIX(frustum);
+
 #include <math.h> // For sqrtf, sinf, cosf, tanf
 
 GROUNDED_FUNCTION_INLINE float squareRoot(float value) {
@@ -842,6 +846,19 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreatePerspectiveProjecti
     return result;
 }
 
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreatePerspectiveProjectionGl(float fov, float aspectRatio, float nearPlane, float farPlane) {
+    float tanHalfFov = tanf(fov / 2.0f);
+    GROUNDED_MATH_PREFIX(mat4) result = {0};
+
+    result.m[0][0] = 1.0f / (aspectRatio * tanHalfFov);
+    result.m[1][1] = 1.0f / tanHalfFov; // the - is a negative y scale and makes y go up instead of down
+    result.m[2][2] = -farPlane / (farPlane - nearPlane);
+    result.m[2][3] = -(2.0f * farPlane * nearPlane) / (farPlane - nearPlane);
+    result.m[3][2] = -1.0f;
+
+    return result;
+}
+
 GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreatePerspectiveProjectionInverseZ(float fov, float aspectRatio, float nearPlane) {
     float tanHalfFov = tanf(fov / 2.0f);
     GROUNDED_MATH_PREFIX(mat4) result = {0};
@@ -850,6 +867,28 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreatePerspectiveProjecti
     result.m[1][1] = -1.0f / tanHalfFov; // the - is a negative y scale and makes y go up instead of down
     result.m[2][3] = nearPlane;
     result.m[3][2] = 1.0f;
+
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreatePerspectiveProjectionFromCoordinates(float left, float right, float bottom, float top, float zNear, float zFar) {
+    GROUNDED_MATH_PREFIX(mat4) result = {0};
+
+    /*result.m11 = 2.0f * zNear / (right - left);
+    result.m22 = 2.0f * zNear / (top - bottom);
+    result.m31 = (right + left) / (right - left);
+    result.m32 = (top + bottom) / (top - bottom);
+    result.m33 = (zFar + zNear) / (zFar - zNear);
+    result.m34 = 1.0f;
+    result.m43 = -2.0f * zFar * zNear / (zFar - zNear);*/
+
+    result.m11 = 2.0f * zNear / (right - left);
+    result.m22 = 2.0f * zNear / (top - bottom);
+    result.m13 = (right + left) / (right - left);
+    result.m23 = (top + bottom) / (top - bottom);
+    result.m33 = -(zFar + zNear) / (zFar - zNear);
+    result.m43 = -1.0f;
+    result.m34 = -2.0f * zFar * zNear / (zFar - zNear);
 
     return result;
 }
@@ -1138,6 +1177,49 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matInverse(GROUNDED_MATH_PRE
     return result;
 }
 
+// Applies the inverse matrix transform to a vec3. Not working correctly
+/*GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec3) matMultiplyVec3Inverse(GROUNDED_MATH_PREFIX(mat4) m, GROUNDED_MATH_PREFIX(vec3) v) {
+    vec3 center = matMultiplyVec3(m, VEC3(0.0f, 0.0f, 0.0f));
+    vec3 axisX = matMultiplyVec3(m, VEC3(1.0f, 0.0f, 0.0f));
+    vec3 axisY = matMultiplyVec3(m, VEC3(0.0f, 1.0f, 0.0f));
+    vec3 axisZ = matMultiplyVec3(m, VEC3(0.0f, 0.0f, 1.0f));
+    axisX = (v3Subtract(axisX, center));
+    axisY = (v3Subtract(axisY, center));
+    axisZ = (v3Subtract(axisZ, center));
+    axisX = v3Normalize(axisX);
+    axisY = v3Normalize(axisY);
+    axisZ = v3Normalize(axisZ);
+
+    vec3 p = v3Subtract(v, center);
+    vec3 result = VEC3(v3Dot(axisX, p), v3Dot(axisY, p), v3Dot(axisZ, p));
+    return result;
+}*/
+
+//////////
+// Frustum
+
+/*GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(frustum) frustomFromViewProj(GROUNDED_MATH_PREFIX(mat4) viewProj) {
+    GROUNDED_MATH_PREFIX(frustum) result = {{
+        //TODO: Maybe should be columns instead of rows
+        v4Add(viewProj.rows[3], viewProj.rows[0]),
+        v4Subtract(viewProj.rows[3], viewProj.rows[0]),
+        v4Add(viewProj.rows[3], viewProj.rows[1]),
+        v4Subtract(viewProj.rows[3], viewProj.rows[1]),
+        v4Subtract(viewProj.rows[3], viewProj.rows[2]),
+        viewProj.rows[2], // maybe also v4Add(viewProj.rows[3], viewProj.rows[2]),
+    }};
+}*/
+
+/*GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec3) unprojectWithFrustum(GROUNDED_MATH_PREFIX(mat4) model, GROUNDED_MATH_PREFIX(frustum) projectionFrustum, GROUNDED_MATH_PREFIX(vec3) v) {
+    vec3 point = {
+        .x = (v.x + projectionFrustum.frustumPlanes[0]) * -v.z * projectionFrustum.frustumPlanes[1],
+        .y = (v.y + projectionFrustum.frustumPlanes[2]) * -v.z * projectionFrustum.frustumPlanes[1],
+    };
+    vec3 center = matMultiplyVec3(model, VEC3(0.0f, 0.0f, 0.0f));
+    vec3 axisX = matMultiplyVec3(model, VEC3(1.0f, 0.0f, 0.0f));
+    vec3 axisY = matMultiplyVec3(model, VEC3(0.0f, 1.0f, 0.0f));
+    vec3 axisZ = matMultiplyVec3(model, VEC3(0.0f, 0.0f, 1.0f));
+}*/
 
 ////////////////
 // Other helpers
