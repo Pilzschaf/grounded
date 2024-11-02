@@ -62,6 +62,10 @@ typedef unsigned int uint;
 #define STATIC_ASSERT(c) enum { GLUE(assert_fail_, __LINE__) = 1/(int)(!!(c))}
 #endif
 
+#ifndef ASSUME
+#define ASSUME(c) ASSERT(c); if(c)
+#endif
+
 // Check type sizes
 STATIC_ASSERT(sizeof(s8) == 1);
 STATIC_ASSERT(sizeof(u8) == 1);

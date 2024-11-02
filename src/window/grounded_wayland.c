@@ -524,6 +524,7 @@ static void pointerHandleEnter(void *data, struct wl_pointer *wl_pointer, uint32
         activeWindow = window;
         lastPointerSerial = serial;
         pointerEnterSerial = serial;
+        window->mouseState.mouseInWindow = true;
 
         if(waylandCurrentCursorType == GROUNDED_MOUSE_CURSOR_CUSTOM) {
             wl_pointer_set_cursor(pointer, serial, cursorSurface, 0, 0);
@@ -542,6 +543,7 @@ static void pointerHandleLeave(void *data, struct wl_pointer *wl_pointer, uint32
         // Make sure mouse position is outside screen
         activeWindow->mouseState.x = -1;
         activeWindow->mouseState.y = -1;
+        activeWindow->mouseState.mouseInWindow = false;
 
         // Reset buttons to non-pressed state
         MEMORY_CLEAR_ARRAY(activeWindow->mouseState.buttons);
@@ -582,6 +584,7 @@ static void pointerHandleMotion(void *data, struct wl_pointer *wl_pointer, uint3
     //float posXf = (float)wl_fixed_to_double(surface_x);
     //float posYf = (float)wl_fixed_to_double(surface_y);
     if(activeWindow) {
+        activeWindow->mouseState.mouseInWindow = true;
         activeWindow->mouseState.x = posX;
         activeWindow->mouseState.y = posY;
         bool handled = false;
@@ -1680,6 +1683,7 @@ static void waylandFetchMouseState(GroundedWaylandWindow* window, MouseState* mo
     mouseState->deltaY = mouseState->y - mouseState->lastY;
     mouseState->relativeX = window->mouseState.relativeX;
     mouseState->relativeY = window->mouseState.relativeY;
+    mouseState->mouseInWindow = window->mouseState.mouseInWindow;
 
     window->mouseState.scrollDelta = 0.0f;
     window->mouseState.horizontalScrollDelta = 0.0f;
