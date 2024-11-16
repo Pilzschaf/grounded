@@ -884,8 +884,8 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreatePerspectiveProjecti
 
     result.m11 = 2.0f * zNear / (right - left);
     result.m22 = 2.0f * zNear / (top - bottom);
-    result.m13 = (right + left) / (right - left);
-    result.m23 = (top + bottom) / (top - bottom);
+    result.m31 = (right + left) / (right - left);
+    result.m32 = (top + bottom) / (top - bottom);
     result.m33 = -(zFar + zNear) / (zFar - zNear);
     result.m43 = -1.0f;
     result.m34 = -2.0f * zFar * zNear / (zFar - zNear);

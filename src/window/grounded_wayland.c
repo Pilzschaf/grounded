@@ -469,6 +469,9 @@ static u8 translateWaylandKeycode(u32 key) {
         case KEY_DOWN:
         result = GROUNDED_KEY_DOWN;
         break;
+        case KEY_ENTER:
+        result = GROUNDED_KEY_ENTER;
+        break;
         default:
         GROUNDED_LOG_WARNING("Unknown keycode");
         break;

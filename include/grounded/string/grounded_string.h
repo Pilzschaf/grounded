@@ -5,6 +5,11 @@
 
 #include <string.h> // Required for strlen
 
+GROUNDED_FUNCTION_INLINE bool asciiCharIsBoundary(u8 character) {
+    bool isBoundary = character == ' ' || character == '\t' || character == '/' || character == '\n';
+    return isBoundary;
+}
+
 GROUNDED_FUNCTION_INLINE String8 str8FromBlock(u8* str, u64 size) {
     String8 result = {str, size};
     return result;
@@ -36,6 +41,7 @@ GROUNDED_FUNCTION u64 str8GetLastOccurence(String8 str, char c); // Returns UINT
 GROUNDED_FUNCTION bool str8IsPrefixOf(String8 prefix, String8 str);
 GROUNDED_FUNCTION bool str8IsPostfixOf(String8 postfix, String8 str);
 GROUNDED_FUNCTION bool str8IsSubstringOf(String8 substring, String8 str);
+GROUNDED_FUNCTION s64 str8DeltaToNextWordBoundary(String8 str, u64 cursor, s64 inc); // Returns a modified delta extended to the next word boundary of str
 
 struct MemoryArena;
 GROUNDED_FUNCTION String8 str8FromFormat(struct MemoryArena* arena, const char* format, ...);

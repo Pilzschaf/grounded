@@ -112,6 +112,26 @@ GROUNDED_FUNCTION bool str8IsSubstringOf(String8 substring, String8 str) {
     return result;
 }
 
+GROUNDED_FUNCTION s64 str8DeltaToNextWordBoundary(String8 str, u64 cursor, s64 inc) {
+    s64 result = 0;
+    for(s64 byteOffset = (s64)cursor + inc; byteOffset >= 0 && byteOffset <= str.size; byteOffset += inc) {
+        if(byteOffset == 0 || byteOffset == str.size) {
+            result += byteOffset - (s64)cursor;
+            break;
+        }
+        s64 off = inc > 0 ? -1 : 0;
+        ASSERT(byteOffset+off < str.size);
+        ASSERT(byteOffset+inc+off < str.size);
+        ASSERT(byteOffset+off >= 0);
+        ASSERT(byteOffset+inc+off >= 0);
+        if(!asciiCharIsBoundary(str.base[byteOffset+off]) && asciiCharIsBoundary(str.base[byteOffset+inc+off])) {
+            result += byteOffset - (s64)cursor;
+            break;
+        }
+    }
+    return result;
+}
+
 String8 str8FromFormatVaList(struct MemoryArena* arena, const char* format, va_list args) {
     // In case we need to try a second time
     va_list args2;

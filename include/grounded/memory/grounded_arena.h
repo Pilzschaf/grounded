@@ -33,6 +33,7 @@ typedef struct MemoryArena MemoryArena;
 #define ARENA_PUSH_STRUCT_NO_CLEAR_ALIGNED(arena, type, alignment) (type*)_arenaPushSize(arena, sizeof(type), alignment, false, __LINE__, STR8_LITERAL(__FILE__))
 #define ARENA_PUSH_ARRAY_NO_CLEAR(arena, count, type) (type*)_arenaPushSize(arena, sizeof(type)*(count), ALIGNMENT_OF(type), false, __LINE__, STR8_LITERAL(__FILE__))
 #define ARENA_PUSH_ARRAY_NO_CLEAR_ALIGNED(arena, count, type, alignment) (type*)_arenaPushSize(arena, sizeof(type)*(count), alignment, false, __LINE__, STR8_LITERAL(__FILE__))
+#define ARENA_PUSH_COPY(arena, type, original) (type*)_arenaPushCopy(arena, sizeof(type), ALIGNMENT_OF(type), original, __LINE__, STR8_LITERAL(__FILE__))
 
 // Freeing functions
 GROUNDED_FUNCTION_INLINE void arenaPopTo(MemoryArena* arena, u8* newHead);
@@ -184,6 +185,15 @@ GROUNDED_FUNCTION_INLINE void* _arenaPushSize(MemoryArena* arena, u64 size, u64 
     if(!clear) { memset(result, 27, size); }
 #endif
 
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE void* _arenaPushCopy(MemoryArena* arena, u64 size, u64 alignment, void* original, u64 line, String8 filename) {
+    void* result = 0;
+    result = _arenaPushSize(arena, size, alignment, false, line, filename);
+    if(result) {
+        memcpy(result, original, size);
+    }
     return result;
 }
 
