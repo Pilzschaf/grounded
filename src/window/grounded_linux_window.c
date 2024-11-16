@@ -40,6 +40,26 @@ struct GroundedOpenGLContext {
 #undef X
 #endif
 
+#define __XCB_H__
+//#include <xkbcommon/xkbcommon.h>
+//#include <xkbcommon/xkbcommon-x11.h>
+#undef __XCB_H__
+#include "types/grounded_xkb_types.h"
+
+// xkb function types
+#define X(N, R, P) typedef R grounded_##N P;
+#include "types/grounded_xkbcommon_functions.h"
+#undef X
+
+// xkb function pointers
+#define X(N, R, P) static grounded_##N * N = 0;
+#include "types/grounded_xkbcommon_functions.h"
+#undef X
+
+struct xkb_context* xkbContext;
+struct xkb_state* xkbState;
+struct xkb_keymap* xkbKeymap;
+
 #include "grounded_xcb.c"
 #include "grounded_wayland.c"
 
@@ -55,6 +75,21 @@ typedef enum WindowBackend {
 WindowBackend linuxWindowBackend = GROUNDED_LINUX_WINDOW_BACKEND_NONE;
 
 GROUNDED_FUNCTION void groundedInitWindowSystem() {
+    const char* firstMissingFunctionName = 0;
+    void* xkbCommonLibrary = dlopen("libxkbcommon.so", RTLD_LAZY | RTLD_LOCAL);
+    if(xkbCommonLibrary) {
+        #define X(N, R, P) N = (grounded_##N*)dlsym(xkbCommonLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
+        #include "types/grounded_xkbcommon_functions.h"
+        #undef X
+        if(firstMissingFunctionName) {
+            GROUNDED_PUSH_ERRORF("Could not load xkb function: %s", firstMissingFunctionName);
+            dlclose(xkbCommonLibrary);
+            xkbContext = 0;
+        } else {
+            xkbContext = xkb_context_new(0);
+        }
+    }
+
     bool skipWayland = false;
     if(!skipWayland && initWayland()) {
         linuxWindowBackend = GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND;

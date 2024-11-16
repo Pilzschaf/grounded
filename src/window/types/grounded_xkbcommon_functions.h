@@ -6,3 +6,7 @@ X(xkb_state_key_get_one_sym, xkb_keysym_t, (struct xkb_state *state, xkb_keycode
 X(xkb_keysym_to_utf32, uint32_t, (xkb_keysym_t keysym))
 X(xkb_keysym_to_utf8, int, (xkb_keysym_t keysym, char *buffer, size_t size))
 X(xkb_state_mod_name_is_active, int, (struct xkb_state *state, const char *name,enum xkb_state_component type))
+X(xkb_keymap_new_from_string, struct xkb_keymap*, (struct xkb_context *context, const char *string,enum xkb_keymap_format format,enum xkb_keymap_compile_flags flags))
+X(xkb_state_unref, void,(struct xkb_state *state))
+X(xkb_state_new, struct xkb_state *,(struct xkb_keymap *keymap))
+X(xkb_keymap_unref, void,(struct xkb_keymap *keymap))

@@ -275,7 +275,38 @@ static int createSharedMemoryFile(u64 size) {
 }
 
 static void keyboard_handle_keymap(void *data, struct wl_keyboard *keyboard, uint32_t format, int fd, uint32_t size) {
-    GROUNDED_LOG_VERBOSE("Keyboard keymap");
+    //GROUNDED_LOG_VERBOSE("Keyboard keymap");
+    char* keymapData = 0;
+    struct xkb_keymap* keymap = 0;
+    ASSUME(format == WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1) {
+        if(!xkbContext) {
+            ASSERT(false);
+        } else {
+            //TODO: Need to read format with xkb
+            char* keymapData = mmap(0, size, PROT_READ, MAP_SHARED, fd, 0);
+            if(keymapData == MAP_FAILED) {
+                keymapData = 0;
+            }
+            if(keymapData) {
+                keymap = xkb_keymap_new_from_string(xkbContext, keymapData, XKB_KEYMAP_FORMAT_TEXT_V1, XKB_KEYMAP_COMPILE_NO_FLAGS);
+                munmap(keymapData, size);
+            }
+        }
+        if(keymap) {
+            // Free old state if it exists
+            if(xkbState) {
+                xkb_state_unref(xkbState);
+            }
+            xkbState = xkb_state_new(keymap);
+            if(xkbKeymap) {
+                xkb_keymap_unref(xkbKeymap);
+            }
+            xkbKeymap = keymap;
+        }
+    }
+    if(fd) {
+        close(fd);
+    }
 }
 
 static void keyboard_handle_enter(void *data, struct wl_keyboard *keyboard, uint32_t serial, struct wl_surface *surface, struct wl_array *keys) {
@@ -472,6 +503,96 @@ static u8 translateWaylandKeycode(u32 key) {
         case KEY_ENTER:
         result = GROUNDED_KEY_ENTER;
         break;
+        case KEY_BACKSPACE:
+        result = GROUNDED_KEY_BACKSPACE;
+        break;
+        case KEY_INSERT:
+        result = GROUNDED_KEY_INSERT;
+        break;
+        case KEY_HOME:
+        result = GROUNDED_KEY_HOME;
+        break;
+        case KEY_PAGEUP:
+        result = GROUNDED_KEY_PAGE_UP;
+        break;
+        case KEY_DELETE:
+        result = GROUNDED_KEY_DELETE;
+        break;
+        case KEY_END:
+        result = GROUNDED_KEY_END;
+        break;
+        case KEY_PAGEDOWN:
+        result = GROUNDED_KEY_PAGE_DOWN;
+        break;
+        /*case KEY_PRINT:
+        result = GROUNDED_KEY_PRINT;
+        break;
+        case KEY_ROLL:
+        result = ;
+        break;
+        case KEY_PAUSE:
+        result = ;
+        break;
+        case KEY_GRAVE:
+        result = GROUNDED_KEY_GRAVE;
+        break;
+        case KEY_MINUS:
+        result = GROUNDED_KEY_MINUS;
+        break;
+        case KEY_EQUAL:
+        result = GROUNDED_KEY_EQUAL;
+        break;*/
+        case KEY_TAB:
+        result = GROUNDED_KEY_TAB;
+        break;
+        /*case KEY_LEFTBRACE:
+        result = GROUNDED_KEY_LEFTBRACE;
+        break;
+        case KEY_RIGHTBRACE:
+        result = GROUNDED_KEY_RIGHTBRACE;
+        break;
+        case KEY_CAPSLOCK:
+        result = GROUNDED_KEY_CAPSLOCK;
+        break;
+        case KEY_SEMICOLON:
+        result = GROUNDED_KEY_SEMICOLON;
+        break;
+        case KEY_APOSTROPHE:
+        result = GROUNDED_KEY_APOSTROPHE;
+        break;
+        case KEY_BACKSLASH:
+        result = GROUNDED_KEY_BACKSLASH;
+        break;
+        case KEY_102ND:
+        result = ;
+        break;*/
+        case KEY_COMMA:
+        result = GROUNDED_KEY_COMMA;
+        break;
+        case KEY_DOT:
+        result = GROUNDED_KEY_DOT;
+        break;
+        case KEY_SLASH:
+        result = GROUNDED_KEY_SLASH;
+        break;
+        case KEY_LEFTCTRL:
+        result = GROUNDED_KEY_LCTRL;
+        break;
+        case KEY_RIGHTCTRL:
+        result = GROUNDED_KEY_RCTRL;
+        break;
+        /*case KEY_LEFTMETA:
+        result = GROUNDED_KEY_LMETA;
+        break;
+        case KEY_RIGHTMETA:
+        result = GROUNDED_KEY_RMETA;
+        break;
+        case KEY_LEFTALT:
+        result = GROUNDED_KEY_LALT;
+        break;
+        case KEY_RIGHTALT:
+        result = GROUNDED_KEY_RALT;
+        break;*/
         default:
         GROUNDED_LOG_WARNING("Unknown keycode");
         break;
@@ -484,14 +605,27 @@ static void keyboard_handle_key(void *data, struct wl_keyboard *keyboard, uint32
     if(state == WL_KEYBOARD_KEY_STATE_PRESSED) {
         waylandKeyState.keys[keycode] = true;
         u32 modifiers = 0;
-        if(waylandKeyState.keys[GROUNDED_KEY_LSHIFT] || waylandKeyState.keys[GROUNDED_KEY_RSHIFT]) {
-            modifiers |= GROUNDED_KEY_MODIFIER_SHIFT;
+        
+        u32 codepoint = 0;
+        if(xkbContext && xkbState) {
+            // Wayland keycodes are offset by 8
+            xkb_keysym_t keysym = xkb_state_key_get_one_sym(xkbState, key + 8);
+            codepoint = xkb_keysym_to_utf32(keysym);
+            modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_SHIFT, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_SHIFT : 0;
+            modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_CTRL, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_CONTROL : 0;
+            modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_ALT, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_ALT : 0;
+            modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_LOGO, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_WINDOWS : 0;
+        } else {
+            if(waylandKeyState.keys[GROUNDED_KEY_LSHIFT] || waylandKeyState.keys[GROUNDED_KEY_RSHIFT]) {
+                modifiers |= GROUNDED_KEY_MODIFIER_SHIFT;
+            }
         }
         //TODO: Alt, Alt Gr, Ctrl, Meta
         eventQueue[eventQueueIndex++] = (GroundedEvent){
             .type = GROUNDED_EVENT_TYPE_KEY_DOWN,
             .keyDown.keycode = keycode,
             .keyDown.modifiers = modifiers,
+            .keyDown.codepoint = codepoint,
         };
         
     } else if(state == WL_KEYBOARD_KEY_STATE_RELEASED) {
@@ -507,6 +641,9 @@ static void keyboard_handle_key(void *data, struct wl_keyboard *keyboard, uint32
 static void keyboard_handle_modifiers(void *data, struct wl_keyboard *keyboard, uint32_t serial, uint32_t mods_depressed, uint32_t mods_latched, uint32_t mods_locked, uint32_t group) {
     //fprintf(stderr, "Modifiers depressed %d, latched %d, locked %d, group %d\n",
     //        mods_depressed, mods_latched, mods_locked, group);
+    if(xkbState) {
+        xkb_state_update_mask(xkbState, mods_depressed, mods_latched, mods_locked, 0, 0, group);
+    }
 }
 
 static const struct wl_keyboard_listener keyboard_listener = {

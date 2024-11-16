@@ -150,6 +150,11 @@ enum wl_data_device_manager_dnd_action {
 	WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK = 4,
 };
 
+enum wl_keyboard_keymap_format {
+	WL_KEYBOARD_KEYMAP_FORMAT_NO_KEYMAP = 0,
+	WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1 = 1,
+};
+
 static inline struct wl_registry* wl_display_get_registry(struct wl_display *wl_display) {
 	struct wl_proxy *registry;
 

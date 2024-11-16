@@ -31,11 +31,6 @@
 
 #include "types/grounded_xcb_types.h"
 
-#define __XCB_H__
-//#include <xkbcommon/xkbcommon.h>
-//#include <xkbcommon/xkbcommon-x11.h>
-#undef __XCB_H__
-
 #ifndef GROUNDED_XCB_MAX_MIMETYPES
 #define GROUNDED_XCB_MAX_MIMETYPES 256
 #endif
@@ -113,16 +108,6 @@ struct {
 #include "types/grounded_xkbcommon_x11_functions.h"
 #undef X
 
-// xcb xkb function types
-#define X(N, R, P) typedef R grounded_xcb_##N P;
-#include "types/grounded_xkbcommon_functions.h"
-#undef X
-
-// xcb xkb function pointers
-#define X(N, R, P) static grounded_xcb_##N * N = 0;
-#include "types/grounded_xkbcommon_functions.h"
-#undef X
-
 // xcb cursor function types
 #define X(N, R, P) typedef R grounded_xcb_##N P;
 #include "types/grounded_xcb_cursor_functions.h"
@@ -188,8 +173,6 @@ xcb_render_pictforminfo_t* rgbaFormat;
 u8 xkbEventIndex; // The event index of xkb events
 xcb_keycode_t minKeycode;
 xcb_keycode_t maxKeycode;
-struct xkb_context* xkbContext;
-struct xkb_state* xkbState;
 
 //u32 keycodeLookupTablePhysical[256];
 //u32 keycodeLookupTableLanguage[256];
@@ -418,12 +401,6 @@ static void initXcb() {
         if(xkbCommonX11Library) {
             #define X(N, R, P) N = (grounded_xcb_##N*)dlsym(xkbCommonX11Library, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
             #include "types/grounded_xkbcommon_x11_functions.h"
-            #undef X
-        }
-        void* xkbCommonLibrary = dlopen("libxkbcommon.so", RTLD_LAZY | RTLD_LOCAL);
-        if(xkbCommonLibrary) {
-            #define X(N, R, P) N = (grounded_xcb_##N*)dlsym(xkbCommonLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
-            #include "types/grounded_xkbcommon_functions.h"
             #undef X
         }
         xkbContext = xkb_context_new(0);
