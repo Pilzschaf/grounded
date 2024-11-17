@@ -10,3 +10,4 @@ X(xkb_keymap_new_from_string, struct xkb_keymap*, (struct xkb_context *context, 
 X(xkb_state_unref, void,(struct xkb_state *state))
 X(xkb_state_new, struct xkb_state *,(struct xkb_keymap *keymap))
 X(xkb_keymap_unref, void,(struct xkb_keymap *keymap))
+X(xkb_keymap_key_repeats, int, (struct xkb_keymap *keymap, xkb_keycode_t key))

@@ -11,6 +11,7 @@
 #include <fcntl.h> // For shared memory files
 #include <sys/mman.h> // For shared memory files
 #include <unistd.h>
+#include <sys/timerfd.h> // For timerfd_settime
 
 #ifdef GROUNDED_OPENGL_SUPPORT
 //#include <EGL/egl.h>
@@ -177,6 +178,10 @@ struct wl_surface* cursorSurface;
 bool waylandCursorLibraryPresent;
 GroundedMouseCursor waylandCurrentCursorType = GROUNDED_MOUSE_CURSOR_DEFAULT;
 GroundedMouseCursor waylandCursorTypeOverwrite = GROUNDED_MOUSE_CURSOR_COUNT;
+int keyRepeatTimer = -1;
+u32 keyRepeatDelay = 500;
+u32 keyRepeatRate = 25;
+u32 keyRepeatKey;
 GroundedWaylandWindow* activeWindow; // The window (if any) the mouse cursor is currently hovering
 
 GroundedKeyboardState waylandKeyState;
@@ -602,10 +607,10 @@ static u8 translateWaylandKeycode(u32 key) {
 
 static void keyboard_handle_key(void *data, struct wl_keyboard *keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state) {
     u8 keycode = translateWaylandKeycode(key);
+    struct itimerspec timer = {0};
     if(state == WL_KEYBOARD_KEY_STATE_PRESSED) {
         waylandKeyState.keys[keycode] = true;
         u32 modifiers = 0;
-        
         u32 codepoint = 0;
         if(xkbContext && xkbState) {
             // Wayland keycodes are offset by 8
@@ -620,13 +625,23 @@ static void keyboard_handle_key(void *data, struct wl_keyboard *keyboard, uint32
                 modifiers |= GROUNDED_KEY_MODIFIER_SHIFT;
             }
         }
-        //TODO: Alt, Alt Gr, Ctrl, Meta
         eventQueue[eventQueueIndex++] = (GroundedEvent){
             .type = GROUNDED_EVENT_TYPE_KEY_DOWN,
             .keyDown.keycode = keycode,
             .keyDown.modifiers = modifiers,
             .keyDown.codepoint = codepoint,
         };
+        //TODO: Maybe we want key repeats for all keys?
+        if(xkb_keymap_key_repeats(xkbKeymap, key + 8) && keyRepeatRate > 0) {
+            keyRepeatKey = key;
+            if (keyRepeatRate > 1)
+                timer.it_interval.tv_nsec = 1000000000 / keyRepeatRate;
+            else
+                timer.it_interval.tv_sec = 1;
+
+            timer.it_value.tv_sec = keyRepeatDelay / 1000;
+            timer.it_value.tv_nsec = (keyRepeatDelay % 1000) * 1000000;
+        }
         
     } else if(state == WL_KEYBOARD_KEY_STATE_RELEASED) {
         waylandKeyState.keys[keycode] = false;
@@ -635,6 +650,9 @@ static void keyboard_handle_key(void *data, struct wl_keyboard *keyboard, uint32
             .keyUp.keycode = keycode,
         };
     }
+
+    timerfd_settime(keyRepeatTimer, 0, &timer, 0);
+
     //fprintf(stderr, "Key is %d state is %d\n", key, state);
 }
 
@@ -646,12 +664,20 @@ static void keyboard_handle_modifiers(void *data, struct wl_keyboard *keyboard, 
     }
 }
 
-static const struct wl_keyboard_listener keyboard_listener = {
+static void keyboardHandleRepeatInfo(void *data, struct wl_keyboard *wl_keyboard, int32_t rate, int32_t delay) {
+    // Delay is the number of milliseconds a key should be held down before key repeat starts
+    // Rate is the number of characters per second while repeat is active
+    keyRepeatRate = rate < 0 ? 0 : rate;
+    keyRepeatDelay = delay < 0 ? keyRepeatDelay : delay;
+}
+
+static const struct wl_keyboard_listener keyboardListener = {
     keyboard_handle_keymap,
     keyboard_handle_enter,
     keyboard_handle_leave,
     keyboard_handle_key,
     keyboard_handle_modifiers,
+    keyboardHandleRepeatInfo,
 };
 
 
@@ -994,15 +1020,20 @@ static void seatHandleCapabilities(void *data, struct wl_seat *seat, u32 c) {
     }
     if (caps & WL_SEAT_CAPABILITY_KEYBOARD) {
         keyboard = wl_seat_get_keyboard(seat);
-	    wl_keyboard_add_listener(keyboard, &keyboard_listener, 0);
+	    wl_keyboard_add_listener(keyboard, &keyboardListener, 0);
     } else if (!(caps & WL_SEAT_CAPABILITY_KEYBOARD)) {
 	    wl_keyboard_destroy(keyboard);
 	    keyboard = 0;
     }
 }
 
+static void seatHandleName(void *data, struct wl_seat *wl_seat, const char *name) {
+    return;
+}
+
 static const struct wl_seat_listener seatListener = {
     seatHandleCapabilities,
+    seatHandleName,
 };
 
 
@@ -1148,7 +1179,8 @@ static void registry_global(void* data, struct wl_registry* registry, uint32_t i
         }
     } else if(strcmp(interface,"wl_seat") == 0) {
         // Seats are input devices like keyboards mice etc. Actually a seat represents a single user
-        struct wl_seat* seat = (struct wl_seat*)wl_registry_bind(registry, id, wl_seat_interface, 1);
+        u32 seatVersion = MIN(version, 4); // We prefer version 4 for keyboard key repeat info but can also handle older versions
+        struct wl_seat* seat = (struct wl_seat*)wl_registry_bind(registry, id, wl_seat_interface, seatVersion);
         ASSERT(seat);
         if(seat) {
             wl_seat_add_listener(seat, &seatListener, 0);
@@ -1425,6 +1457,8 @@ static bool initWayland() {
         waylandDisplay = wl_display_connect(0);
         if(!waylandDisplay) {
             error = "Could not connect to wayland display. If you are not using Wayland this is expected";
+        } else {
+            keyRepeatTimer = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK);
         }
     }
 
@@ -1452,6 +1486,10 @@ static bool initWayland() {
 
 static void shutdownWayland() {
     //TODO: Release all resources
+    if(keyRepeatTimer >= 0) {
+        close(keyRepeatTimer);
+        keyRepeatTimer = -1;
+    }
     //if(cursor) ... free
     if(cursorTheme) {
         wl_cursor_theme_destroy(cursorTheme);
@@ -1719,10 +1757,35 @@ static u32 waylandGetWindowHeight(GroundedWaylandWindow* window) {
     return window->height;
 }
 
+static void sendWaylandKeyRepeat() {
+    u8 keycode = translateWaylandKeycode(keyRepeatKey);
+    u32 modifiers = 0;
+    u32 codepoint = 0;
+    if(xkbContext && xkbState) {
+        // Wayland keycodes are offset by 8
+        xkb_keysym_t keysym = xkb_state_key_get_one_sym(xkbState, keyRepeatKey + 8);
+        codepoint = xkb_keysym_to_utf32(keysym);
+        modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_SHIFT, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_SHIFT : 0;
+        modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_CTRL, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_CONTROL : 0;
+        modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_ALT, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_ALT : 0;
+        modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_LOGO, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_WINDOWS : 0;
+    } else {
+        if(waylandKeyState.keys[GROUNDED_KEY_LSHIFT] || waylandKeyState.keys[GROUNDED_KEY_RSHIFT]) {
+            modifiers |= GROUNDED_KEY_MODIFIER_SHIFT;
+        }
+    }
+    eventQueue[eventQueueIndex++] = (GroundedEvent){
+        .type = GROUNDED_EVENT_TYPE_KEY_DOWN,
+        .keyDown.keycode = keycode,
+        .keyDown.modifiers = modifiers,
+        .keyDown.codepoint = codepoint,
+    };
+}
+
 // Returns true when poll was successful. False on timeout
 static bool waylandPoll(u32 maxWaitingTimeInMs) {
 	int ret;
-	struct pollfd pfd[1];
+	struct pollfd pfd[2];
     int timeout = (int)maxWaitingTimeInMs;
 
     if(!timeout) {
@@ -1734,8 +1797,10 @@ static bool waylandPoll(u32 maxWaitingTimeInMs) {
     ts.tv_nsec = (timeout * 1000000)%1000000000;
 	pfd[0].fd = wl_display_get_fd(waylandDisplay);
 	pfd[0].events = POLLIN;
+    pfd[1].fd = keyRepeatTimer;
+    pfd[1].events = POLLIN;
 	do {
-		ret = ppoll(pfd, 1, timeout < 0 ? 0 : &ts, 0);
+		ret = ppoll(pfd, ARRAY_COUNT(pfd), timeout < 0 ? 0 : &ts, 0);
 	} while (ret == -1 && errno == EINTR); // A signal occured before
 
 	if (ret == 0) {
@@ -1746,11 +1811,39 @@ static bool waylandPoll(u32 maxWaitingTimeInMs) {
         return false;
     }
 
+    if(pfd[1].revents & POLLIN) {
+        u64 repeats;
+        if (read(keyRepeatTimer, &repeats, sizeof(repeats)) == 8) {
+            for(u64 i = 0; i < repeats; ++i) {
+                // Key repeat
+                sendWaylandKeyRepeat();
+            }
+        }
+    }
+
 	return true;
 }
 
 static GroundedEvent* waylandPollEvents(u32* eventCount) {
     eventQueueIndex = 0;
+
+    // Check key repeat timer
+    struct pollfd pfd[1];
+    struct timespec timeout = {0};
+    pfd[0].fd = keyRepeatTimer;
+    pfd[0].events = POLLIN;
+    int ret = ppoll(pfd, ARRAY_COUNT(pfd), &timeout, 0);
+    if(ret > 0) {
+        if(pfd[0].revents & POLLIN) {
+            u64 repeats;
+            if (read(keyRepeatTimer, &repeats, sizeof(repeats)) == 8) {
+                for(u64 i = 0; i < repeats; ++i) {
+                    // Key repeat
+                    sendWaylandKeyRepeat();
+                }
+            }
+        }
+    }
 
     // Sends out pending requests to all event queues
     wl_display_roundtrip(waylandDisplay);

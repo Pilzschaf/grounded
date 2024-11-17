@@ -1544,7 +1544,6 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             result.buttonUp.mousePositionX = mouseState->x;
             result.buttonUp.mousePositionY = mouseState->y;
         } break;
-        //TODO: Key modifiers
         case XCB_KEY_PRESS:{
             xcb_key_press_event_t* keyPressEvent = (xcb_key_press_event_t*)event;
             u8 keycode = translateXcbKeycode(keyPressEvent->detail);
