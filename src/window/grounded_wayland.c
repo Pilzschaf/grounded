@@ -1758,6 +1758,7 @@ static u32 waylandGetWindowHeight(GroundedWaylandWindow* window) {
 }
 
 static void sendWaylandKeyRepeat() {
+    return;
     u8 keycode = translateWaylandKeycode(keyRepeatKey);
     u32 modifiers = 0;
     u32 codepoint = 0;
@@ -1829,10 +1830,9 @@ static GroundedEvent* waylandPollEvents(u32* eventCount) {
 
     // Check key repeat timer
     struct pollfd pfd[1];
-    struct timespec timeout = {0};
     pfd[0].fd = keyRepeatTimer;
     pfd[0].events = POLLIN;
-    int ret = ppoll(pfd, ARRAY_COUNT(pfd), &timeout, 0);
+    int ret = poll(pfd, ARRAY_COUNT(pfd), 0);
     if(ret > 0) {
         if(pfd[0].revents & POLLIN) {
             u64 repeats;

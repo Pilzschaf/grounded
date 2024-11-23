@@ -344,6 +344,8 @@ GROUNDED_FUNCTION void groundedWindowFetchMouseState(GroundedWindow* window, Mou
     mouseState->lastY = mouseState->y;
     mouseState->scrollDelta = 0.0f;
     mouseState->horizontalScrollDelta = 0.0f;
+    mouseState->windowWidth = groundedWindowGetWidth(window);
+    mouseState->windowHeight = groundedWindowGetHeight(window);
 
     ASSERT(sizeof(mouseState->buttons) == sizeof(mouseState->lastButtons));
     memcpy(mouseState->lastButtons, mouseState->buttons, sizeof(mouseState->buttons));

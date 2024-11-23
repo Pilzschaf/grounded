@@ -612,6 +612,8 @@ GROUNDED_FUNCTION void groundedWindowFetchMouseState(GroundedWindow* opaqueWindo
     }
     mouseState->x = p.x;
     mouseState->y = p.y;
+    mouseState->windowWidth = groundedWindowGetWidth(window);
+    mouseState->windowHeight = groundedWindowGetHeight(window);
     //printf("Mouse location: %i,%i\n", p.x, p.y);
 
     // Set mouse button state
