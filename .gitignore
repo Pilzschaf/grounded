@@ -57,6 +57,7 @@ dkms.conf
 obj/
 bin/
 build/
+UnicodeData.txt
 
 *.make
 Makefile

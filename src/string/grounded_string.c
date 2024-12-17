@@ -4,6 +4,8 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+#include "../../unicode_mappings.h"
+
 GROUNDED_FUNCTION String8 str8Prefix(String8 str, u64 size) {
     ASSERT(size <= str.size);
     u64 sizeClamped = CLAMP_TOP(size, str.size);
@@ -112,6 +114,74 @@ GROUNDED_FUNCTION bool str8IsSubstringOf(String8 substring, String8 str) {
     return result;
 }
 
+static u32 lookupCodepointConversion(const UnicodeMapping* mappings, u32 mappingCount, u32 codepoint) {
+    u32 result = UINT32_MAX;
+    if(mappingCount > 0 && mappingCount <= INT32_MAX && codepoint >= mappings[0].source) {
+        s32 left = 0;
+        s32 right = MIN((codepoint - mappings[0].source), mappingCount - 1);
+        while(left <= right) {
+            s32 middle = left + (right - left) / 2;
+            // Skewed midpoint: give more weight to the left side
+            // int middle = left + (right - left) / 2 - (right - left) / 8;  // Adjust by a bias factor
+
+            if(toLower[middle].source == codepoint) {
+                result = toLower[middle].target;
+                break;
+            }
+            if (toLower[middle].source < codepoint) {
+                left = middle + 1;
+            } else {
+                right = middle - 1;
+            }
+        }
+    }
+    return result;
+}
+
+GROUNDED_FUNCTION bool str8IsLowercase(String8 str) {
+    bool result = true;
+
+    u8* ptr = str.base;
+    u8* opl = str.base + str.size;
+
+    for(;ptr < opl;) {
+        StringDecode decode = strDecodeUtf8(ptr, (u32)(opl - ptr));
+        if(decode.size == 0) break;
+
+        // Lookup in toLower table
+        u32 target = lookupCodepointConversion(toLower, ARRAY_COUNT(toLower), decode.codepoint);
+        if(target != UINT32_MAX) {
+            result = false;
+            break;
+        }
+
+        ptr += decode.size;
+    }
+    return result;
+}
+
+GROUNDED_FUNCTION bool str8IsUppercase(String8 str) {
+    bool result = true;
+
+    u8* ptr = str.base;
+    u8* opl = str.base + str.size;
+
+    for(;ptr < opl;) {
+        StringDecode decode = strDecodeUtf8(ptr, (u32)(opl - ptr));
+        if(decode.size == 0) break;
+
+        // Lookup in toUpper table
+        u32 target = lookupCodepointConversion(toUpper, ARRAY_COUNT(toUpper), decode.codepoint);
+        if(target != UINT32_MAX) {
+            result = false;
+            break;
+        }
+
+        ptr += decode.size;
+    }
+    return result;
+}
+
 GROUNDED_FUNCTION s64 str8DeltaToNextWordBoundary(String8 str, u64 cursor, s64 inc) {
     s64 result = 0;
     for(s64 byteOffset = (s64)cursor + inc; byteOffset >= 0 && byteOffset <= str.size; byteOffset += inc) {
@@ -202,6 +272,79 @@ GROUNDED_FUNCTION char* str8GetCstrOrNull(struct MemoryArena* arena, String8 str
     } else {
         return str8GetCstr(arena, str);
     }
+}
+
+// Data for uppercase / lowercase conversion: https://www.unicode.org/Public/16.0.0/ucd/UnicodeData.txt
+GROUNDED_FUNCTION String8 str8ToLower(struct MemoryArena* arena, String8 str) {
+    u8* ptr = str.base;
+    u8* opl = str.base + str.size;
+
+    u64 allocated = str.size*4+1;
+    u8* memory = ARENA_PUSH_ARRAY(arena, allocated, u8);
+    u8* dptr = memory;
+
+    for(;ptr < opl;) {
+        StringDecode decode = strDecodeUtf8(ptr, (u32)(opl - ptr));
+        if(decode.size == 0) break;
+
+        // Lookup in toLower table
+        u32 target = lookupCodepointConversion(toLower, ARRAY_COUNT(toLower), decode.codepoint);
+        if(target == UINT32_MAX) {
+            // Character not found so we do not need to convert and simply copy source
+            MEMORY_COPY(dptr, ptr, decode.size);
+            dptr += decode.size;
+        } else {
+            u32 length = strEncodeUtf8(dptr, target);
+            dptr += length;
+        }
+
+        ptr += decode.size;
+    }
+
+    // Null terminate and release overallocation
+    ASSERT(dptr < memory + allocated);
+    *dptr = 0;
+    u64 stringCount = (u64)(dptr - memory);
+    arenaPopTo(arena, dptr+1);
+
+    String8 result = {memory, stringCount};
+    return result;
+}
+
+GROUNDED_FUNCTION String8 str8ToUpper(struct MemoryArena* arena, String8 str) {
+    u8* ptr = str.base;
+    u8* opl = str.base + str.size;
+
+    u64 allocated = str.size*4+1;
+    u8* memory = ARENA_PUSH_ARRAY(arena, allocated, u8);
+    u8* dptr = memory;
+
+    for(;ptr < opl;) {
+        StringDecode decode = strDecodeUtf8(ptr, (u32)(opl - ptr));
+        if(decode.size == 0) break;
+
+        // Lookup in toUpper table
+        u32 target = lookupCodepointConversion(toUpper, ARRAY_COUNT(toUpper), decode.codepoint);
+        if(target == UINT32_MAX) {
+            // Character not found so we do not need to convert and simply copy source
+            MEMORY_COPY(dptr, ptr, decode.size);
+            dptr += decode.size;
+        } else {
+            u32 length = strEncodeUtf8(dptr, target);
+            dptr += length;
+        }
+
+        ptr += decode.size;
+    }
+
+    // Null terminate and release overallocation
+    ASSERT(dptr < memory + allocated);
+    *dptr = 0;
+    u64 stringCount = (u64)(dptr - memory);
+    arenaPopTo(arena, dptr+1);
+
+    String8 result = {memory, stringCount};
+    return result;
 }
 
 //////////////
@@ -448,6 +591,14 @@ GROUNDED_FUNCTION u32 strEncodeUtf16(u16* dst, u32 codepoint) {
         size = 2;
     }
     return size;
+}
+
+GROUNDED_FUNCTION u32 strCodepointToLower(u32 codepoint) {
+    return lookupCodepointConversion(toLower, ARRAY_COUNT(toLower), codepoint);
+}
+
+GROUNDED_FUNCTION u32 strCodepointToUpper(u32 codepoint) {
+    return lookupCodepointConversion(toUpper, ARRAY_COUNT(toUpper), codepoint);
 }
 
 GROUNDED_FUNCTION String8 str8FromStr16(MemoryArena* arena, String16 str) {

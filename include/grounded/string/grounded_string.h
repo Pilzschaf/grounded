@@ -41,6 +41,8 @@ GROUNDED_FUNCTION u64 str8GetLastOccurence(String8 str, char c); // Returns UINT
 GROUNDED_FUNCTION bool str8IsPrefixOf(String8 prefix, String8 str);
 GROUNDED_FUNCTION bool str8IsPostfixOf(String8 postfix, String8 str);
 GROUNDED_FUNCTION bool str8IsSubstringOf(String8 substring, String8 str);
+GROUNDED_FUNCTION bool str8IsLowercase(String8 str);
+GROUNDED_FUNCTION bool str8IsUppercase(String8 str);
 GROUNDED_FUNCTION s64 str8DeltaToNextWordBoundary(String8 str, u64 cursor, s64 inc); // Returns a modified delta extended to the next word boundary of str
 
 struct MemoryArena;
@@ -49,6 +51,10 @@ GROUNDED_FUNCTION String8 str8Copy(struct MemoryArena* arena, String8 str);
 GROUNDED_FUNCTION String8 str8CopyAndNullTerminate(struct MemoryArena* arena, String8 str);
 GROUNDED_FUNCTION char* str8GetCstr(struct MemoryArena* arena, String8 str);
 GROUNDED_FUNCTION char* str8GetCstrOrNull(struct MemoryArena* arena, String8 str);
+
+// Does not take into account locale specific conversion rules
+GROUNDED_FUNCTION String8 str8ToLower(struct MemoryArena* arena, String8 str);
+GROUNDED_FUNCTION String8 str8ToUpper(struct MemoryArena* arena, String8 str);
 
 GROUNDED_FUNCTION void str8ListPushExplicit(String8List* list, String8 str, String8Node* nodeMemory);
 GROUNDED_FUNCTION void str8ListPush(struct MemoryArena* arena, String8List* list, String8 str);
@@ -94,6 +100,10 @@ GROUNDED_FUNCTION u32 strEncodeUtf8(u8* dst, u32 codepoint); // Returns bytes ad
 GROUNDED_FUNCTION StringDecode strDecodeUtf16(u16* string, u32 capacity); // result.size is the number of u16 that have been advanced
 // dst must have at least 4 bytes (2 u16) of space available
 GROUNDED_FUNCTION u32 strEncodeUtf16(u16* dst, u32 codepoint); // Returns u16 advanced in dst. Maximum possible advance is 2
+
+// Returns UINT32_MAX if codepoint can not be converted (not applicable or already correct case)
+GROUNDED_FUNCTION u32 strCodepointToLower(u32 codepoint);
+GROUNDED_FUNCTION u32 strCodepointToUpper(u32 codepoint);
 
 // All functions 0-terminate the result string
 GROUNDED_FUNCTION String8 str8FromStr16(struct MemoryArena* arena, String16 str);
