@@ -66,6 +66,14 @@ typedef unsigned int uint;
 #define ASSUME(c) ASSERT(c); if(c)
 #endif
 
+#ifndef DEBUG_BREAK
+#ifdef _WIN32
+#define DEBUG_BREAK __debugbreak
+#else
+#define DEBUG_BREAK __asm__ volatile("int $0x03");
+#endif
+#endif
+
 // Check type sizes
 STATIC_ASSERT(sizeof(s8) == 1);
 STATIC_ASSERT(sizeof(u8) == 1);

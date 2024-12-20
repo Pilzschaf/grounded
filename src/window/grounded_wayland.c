@@ -82,6 +82,7 @@ typedef struct GroundedWaylandWindow {
     void* framebufferPointers[2]; // Double buffering. Index 0 is the one currently drawn to
 	u32 framebufferWidth; // Those values need to exist because the window width and height can change asynchronously
 	u32 framebufferHeight;
+    char* foreignHandle;
 
     GroundedWindowDndCallback* dndCallback;
 
@@ -172,6 +173,8 @@ struct zwp_idle_inhibit_manager_v1* idleInhibitManager;
 struct zwp_pointer_constraints_v1* pointerConstraints;
 struct zwp_relative_pointer_manager_v1* relativePointerManager;
 
+struct zxdg_exporter_v2* zxdgExporter;
+
 struct wl_shm* waylandShm; // Shared memory interface to compositor
 struct wl_cursor_theme* cursorTheme;
 struct wl_surface* cursorSurface;
@@ -231,6 +234,7 @@ STATIC_ASSERT(sizeof(waylandScreens) < KB(4)); // Make sure we require a sane am
 #include "wayland_protocols/idle-inhibit-unstable-v1.h"
 #include "wayland_protocols/pointer-constraints-unstable-v1.h"
 #include "wayland_protocols/relative-pointer-unstable-v1.h"
+#include "wayland_protocols/xdg-foreign-unstable-v2.h"
 
 static void waylandWindowSetMaximized(GroundedWaylandWindow* window, bool maximized);
 GROUNDED_FUNCTION void waylandSetCursorType(enum GroundedMouseCursor cursorType);
@@ -279,7 +283,7 @@ static int createSharedMemoryFile(u64 size) {
 	return fd;
 }
 
-static void keyboard_handle_keymap(void *data, struct wl_keyboard *keyboard, uint32_t format, int fd, uint32_t size) {
+static void keyboardHandleKeymap(void *data, struct wl_keyboard *keyboard, uint32_t format, int fd, uint32_t size) {
     //GROUNDED_LOG_VERBOSE("Keyboard keymap");
     char* keymapData = 0;
     struct xkb_keymap* keymap = 0;
@@ -314,12 +318,17 @@ static void keyboard_handle_keymap(void *data, struct wl_keyboard *keyboard, uin
     }
 }
 
-static void keyboard_handle_enter(void *data, struct wl_keyboard *keyboard, uint32_t serial, struct wl_surface *surface, struct wl_array *keys) {
+static void keyboardHandleEnter(void *data, struct wl_keyboard *keyboard, uint32_t serial, struct wl_surface *surface, struct wl_array *keys) {
     //GROUNDED_LOG_VERBOSE("Keyboard gained focus");
 }
 
-static void keyboard_handle_leave(void *data, struct wl_keyboard *keyboard, uint32_t serial, struct wl_surface *surface) {
-    //GROUNDED_LOG_VERBOSE("Keyboard lost focus");
+static void keyboardHandleLeave(void *data, struct wl_keyboard *keyboard, uint32_t serial, struct wl_surface *surface) {
+    GROUNDED_LOG_VERBOSE("Keyboard lost focus");
+
+    // Stop keyrepeat timer
+    struct itimerspec timer = {0};
+    timerfd_settime(keyRepeatTimer, 0, &timer, 0);
+    keyRepeatKey = 0;
 }
 
 static u8 translateWaylandKeycode(u32 key) {
@@ -605,7 +614,7 @@ static u8 translateWaylandKeycode(u32 key) {
     return result;
 }
 
-static void keyboard_handle_key(void *data, struct wl_keyboard *keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state) {
+static void keyboardHandleKey(void *data, struct wl_keyboard *keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state) {
     u8 keycode = translateWaylandKeycode(key);
     struct itimerspec timer = {0};
     if(state == WL_KEYBOARD_KEY_STATE_PRESSED) {
@@ -656,7 +665,7 @@ static void keyboard_handle_key(void *data, struct wl_keyboard *keyboard, uint32
     //fprintf(stderr, "Key is %d state is %d\n", key, state);
 }
 
-static void keyboard_handle_modifiers(void *data, struct wl_keyboard *keyboard, uint32_t serial, uint32_t mods_depressed, uint32_t mods_latched, uint32_t mods_locked, uint32_t group) {
+static void keyboardHandleModifiers(void *data, struct wl_keyboard *keyboard, uint32_t serial, uint32_t mods_depressed, uint32_t mods_latched, uint32_t mods_locked, uint32_t group) {
     //fprintf(stderr, "Modifiers depressed %d, latched %d, locked %d, group %d\n",
     //        mods_depressed, mods_latched, mods_locked, group);
     if(xkbState) {
@@ -672,11 +681,11 @@ static void keyboardHandleRepeatInfo(void *data, struct wl_keyboard *wl_keyboard
 }
 
 static const struct wl_keyboard_listener keyboardListener = {
-    keyboard_handle_keymap,
-    keyboard_handle_enter,
-    keyboard_handle_leave,
-    keyboard_handle_key,
-    keyboard_handle_modifiers,
+    keyboardHandleKeymap,
+    keyboardHandleEnter,
+    keyboardHandleLeave,
+    keyboardHandleKey,
+    keyboardHandleModifiers,
     keyboardHandleRepeatInfo,
 };
 
@@ -1247,6 +1256,9 @@ static void registry_global(void* data, struct wl_registry* registry, uint32_t i
         if(dataDeviceManager) {
             dataDeviceManagerVersion = requestedVersion;
         }
+    } else if(strcmp(interface, "zxdg_exporter_v2") == 0) {
+        zxdgExporter = (struct zxdg_exporter_v2*)wl_registry_bind(registry, id, &zxdg_exporter_v2_interface, version);
+        ASSERT(zxdgExporter);
     } else if(strcmp(interface, "wl_shm") == 0) {
         // Shared memory. Needed for custom cursor themes and framebuffers - TODO: might have been replaced by drm (Drm is not particular useful for software rendering)
         waylandShm = (struct wl_shm*)wl_registry_bind(registry, id, wl_shm_interface, 1);
@@ -1381,6 +1393,17 @@ static void xdgSurfaceHandleConfigure(void* data, struct xdg_surface* surface, u
 
 static const struct xdg_surface_listener xdgSurfaceListener = {
     xdgSurfaceHandleConfigure
+};
+
+static void zxdgExportedHandleHandle(void* data, struct zxdg_exported_v2 *zxdg_exported_v2, const char *handle) {
+    GroundedWaylandWindow* window = (GroundedWaylandWindow*)data;
+    window->foreignHandle = (char*)malloc(strlen(handle)+1);
+    memcpy(window->foreignHandle, handle, strlen(handle)+1);
+    printf("Foreign handle:%s\n", handle);
+}
+
+static const struct zxdg_exported_v2_listener exportedListener = {
+    zxdgExportedHandleHandle,
 };
 
 static void handleConfigureZxdgDecoration(void *data, struct zxdg_toplevel_decoration_v1 *zxdg_toplevel_decoration_v1, uint32_t mode) {
@@ -1663,6 +1686,11 @@ static void waylandWindowSetHidden(GroundedWaylandWindow* window, bool hidden) {
             waylandSetInhibitIdle(window, true);
         }
 
+        if(zxdgExporter) {
+            struct zxdg_exported_v2* exported = zxdg_exporter_v2_export_toplevel(zxdgExporter, window->surface);
+            zxdg_exported_v2_add_listener(exported, &exportedListener, window);
+        }
+
         wl_surface_commit(window->surface);
         wl_display_roundtrip(waylandDisplay);
     }
@@ -1758,28 +1786,31 @@ static u32 waylandGetWindowHeight(GroundedWaylandWindow* window) {
 }
 
 static void sendWaylandKeyRepeat() {
-    u8 keycode = translateWaylandKeycode(keyRepeatKey);
-    u32 modifiers = 0;
-    u32 codepoint = 0;
-    if(xkbContext && xkbState) {
-        // Wayland keycodes are offset by 8
-        xkb_keysym_t keysym = xkb_state_key_get_one_sym(xkbState, keyRepeatKey + 8);
-        codepoint = xkb_keysym_to_utf32(keysym);
-        modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_SHIFT, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_SHIFT : 0;
-        modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_CTRL, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_CONTROL : 0;
-        modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_ALT, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_ALT : 0;
-        modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_LOGO, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_WINDOWS : 0;
-    } else {
-        if(waylandKeyState.keys[GROUNDED_KEY_LSHIFT] || waylandKeyState.keys[GROUNDED_KEY_RSHIFT]) {
-            modifiers |= GROUNDED_KEY_MODIFIER_SHIFT;
+    printf("Sending key repeat\n");
+    if(keyRepeatKey) {
+        u8 keycode = translateWaylandKeycode(keyRepeatKey);
+        u32 modifiers = 0;
+        u32 codepoint = 0;
+        if(xkbContext && xkbState) {
+            // Wayland keycodes are offset by 8
+            xkb_keysym_t keysym = xkb_state_key_get_one_sym(xkbState, keyRepeatKey + 8);
+            codepoint = xkb_keysym_to_utf32(keysym);
+            modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_SHIFT, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_SHIFT : 0;
+            modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_CTRL, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_CONTROL : 0;
+            modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_ALT, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_ALT : 0;
+            modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_LOGO, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_WINDOWS : 0;
+        } else {
+            if(waylandKeyState.keys[GROUNDED_KEY_LSHIFT] || waylandKeyState.keys[GROUNDED_KEY_RSHIFT]) {
+                modifiers |= GROUNDED_KEY_MODIFIER_SHIFT;
+            }
         }
+        eventQueue[eventQueueIndex++] = (GroundedEvent){
+            .type = GROUNDED_EVENT_TYPE_KEY_DOWN,
+            .keyDown.keycode = keycode,
+            .keyDown.modifiers = modifiers,
+            .keyDown.codepoint = codepoint,
+        };
     }
-    eventQueue[eventQueueIndex++] = (GroundedEvent){
-        .type = GROUNDED_EVENT_TYPE_KEY_DOWN,
-        .keyDown.keycode = keycode,
-        .keyDown.modifiers = modifiers,
-        .keyDown.codepoint = codepoint,
-    };
 }
 
 // Returns true when poll was successful. False on timeout
@@ -1812,8 +1843,12 @@ static bool waylandPoll(u32 maxWaitingTimeInMs) {
     }
 
     if(pfd[1].revents & POLLIN) {
-        u64 repeats;
+        u64 repeats = 0;
         if (read(keyRepeatTimer, &repeats, sizeof(repeats)) == 8) {
+            if(repeats >= 5) {
+                printf("Somehow we got very many key repeat events. Probably some kind of delay so we ignore them\n");
+                repeats = 0;
+            }
             for(u64 i = 0; i < repeats; ++i) {
                 // Key repeat
                 sendWaylandKeyRepeat();
@@ -1836,6 +1871,10 @@ static GroundedEvent* waylandPollEvents(u32* eventCount) {
         if(pfd[0].revents & POLLIN) {
             u64 repeats;
             if (read(keyRepeatTimer, &repeats, sizeof(repeats)) == 8) {
+                if(repeats >= 5) {
+                    printf("Somehow we got very many key repeat events. Probably some kind of hickup so we ignore them\n");
+                    repeats = 0;
+                }
                 for(u64 i = 0; i < repeats; ++i) {
                     // Key repeat
                     sendWaylandKeyRepeat();

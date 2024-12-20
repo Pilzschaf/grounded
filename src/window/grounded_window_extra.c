@@ -5,4 +5,5 @@
 #include "wayland_protocols/idle-inhibit-unstable-v1.c"
 #include "wayland_protocols/pointer-constraints-unstable-v1.c"
 #include "wayland_protocols/relative-pointer-unstable-v1.c"
+#include "wayland_protocols/xdg-foreign-unstable-v2.c"
 #endif

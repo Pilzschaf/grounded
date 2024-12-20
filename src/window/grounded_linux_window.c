@@ -1,4 +1,5 @@
 #include <grounded/window/grounded_window.h>
+//#include <dbus/dbus.h>
 
 GroundedEvent eventQueue[256];
 u32 eventQueueIndex;
@@ -56,9 +57,26 @@ struct GroundedOpenGLContext {
 #include "types/grounded_xkbcommon_functions.h"
 #undef X
 
+#include "types/grounded_dbus_types.h"
+
+// dbus function types
+#define X(N, R, P) typedef R grounded_##N P;
+#include "types/grounded_dbus_functions.h"
+#undef X
+
+// dbus function types
+#define X(N, R, P) static grounded_##N * N = 0;
+#include "types/grounded_dbus_functions.h"
+#undef X
+
 struct xkb_context* xkbContext;
 struct xkb_state* xkbState;
 struct xkb_keymap* xkbKeymap;
+
+DBusConnection* dbusConnection;
+DBusError dbusError;
+void* dbusLibrary;
+char* dbusReplyPath;
 
 #include "grounded_xcb.c"
 #include "grounded_wayland.c"
@@ -90,12 +108,278 @@ GROUNDED_FUNCTION void groundedInitWindowSystem() {
         }
     }
 
-    bool skipWayland = false;
+    bool skipWayland = true;
     if(!skipWayland && initWayland()) {
         linuxWindowBackend = GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND;
     } else {
         initXcb();
         linuxWindowBackend = GROUNDED_LINUX_WINDOW_BACKEND_XCB;
+    }
+}
+
+static void shutdownDbus() {
+    if(dbusConnection) {
+        dbus_connection_unref(dbusConnection);
+    }
+    if(dbusLibrary) {
+        dlclose(dbusLibrary);
+        dbusLibrary = 0;
+    }
+}
+
+static void initDbus() {
+    dbusLibrary = dlopen("libdbus-1.so", RTLD_LAZY);
+    if(!dbusLibrary) {
+        printf("Could not find dbus library (libdbus-1.so)\n");
+    } else {
+        const char* firstMissingFunctionName = 0;
+        #define X(N, R, P) N = (grounded_##N*)dlsym(dbusLibrary, #N); if(!N && !firstMissingFunctionName) {firstMissingFunctionName = #N ;}
+        #include "types/grounded_dbus_functions.h"
+        #undef X
+        if(firstMissingFunctionName) {
+            GROUNDED_PUSH_ERRORF("Could not load dbus function: %s", firstMissingFunctionName);
+            dlclose(dbusLibrary);
+            dbusLibrary = 0;
+        }
+    }
+
+    dbus_error_init(&dbusError);
+    dbusConnection = dbus_bus_get(DBUS_BUS_SESSION, &dbusError);
+    if(dbus_error_is_set(&dbusError)) {
+        GROUNDED_PUSH_ERROR(dbusError.message);
+        dbus_error_free(&dbusError);
+        shutdownDbus();
+    }
+    if(!dbusConnection) {
+        GROUNDED_PUSH_ERROR("Could not open dbus connection\n");
+        shutdownDbus();
+    }
+}
+
+// Using https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.FileChooser.html
+// https://github.com/godotengine/godot/blob/89001f91d21ebd08b59756841426f540b154b97d/platform/linuxbsd/freedesktop_portal_desktop.cpp#L53
+GROUNDED_FUNCTION void groundedWindowOpenFileDialog(GroundedWindow* window) {
+    MemoryArena* scratch = threadContextGetScratch(0);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
+    if(!dbusConnection) {
+        initDbus();
+    }
+    if(dbusConnection) {
+        const char* portalService = "org.freedesktop.portal.Desktop";
+        const char* portalObject = "/org/freedesktop/portal/desktop";
+        const char* portalInterface = "org.freedesktop.portal.FileChooser";
+        const char* portalMethod = "OpenFile";
+
+        DBusMessage *message = dbus_message_new_method_call(portalService, portalObject, portalInterface, portalMethod);
+        if(!message) {
+            GROUNDED_PUSH_ERROR("Could not create dbus message");
+        } else {
+            DBusMessageIter args;
+            dbus_message_iter_init_append(message, &args);
+
+            const char* parentWindow = "";
+            const char* title = "Open File";
+            if(window) {
+                if(linuxWindowBackend == GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND) {
+                    GroundedWaylandWindow* waylandWindow = (GroundedWaylandWindow*)window;
+                    String8 parentString = str8FromFormat(scratch, "wayland:%s", waylandWindow->foreignHandle);
+                    parentWindow = (const char*)parentString.base;
+                    if(!str8IsEmpty(waylandWindow->title)) {
+                        title = (const char*)str8FromFormat(scratch, "Open File - %s", (const char*)waylandWindow->title.base).base;
+                    }
+                } else if(linuxWindowBackend == GROUNDED_LINUX_WINDOW_BACKEND_XCB) {
+                    GroundedXcbWindow* xcbWindow = (GroundedXcbWindow*)window;
+                    String8 parentString = str8FromFormat(scratch, "x11:%x", xcbWindow->window);
+                    parentWindow = (const char*)parentString.base;
+                }
+            }
+            
+            if(!dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &parentWindow)) {
+                // Out of memory
+                ASSERT(false);
+            }
+
+            if(!dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &title)) {
+                // Out of memory
+                ASSERT(false);
+            }
+
+            // Options (empty dictionary for no extra options)
+            DBusMessageIter options;
+            dbus_message_iter_open_container(&args, DBUS_TYPE_ARRAY, "{sv}", &options);
+            // Options includes:
+            // handletoken: 
+            // acceptLabel: What should be written on the open button
+            // modal: Default = true Probably requires parent window to be really effective
+            // multiple: multiselect
+            // directoy: selectfolders instead of files
+            // filters: list of filetype filters
+            // choices:
+            // currentFolder: Where to open the dialog
+            const char* appId = "ganymedebug";
+            //dbus_message_iter_append_basic(&options, DBUS_TYPE_STRING, &"app-id");
+            //dbus_message_iter_append_basic(&options, DBUS_TYPE_STRING, &appId);
+            dbus_message_iter_close_container(&args, &options);
+
+            // Register for response
+            dbus_bus_add_match(dbusConnection, "type='signal'"
+							/*",path='/org/freedesktop/portal/desktop/request/UNIQUE/TOKEN'"*/
+							",interface='org.freedesktop.portal.Request'"
+							",member='Response'", &dbusError);
+
+            DBusPendingCall* pending;
+            if(!dbus_connection_send_with_reply(dbusConnection, message, &pending, -1) || !pending) {
+                dbus_message_unref(message);
+                message = 0;
+                ASSERT(false);
+            } else {
+                dbus_message_unref(message);
+                dbus_connection_flush(dbusConnection);
+                dbus_pending_call_block(pending);
+
+                //see if we got a reply
+                message = dbus_pending_call_steal_reply(pending);
+                dbus_pending_call_unref(pending);
+            }
+
+            if(message) {
+                //read the object path from the response.
+                if (dbus_message_iter_init(message, &args) && dbus_message_iter_get_arg_type(&args)) {
+                    dbus_message_iter_get_basic(&args, &dbusReplyPath);
+                    char* replyPath = (char*)malloc(strlen(dbusReplyPath));
+                    memcpy(replyPath, dbusReplyPath, strlen(dbusReplyPath)+1);
+                    dbusReplyPath = replyPath;
+                    printf("Request Reply Path: %s\n", replyPath);
+                }
+            }
+
+            // Send the message and wait for a reply
+            /*DBusMessage* reply = dbus_connection_send_with_reply_and_block(dbusConnection, message, -1, &dbusError);
+            if (dbus_error_is_set(&dbusError)) {
+                //fprintf(stderr, "Error in D-Bus call: %s\n", error.message);
+                dbus_error_free(&dbusError);
+            }
+
+            if(reply) {
+                DBusMessageIter replyArgs;
+                if(dbus_message_iter_init(reply, &replyArgs)) {
+                    char *uris;
+                    if (dbus_message_iter_get_arg_type(&replyArgs) == DBUS_TYPE_OBJECT_PATH) {
+                        char* objectPath;
+                        dbus_message_iter_get_basic(&replyArgs, &objectPath);
+                        printf("Request Object Path: %s\n", objectPath);
+
+                        // Process the signal when received
+                        // Wait for the Response signal
+                        DBusMessage *responseMessage;
+                        dbus_message_iter_init(reply, &replyArgs);
+                        dbus_message_iter_get_basic(&replyArgs, &objectPath);
+
+                        // Listen for the `Response` signal from the request object
+                        dbus_connection_add_filter(dbusConnection, &response_signal_filter, objectPath, 0);
+
+                        // Assuming you receive a signal, process it
+                        // When you get the signal, the result will be in `results` with the file URIs.
+
+                        // Simulating signal reception for now
+                        DBusMessageIter responseArgs;
+                        dbus_message_iter_init(responseMessage, &responseArgs);
+                        uint32_t response;
+                        dbus_message_iter_get_basic(&responseArgs, &response);
+                        printf("Response: %u\n", response);*/
+
+                        /*if (response == 0) { // Success, files selected
+                            DBusMessageIter resultsArgs;
+                            dbus_message_iter_get_array(&responseArgs, &resultsArgs);
+                            char *uri;
+                            while (dbus_message_iter_get_arg_type(&resultsArgs) != DBUS_TYPE_INVALID) {
+                                dbus_message_iter_get_basic(&resultsArgs, &uri);
+                                printf("Selected file URI: %s\n", uri);
+                            }
+                        }
+                        // Close the request after the user interaction is done
+                        // dbus_message_unref(finishMessage);
+                    } else {
+                        ASSERT(false);
+                        printf("No file selected.\n");
+                    }
+                }
+                dbus_message_unref(reply);
+            }*/
+            dbus_message_unref(message);
+        }
+    }
+    void dbusPoll();
+    dbusPoll();
+    arenaEndTemp(temp);
+}
+
+//TODO: Implement for xcb
+void dbusPoll() {
+	DBusMessage *msg;
+	DBusMessageIter args, opts, dict, var, uris;
+
+    while(true) {
+        dbus_connection_read_write(dbusConnection, 1000);	// 1s timeout
+        msg = dbus_connection_pop_message(dbusConnection);
+
+        if (msg)
+        {	//something came back!
+            if (dbus_message_is_signal(msg, "org.freedesktop.portal.Request", "Response") &&
+                !strcmp(dbus_message_get_path(msg), dbusReplyPath))
+            {	//okay, this is the one we're interested in.
+                if (dbus_message_iter_init(msg, &args) && dbus_message_iter_get_arg_type(&args) == DBUS_TYPE_UINT32)
+                {
+                    //dbus_message_iter_get_basic(&dict, &response); //0 for success, 1 for user cancel, 2 for error.
+                    if (dbus_message_iter_next(&args) && dbus_message_iter_get_arg_type(&args) == DBUS_TYPE_ARRAY)
+                    {
+                        dbus_message_iter_recurse(&args, &opts);
+                        for (; dbus_message_iter_get_arg_type(&opts) == DBUS_TYPE_DICT_ENTRY; dbus_message_iter_next(&opts))
+                        {
+                            dbus_message_iter_recurse(&opts, &dict);
+                            if (dbus_message_iter_get_arg_type(&dict) == DBUS_TYPE_STRING)
+                            {
+                                const char *optname;
+                                dbus_message_iter_get_basic(&dict, &optname);
+                                if (dbus_message_iter_next(&dict) && dbus_message_iter_get_arg_type(&dict) == DBUS_TYPE_VARIANT)
+                                {
+                                    dbus_message_iter_recurse(&dict, &var);
+                                    if (!strcmp(optname, "uris") && dbus_message_iter_get_arg_type(&var) == DBUS_TYPE_ARRAY)
+                                    {
+                                        dbus_message_iter_recurse(&var, &uris);
+                                        for (; dbus_message_iter_get_arg_type(&uris) == DBUS_TYPE_STRING; dbus_message_iter_next(&uris))
+                                        {
+                                            const char *filename;
+                                            dbus_message_iter_get_basic(&uris, &filename);
+                                            printf("File:%s\n", filename);
+                                            return;
+                                            /*char fullname[MAX_OSPATH];
+                                            vfsfile_t *f;
+                                            
+                                            if (Sys_ResolveFileURL(filename, strlen(filename), fullname, sizeof(fullname)))
+                                            {
+                                                f = VFSOS_Open(fullname, "rb");
+                                                if (f)
+                                                {
+    //												filename = COM_SkipPath(filename);
+                                                    Host_RunFile(filename,strlen(filename), f);
+                                                }
+                                            }*/
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                dbus_message_unref(msg);
+
+                //dbus_connection_close(dbusConnection);
+                free(dbusReplyPath);
+                return; //can stop requeing now
+            }
+            dbus_message_unref(msg);
+        }
     }
 }
 
@@ -120,6 +404,7 @@ GROUNDED_FUNCTION void groundedShutdownWindowSystem() {
         } break;
         default:break;
     }
+    shutdownDbus();
 }
 
 GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(MemoryArena* arena, struct GroundedWindowCreateParameters* parameters) {

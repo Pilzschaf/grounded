@@ -256,6 +256,8 @@ GROUNDED_FUNCTION String8 groundedWindowGetClipboardText(MemoryArena* arena);
 //TODO: Additional helpers for quick retrieval of text, single file and multiple files
 //TODO: Maybe create structs for DragPayload and DropPayload to differentiate between them
 
+GROUNDED_FUNCTION void groundedWindowOpenFileDialog(GroundedWindow* window);
+
 // Retuned array must not be used anymore once get or poll events is called again
 GROUNDED_FUNCTION GroundedEvent* groundedWindowGetEvents(u32* eventCount, u32 maxWaitingTimeInMs);
 GROUNDED_FUNCTION GroundedEvent* groundedWindowPollEvents(u32* eventCount);
