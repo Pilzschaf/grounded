@@ -248,15 +248,28 @@ GROUNDED_FUNCTION void* groundedWindowDragPayloadGetUserData(struct GroundedDrag
 GROUNDED_FUNCTION void groundedWindowSetClipboardText(String8 text);
 GROUNDED_FUNCTION String8 groundedWindowGetClipboardText(MemoryArena* arena);
 
-//GROUNDED_FUNCTION void groundedStartDragAndDrop(GroundedWindow* window, u64 mimeTypeCount, String8* mimeTypes, GroundedWindowDndSendCallback* callback, GroundedWindowDragPayloadImage* image, void* userData);
-//GROUNDED_FUNCTION void groundedStartDragAndDropWithSingleDataType(GroundedWindow* window, String8 mimeType, u8* data, u64 size, GroundedWindowDragPayloadImage* image); // Data can be freed after this call
 //GROUNDED_FUNCTION String8 groundedGetDragAndDropDataAsMimeType(struct GroundedDragPayload* payload, String8 mimeType);
 //GROUNDED_FUNCTION MemoryArena* groundedGetPayloadMemoryArena(struct GroundedDragPayload* payload);
-//GROUNDED_FUNCTION GroundedWindowDragPayloadImage* groundedWindowCreateDragImage(MemoryArena* arena, u8* data, u32 width, u32 height);
 //TODO: Additional helpers for quick retrieval of text, single file and multiple files
 //TODO: Maybe create structs for DragPayload and DropPayload to differentiate between them
 
-GROUNDED_FUNCTION void groundedWindowOpenFileDialog(GroundedWindow* window);
+struct GroundedFileDialogFilter {
+	String8 name;
+	// patterns can be chained with ';' for example: .TXT;.DOC
+	// It is also possible to specify a mime type instead of a pattern. Identified by '/' character
+	// Platforms which do not support mime filtering might fall back to common fileextension for the mime type or simply to no pattern at all
+	String8 filterString;
+};
+
+struct GroundedFileDialogParameters {
+	String8 title; // The title that should be shown in the file dialog chooser
+	String8 currentDirectory;
+	struct GroundedFileDialogFilter* filters;
+	u32 filterCount;
+	bool chooseDirectories;
+	bool multiSelect;
+};
+GROUNDED_FUNCTION void groundedWindowOpenFileDialog(GroundedWindow* window, MemoryArena* arena, struct GroundedFileDialogParameters* parameters);
 
 // Retuned array must not be used anymore once get or poll events is called again
 GROUNDED_FUNCTION GroundedEvent* groundedWindowGetEvents(u32* eventCount, u32 maxWaitingTimeInMs);

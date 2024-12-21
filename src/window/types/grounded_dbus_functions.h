@@ -26,3 +26,6 @@ X(dbus_message_is_signal, dbus_bool_t, (DBusMessage *message, const char *iface,
 X(dbus_message_get_path, const char *, (DBusMessage *message))
 X(dbus_message_iter_next, dbus_bool_t, (DBusMessageIter *iter))
 X(dbus_message_iter_recurse, void, (DBusMessageIter *iter, DBusMessageIter *sub))
+X(dbus_bus_remove_match, void, (DBusConnection *connection, const char *rule, DBusError *error))
+X(dbus_bus_get_unique_name, const char *, (DBusConnection *connection))
+X(dbus_message_iter_get_element_count, int, (DBusMessageIter *iter))

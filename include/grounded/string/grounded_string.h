@@ -56,6 +56,10 @@ GROUNDED_FUNCTION char* str8GetCstrOrNull(struct MemoryArena* arena, String8 str
 GROUNDED_FUNCTION String8 str8ToLower(struct MemoryArena* arena, String8 str);
 GROUNDED_FUNCTION String8 str8ToUpper(struct MemoryArena* arena, String8 str);
 
+GROUNDED_FUNCTION String8 str8ReplaceCharacter(struct MemoryArena* arena, String8 str, u8 old, u8 new);
+// Removes all occurences of character from str and copies it into new 0-terminated output string
+GROUNDED_FUNCTION String8 str8RemoveCharacter(struct MemoryArena* arena, String8 str, u8 character);
+
 GROUNDED_FUNCTION void str8ListPushExplicit(String8List* list, String8 str, String8Node* nodeMemory);
 GROUNDED_FUNCTION void str8ListPush(struct MemoryArena* arena, String8List* list, String8 str);
 GROUNDED_FUNCTION void str8ListPushCopy(struct MemoryArena* arena, String8List* list, String8 str);

@@ -76,7 +76,6 @@ struct xkb_keymap* xkbKeymap;
 DBusConnection* dbusConnection;
 DBusError dbusError;
 void* dbusLibrary;
-char* dbusReplyPath;
 
 #include "grounded_xcb.c"
 #include "grounded_wayland.c"
@@ -108,7 +107,7 @@ GROUNDED_FUNCTION void groundedInitWindowSystem() {
         }
     }
 
-    bool skipWayland = true;
+    bool skipWayland = false;
     if(!skipWayland && initWayland()) {
         linuxWindowBackend = GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND;
     } else {
@@ -156,10 +155,67 @@ static void initDbus() {
     }
 }
 
+String8* dbusWaitForFileDialog(MemoryArena* arena, char* path, u32* outResultCount) {
+	DBusMessage *msg;
+	DBusMessageIter args, opts, dict, var, uris;
+    bool responseReceived = false;
+    String8* result = 0;
+    u32 resultCount = 0;
+
+    while(!responseReceived) {
+        dbus_connection_read_write(dbusConnection, 1000); // 1s timeout
+        msg = dbus_connection_pop_message(dbusConnection);
+
+        if (msg) {
+            if (dbus_message_is_signal(msg, "org.freedesktop.portal.Request", "Response") && !strcmp(dbus_message_get_path(msg), path)) {
+                responseReceived = true;
+                if (dbus_message_iter_init(msg, &args) && dbus_message_iter_get_arg_type(&args) == DBUS_TYPE_UINT32) {
+                    u32 response = 0; // 0 for success, 1 for user cancel, 2 for error.
+                    dbus_message_iter_get_basic(&args, &response); 
+                    
+                    if (dbus_message_iter_next(&args) && dbus_message_iter_get_arg_type(&args) == DBUS_TYPE_ARRAY) {
+                        dbus_message_iter_recurse(&args, &opts);
+                        for (; dbus_message_iter_get_arg_type(&opts) == DBUS_TYPE_DICT_ENTRY; dbus_message_iter_next(&opts)) {
+                            dbus_message_iter_recurse(&opts, &dict);
+                            if (dbus_message_iter_get_arg_type(&dict) == DBUS_TYPE_STRING) {
+                                const char *optname;
+                                dbus_message_iter_get_basic(&dict, &optname);
+                                if (dbus_message_iter_next(&dict) && dbus_message_iter_get_arg_type(&dict) == DBUS_TYPE_VARIANT) {
+                                    dbus_message_iter_recurse(&dict, &var);
+                                    if (!strcmp(optname, "uris") && dbus_message_iter_get_arg_type(&var) == DBUS_TYPE_ARRAY) {
+                                        s32 uriCount = dbus_message_iter_get_element_count(&var);
+                                        ASSERT(uriCount);
+                                        result = ARENA_PUSH_ARRAY(arena, uriCount, String8);
+
+                                        dbus_message_iter_recurse(&var, &uris);
+                                        for (; dbus_message_iter_get_arg_type(&uris) == DBUS_TYPE_STRING; dbus_message_iter_next(&uris)) {
+                                            const char *filename;
+                                            dbus_message_iter_get_basic(&uris, &filename);
+                                            result[resultCount++] = str8CopyAndNullTerminate(arena, str8FromCstr(filename));
+                                            //printf("File:%s\n", filename);
+                                            //resolveFileURI();
+                                        }
+                                        ASSERT(resultCount == uriCount);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            dbus_message_unref(msg);
+        }
+    }
+    if(outResultCount) {
+        *outResultCount = resultCount;
+    }
+    return result;
+}
+
 // Using https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.FileChooser.html
 // https://github.com/godotengine/godot/blob/89001f91d21ebd08b59756841426f540b154b97d/platform/linuxbsd/freedesktop_portal_desktop.cpp#L53
-GROUNDED_FUNCTION void groundedWindowOpenFileDialog(GroundedWindow* window) {
-    MemoryArena* scratch = threadContextGetScratch(0);
+GROUNDED_FUNCTION void groundedWindowOpenFileDialog(GroundedWindow* window, MemoryArena* arena, struct GroundedFileDialogParameters* parameters) {
+    MemoryArena* scratch = threadContextGetScratch(arena);
     ArenaTempMemory temp = arenaBeginTemp(scratch);
     if(!dbusConnection) {
         initDbus();
@@ -169,6 +225,8 @@ GROUNDED_FUNCTION void groundedWindowOpenFileDialog(GroundedWindow* window) {
         const char* portalObject = "/org/freedesktop/portal/desktop";
         const char* portalInterface = "org.freedesktop.portal.FileChooser";
         const char* portalMethod = "OpenFile";
+        String8 dbusFilter = EMPTY_STRING8;
+        String8 path = EMPTY_STRING8;
 
         DBusMessage *message = dbus_message_new_method_call(portalService, portalObject, portalInterface, portalMethod);
         if(!message) {
@@ -194,193 +252,202 @@ GROUNDED_FUNCTION void groundedWindowOpenFileDialog(GroundedWindow* window) {
                 }
             }
             
-            if(!dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &parentWindow)) {
-                // Out of memory
-                ASSERT(false);
-            }
-
-            if(!dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &title)) {
-                // Out of memory
-                ASSERT(false);
-            }
+            dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &parentWindow);
+            dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &title);
 
             // Options (empty dictionary for no extra options)
             DBusMessageIter options;
             dbus_message_iter_open_container(&args, DBUS_TYPE_ARRAY, "{sv}", &options);
+
+            const char* token = "27424772";
+            {
+                DBusMessageIter dictIter;
+                DBusMessageIter variantIter;
+                DBusMessageIter arrayIter;
+                const char* key = "handle_token";
+                dbus_message_iter_open_container(&options, DBUS_TYPE_DICT_ENTRY, 0, &dictIter);
+                dbus_message_iter_append_basic(&dictIter, DBUS_TYPE_STRING, &key);
+
+                dbus_message_iter_open_container(&dictIter, DBUS_TYPE_VARIANT, "s", &variantIter);
+                dbus_message_iter_append_basic(&variantIter, DBUS_TYPE_STRING, &token);
+
+                dbus_message_iter_close_container(&dictIter, &variantIter);
+                dbus_message_iter_close_container(&options, &dictIter);
+            }
+
+            // Apply filters
+            if(parameters && parameters->filterCount > 0) {
+                DBusMessageIter dictIter;
+                DBusMessageIter variantIter;
+                DBusMessageIter arrayIter;
+                const char* filtersKey = "filters";
+
+                dbus_message_iter_open_container(&options, DBUS_TYPE_DICT_ENTRY, 0, &dictIter);
+                dbus_message_iter_append_basic(&dictIter, DBUS_TYPE_STRING, &filtersKey);
+                dbus_message_iter_open_container(&dictIter, DBUS_TYPE_VARIANT, "a(sa(us))", &variantIter);
+                dbus_message_iter_open_container(&variantIter, DBUS_TYPE_ARRAY, "(sa(us))", &arrayIter);
+
+                for(u32 i = 0; i < parameters->filterCount; ++i) {
+                    DBusMessageIter structIter;
+                    DBusMessageIter patternIter;
+                    DBusMessageIter patternStructIter;
+                    dbus_message_iter_open_container(&arrayIter, DBUS_TYPE_STRUCT, 0, &structIter);
+                    const char* name = str8GetCstr(scratch, parameters->filters[i].name);
+                    dbus_message_iter_append_basic(&structIter, DBUS_TYPE_STRING, &name);
+
+                    // Array of filter patterns
+                    dbus_message_iter_open_container(&structIter, DBUS_TYPE_ARRAY, "(us)", &patternIter);
+                    u8 splitCharacter = ';';
+                    String8List patternList = str8Split(scratch, parameters->filters[i].filterString, &splitCharacter, 1);
+                    String8Node* patternNode = patternList.first;
+                    while(patternNode) {
+                        dbus_message_iter_open_container(&patternIter, DBUS_TYPE_STRUCT, 0, &patternStructIter);
+                        
+                        u32 filterIsMime = 0;
+                        if(str8GetFirstOccurence(patternNode->string, '/') < patternNode->string.size) {
+                            filterIsMime = 1;
+                        }
+
+                        //TODO: For different capitalizations use instead of *.ico  use *.[iI][cC][oO]
+                        const char* patternString = "";
+                        if(str8GetFirstOccurence(patternNode->string, '.') == 0) {
+                            // First character is a . which is windows style. we need a * before it
+                            patternString = (const char*)str8FromFormat(scratch, "*%.*s", patternNode->string.size, patternNode->string.base).base;
+                        } else {
+                            patternString = str8GetCstr(scratch, patternNode->string);
+                        }
+                        
+                        dbus_message_iter_append_basic(&patternStructIter, DBUS_TYPE_UINT32, &filterIsMime);
+                        dbus_message_iter_append_basic(&patternStructIter, DBUS_TYPE_STRING, &patternString);
+
+                        dbus_message_iter_close_container(&patternIter, &patternStructIter);
+                        patternNode = patternNode->next;
+                    }                    
+                    
+                    dbus_message_iter_close_container(&structIter, &patternIter);
+		            dbus_message_iter_close_container(&arrayIter, &structIter);
+                }
+
+                dbus_message_iter_close_container(&variantIter, &arrayIter);
+                dbus_message_iter_close_container(&dictIter, &variantIter);
+                dbus_message_iter_close_container(&options, &dictIter);
+            }
+
+            if(parameters && parameters->chooseDirectories) {
+                DBusMessageIter dictIter;
+                DBusMessageIter variantIter;
+                const char* key = "directory";
+                dbus_message_iter_open_container(&options, DBUS_TYPE_DICT_ENTRY, 0, &dictIter);
+                dbus_message_iter_append_basic(&dictIter, DBUS_TYPE_STRING, &key);
+
+                dbus_message_iter_open_container(&dictIter, DBUS_TYPE_VARIANT, "b", &variantIter);
+                int val = 1;
+                dbus_message_iter_append_basic(&variantIter, DBUS_TYPE_BOOLEAN, &val);
+
+                dbus_message_iter_close_container(&dictIter, &variantIter);
+                dbus_message_iter_close_container(&options, &dictIter);
+            }
+
+            if(parameters && parameters->multiSelect) {
+                DBusMessageIter dictIter;
+                DBusMessageIter variantIter;
+                const char* key = "multiple";
+                dbus_message_iter_open_container(&options, DBUS_TYPE_DICT_ENTRY, 0, &dictIter);
+                dbus_message_iter_append_basic(&dictIter, DBUS_TYPE_STRING, &key);
+
+                dbus_message_iter_open_container(&dictIter, DBUS_TYPE_VARIANT, "b", &variantIter);
+                int val = 1;
+                dbus_message_iter_append_basic(&variantIter, DBUS_TYPE_BOOLEAN, &val);
+
+                dbus_message_iter_close_container(&dictIter, &variantIter);
+                dbus_message_iter_close_container(&options, &dictIter);
+            }
+
+            if(parameters && !str8IsEmpty(parameters->currentDirectory)) {
+                DBusMessageIter dictIter;
+                DBusMessageIter variantIter;
+                DBusMessageIter arrayIter;
+                const char* key = "current_folder";
+                dbus_message_iter_open_container(&options, DBUS_TYPE_DICT_ENTRY, 0, &dictIter);
+                dbus_message_iter_append_basic(&dictIter, DBUS_TYPE_STRING, &key);
+
+                dbus_message_iter_open_container(&dictIter, DBUS_TYPE_VARIANT, "ay", &variantIter);
+                dbus_message_iter_open_container(&variantIter, DBUS_TYPE_ARRAY, "y", &arrayIter);
+                
+                for(u64 i = 0; i < parameters->currentDirectory.size; ++i) {
+                    dbus_message_iter_append_basic(&arrayIter, DBUS_TYPE_BYTE, &parameters->currentDirectory.base[i]);
+                }
+                char nullTerminator = 0;
+                dbus_message_iter_append_basic(&arrayIter, DBUS_TYPE_BYTE, &nullTerminator);
+
+                dbus_message_iter_close_container(&variantIter, &arrayIter);
+                dbus_message_iter_close_container(&dictIter, &variantIter);
+                dbus_message_iter_close_container(&options, &dictIter);
+            }
             // Options includes:
             // handletoken: 
             // acceptLabel: What should be written on the open button
-            // modal: Default = true Probably requires parent window to be really effective
-            // multiple: multiselect
-            // directoy: selectfolders instead of files
-            // filters: list of filetype filters
             // choices:
-            // currentFolder: Where to open the dialog
-            const char* appId = "ganymedebug";
-            //dbus_message_iter_append_basic(&options, DBUS_TYPE_STRING, &"app-id");
-            //dbus_message_iter_append_basic(&options, DBUS_TYPE_STRING, &appId);
             dbus_message_iter_close_container(&args, &options);
 
             // Register for response
-            dbus_bus_add_match(dbusConnection, "type='signal'"
-							/*",path='/org/freedesktop/portal/desktop/request/UNIQUE/TOKEN'"*/
-							",interface='org.freedesktop.portal.Request'"
-							",member='Response'", &dbusError);
-
-            DBusPendingCall* pending;
-            if(!dbus_connection_send_with_reply(dbusConnection, message, &pending, -1) || !pending) {
+            const char* dbusUniqueName = dbus_bus_get_unique_name(dbusConnection);
+            String8 dbusConvertedUniqueName = str8ReplaceCharacter(scratch, str8FromCstr(dbusUniqueName), '.', '_');
+            dbusConvertedUniqueName = str8RemoveCharacter(scratch, dbusConvertedUniqueName, ':');
+            path = str8FromFormat(scratch, "/org/freedesktop/portal/desktop/request/%s/%s", (const char*)dbusConvertedUniqueName.base, token);
+            dbusFilter = str8FromFormat(scratch, "type='signal',sender='org.freedesktop.portal.Desktop',path='%s',interface='org.freedesktop.portal.Request',member='Response',destination='%s'", (const char*)path.base, dbusUniqueName);
+            dbus_bus_add_match(dbusConnection, (const char*)dbusFilter.base, &dbusError);
+            if(dbus_error_is_set(&dbusError)) {
+                dbus_error_free(&dbusError);
+                GROUNDED_PUSH_ERROR("Failed to add DBus match");
                 dbus_message_unref(message);
                 message = 0;
-                ASSERT(false);
-            } else {
-                dbus_message_unref(message);
-                dbus_connection_flush(dbusConnection);
-                dbus_pending_call_block(pending);
-
-                //see if we got a reply
-                message = dbus_pending_call_steal_reply(pending);
-                dbus_pending_call_unref(pending);
             }
+        }
 
-            if(message) {
-                //read the object path from the response.
-                if (dbus_message_iter_init(message, &args) && dbus_message_iter_get_arg_type(&args)) {
-                    dbus_message_iter_get_basic(&args, &dbusReplyPath);
-                    char* replyPath = (char*)malloc(strlen(dbusReplyPath));
-                    memcpy(replyPath, dbusReplyPath, strlen(dbusReplyPath)+1);
-                    dbusReplyPath = replyPath;
-                    printf("Request Reply Path: %s\n", replyPath);
-                }
-            }
-
-            // Send the message and wait for a reply
-            /*DBusMessage* reply = dbus_connection_send_with_reply_and_block(dbusConnection, message, -1, &dbusError);
-            if (dbus_error_is_set(&dbusError)) {
-                //fprintf(stderr, "Error in D-Bus call: %s\n", error.message);
-                dbus_error_free(&dbusError);
-            }
-
-            if(reply) {
-                DBusMessageIter replyArgs;
-                if(dbus_message_iter_init(reply, &replyArgs)) {
-                    char *uris;
-                    if (dbus_message_iter_get_arg_type(&replyArgs) == DBUS_TYPE_OBJECT_PATH) {
-                        char* objectPath;
-                        dbus_message_iter_get_basic(&replyArgs, &objectPath);
-                        printf("Request Object Path: %s\n", objectPath);
-
-                        // Process the signal when received
-                        // Wait for the Response signal
-                        DBusMessage *responseMessage;
-                        dbus_message_iter_init(reply, &replyArgs);
-                        dbus_message_iter_get_basic(&replyArgs, &objectPath);
-
-                        // Listen for the `Response` signal from the request object
-                        dbus_connection_add_filter(dbusConnection, &response_signal_filter, objectPath, 0);
-
-                        // Assuming you receive a signal, process it
-                        // When you get the signal, the result will be in `results` with the file URIs.
-
-                        // Simulating signal reception for now
-                        DBusMessageIter responseArgs;
-                        dbus_message_iter_init(responseMessage, &responseArgs);
-                        uint32_t response;
-                        dbus_message_iter_get_basic(&responseArgs, &response);
-                        printf("Response: %u\n", response);*/
-
-                        /*if (response == 0) { // Success, files selected
-                            DBusMessageIter resultsArgs;
-                            dbus_message_iter_get_array(&responseArgs, &resultsArgs);
-                            char *uri;
-                            while (dbus_message_iter_get_arg_type(&resultsArgs) != DBUS_TYPE_INVALID) {
-                                dbus_message_iter_get_basic(&resultsArgs, &uri);
-                                printf("Selected file URI: %s\n", uri);
-                            }
-                        }
-                        // Close the request after the user interaction is done
-                        // dbus_message_unref(finishMessage);
-                    } else {
-                        ASSERT(false);
-                        printf("No file selected.\n");
-                    }
-                }
-                dbus_message_unref(reply);
-            }*/
+        if(message) {
+            DBusMessage *reply = dbus_connection_send_with_reply_and_block(dbusConnection, message, DBUS_TIMEOUT_INFINITE, &dbusError);
             dbus_message_unref(message);
-        }
-    }
-    void dbusPoll();
-    dbusPoll();
-    arenaEndTemp(temp);
-}
-
-//TODO: Implement for xcb
-void dbusPoll() {
-	DBusMessage *msg;
-	DBusMessageIter args, opts, dict, var, uris;
-
-    while(true) {
-        dbus_connection_read_write(dbusConnection, 1000);	// 1s timeout
-        msg = dbus_connection_pop_message(dbusConnection);
-
-        if (msg)
-        {	//something came back!
-            if (dbus_message_is_signal(msg, "org.freedesktop.portal.Request", "Response") &&
-                !strcmp(dbus_message_get_path(msg), dbusReplyPath))
-            {	//okay, this is the one we're interested in.
-                if (dbus_message_iter_init(msg, &args) && dbus_message_iter_get_arg_type(&args) == DBUS_TYPE_UINT32)
-                {
-                    //dbus_message_iter_get_basic(&dict, &response); //0 for success, 1 for user cancel, 2 for error.
-                    if (dbus_message_iter_next(&args) && dbus_message_iter_get_arg_type(&args) == DBUS_TYPE_ARRAY)
-                    {
-                        dbus_message_iter_recurse(&args, &opts);
-                        for (; dbus_message_iter_get_arg_type(&opts) == DBUS_TYPE_DICT_ENTRY; dbus_message_iter_next(&opts))
-                        {
-                            dbus_message_iter_recurse(&opts, &dict);
-                            if (dbus_message_iter_get_arg_type(&dict) == DBUS_TYPE_STRING)
-                            {
-                                const char *optname;
-                                dbus_message_iter_get_basic(&dict, &optname);
-                                if (dbus_message_iter_next(&dict) && dbus_message_iter_get_arg_type(&dict) == DBUS_TYPE_VARIANT)
-                                {
-                                    dbus_message_iter_recurse(&dict, &var);
-                                    if (!strcmp(optname, "uris") && dbus_message_iter_get_arg_type(&var) == DBUS_TYPE_ARRAY)
-                                    {
-                                        dbus_message_iter_recurse(&var, &uris);
-                                        for (; dbus_message_iter_get_arg_type(&uris) == DBUS_TYPE_STRING; dbus_message_iter_next(&uris))
-                                        {
-                                            const char *filename;
-                                            dbus_message_iter_get_basic(&uris, &filename);
-                                            printf("File:%s\n", filename);
-                                            return;
-                                            /*char fullname[MAX_OSPATH];
-                                            vfsfile_t *f;
-                                            
-                                            if (Sys_ResolveFileURL(filename, strlen(filename), fullname, sizeof(fullname)))
-                                            {
-                                                f = VFSOS_Open(fullname, "rb");
-                                                if (f)
-                                                {
-    //												filename = COM_SkipPath(filename);
-                                                    Host_RunFile(filename,strlen(filename), f);
-                                                }
-                                            }*/
-                                        }
-                                    }
-                                }
+            message = 0;
+            if(!reply || dbus_error_is_set(&dbusError)) {
+                GROUNDED_PUSH_ERRORF("Failed to send DBus message: %s", dbusError.message);
+                dbus_error_free(&dbusError);
+                reply = 0;
+            } else {
+                // Now we need to wait for response
+                DBusMessageIter iter;
+                if (dbus_message_iter_init(reply, &iter)) {
+                    if (dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_OBJECT_PATH) {
+                        const char *newPath = 0;
+                        dbus_message_iter_get_basic(&iter, &newPath);
+                        if(!str8Compare(str8FromCstr(newPath), path)) {
+                            dbus_bus_remove_match(dbusConnection, (const char*)dbusFilter.base, &dbusError);
+                            if (dbus_error_is_set(&dbusError)) {
+                                GROUNDED_PUSH_ERRORF("Failed to remove DBus match: %s", dbusError.message);
+                                dbus_error_free(&dbusError);
+                            }
+                            path = str8FromCstr(newPath);
+                            dbus_bus_add_match(dbusConnection, (const char*)dbusFilter.base, &dbusError);
+                            if (dbus_error_is_set(&dbusError)) {
+                                GROUNDED_PUSH_ERRORF("Failed to add DBus match: %s", dbusError.message);
+                                dbus_error_free(&dbusError);
                             }
                         }
                     }
                 }
-                dbus_message_unref(msg);
 
-                //dbus_connection_close(dbusConnection);
-                free(dbusReplyPath);
-                return; //can stop requeing now
+                dbus_message_unref(reply);
+                u32 resultCount = 0;
+                dbusWaitForFileDialog(arena, (char*)path.base, &resultCount);
+                dbus_bus_remove_match(dbusConnection, (const char*)dbusFilter.base, &dbusError);
+                if (dbus_error_is_set(&dbusError)) {
+                    GROUNDED_PUSH_ERRORF("Failed to remove DBus match: %s", dbusError.message);
+                    dbus_error_free(&dbusError);
+                }
             }
-            dbus_message_unref(msg);
         }
     }
+    arenaEndTemp(temp);
 }
 
 GROUNDED_FUNCTION GroundedWindowBackend groundedWindowSystemGetSelectedBackend() {

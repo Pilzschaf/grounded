@@ -347,6 +347,35 @@ GROUNDED_FUNCTION String8 str8ToUpper(struct MemoryArena* arena, String8 str) {
     return result;
 }
 
+GROUNDED_FUNCTION String8 str8ReplaceCharacter(struct MemoryArena* arena, String8 str, u8 old, u8 new) {
+    String8 result = {0};
+    result.base = ARENA_PUSH_ARRAY_NO_CLEAR(arena, str.size + 1, u8);
+    result.size = str.size;
+    for(u64 i = 0; i < str.size; ++i) {
+        if(str.base[i] == old) {
+            result.base[i] = new;
+        } else {
+            result.base[i] = str.base[i];
+        }
+    }
+    result.base[result.size] = '\0';
+    return result;
+}
+
+GROUNDED_FUNCTION String8 str8RemoveCharacter(struct MemoryArena* arena, String8 str, u8 character) {
+    String8 result = {0};
+    result.base = ARENA_PUSH_ARRAY_NO_CLEAR(arena, str.size + 1, u8);
+    for(u64 i = 0; i < str.size; ++i) {
+        if(str.base[i] != character) {
+            result.base[result.size++] = str.base[i];
+        }
+    }
+    result.base[result.size] = '\0';
+    // Release potentially overallocated memory
+    arenaPopTo(arena, result.base + result.size + 1);
+    return result;
+}
+
 //////////////
 // String list
 GROUNDED_FUNCTION void str8ListPushExplicit(String8List* list, String8 str, String8Node* nodeMemory) {

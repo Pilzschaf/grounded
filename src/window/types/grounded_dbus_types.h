@@ -17,6 +17,11 @@ typedef uint32_t dbus_bool_t;
 #define DBUS_TYPE_UINT32        ((int) 'u')
 #define DBUS_TYPE_DICT_ENTRY    ((int) 'e')
 #define DBUS_TYPE_VARIANT       ((int) 'v')
+#define DBUS_TYPE_STRUCT        ((int) 'r')
+#define DBUS_TYPE_BOOLEAN       ((int) 'b')
+#define DBUS_TYPE_BYTE          ((int) 'y')
+
+#define DBUS_TIMEOUT_INFINITE ((int) 0x7fffffff)
 
 /**
  * Object representing an exception.
