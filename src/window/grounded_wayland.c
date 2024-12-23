@@ -331,285 +331,106 @@ static void keyboardHandleLeave(void *data, struct wl_keyboard *keyboard, uint32
     keyRepeatKey = 0;
 }
 
+u32 waylandKeycodeTranslationTable[256] = {0};
+
+static void waylandInitKeycodeTranslationTable() {
+    for(u32 i = 0; i < ARRAY_COUNT(waylandKeycodeTranslationTable); ++i) {
+        waylandKeycodeTranslationTable[i] = 0;
+    }
+    waylandKeycodeTranslationTable[KEY_0] = GROUNDED_KEY_0; 
+    waylandKeycodeTranslationTable[KEY_1] = GROUNDED_KEY_1; 
+    waylandKeycodeTranslationTable[KEY_2] = GROUNDED_KEY_2; 
+    waylandKeycodeTranslationTable[KEY_3] = GROUNDED_KEY_3; 
+    waylandKeycodeTranslationTable[KEY_4] = GROUNDED_KEY_4; 
+    waylandKeycodeTranslationTable[KEY_5] = GROUNDED_KEY_5; 
+    waylandKeycodeTranslationTable[KEY_6] = GROUNDED_KEY_6; 
+    waylandKeycodeTranslationTable[KEY_7] = GROUNDED_KEY_7; 
+    waylandKeycodeTranslationTable[KEY_8] = GROUNDED_KEY_8;   
+    waylandKeycodeTranslationTable[KEY_9] = GROUNDED_KEY_9; 
+    waylandKeycodeTranslationTable[KEY_A] = GROUNDED_KEY_A;
+    waylandKeycodeTranslationTable[KEY_B] = GROUNDED_KEY_B;
+    waylandKeycodeTranslationTable[KEY_C] = GROUNDED_KEY_C;
+    waylandKeycodeTranslationTable[KEY_D] = GROUNDED_KEY_D;
+    waylandKeycodeTranslationTable[KEY_E] = GROUNDED_KEY_E;
+    waylandKeycodeTranslationTable[KEY_F] = GROUNDED_KEY_F;
+    waylandKeycodeTranslationTable[KEY_G] = GROUNDED_KEY_G;
+    waylandKeycodeTranslationTable[KEY_H] = GROUNDED_KEY_H;
+    waylandKeycodeTranslationTable[KEY_I] = GROUNDED_KEY_I;
+    waylandKeycodeTranslationTable[KEY_J] = GROUNDED_KEY_J;
+    waylandKeycodeTranslationTable[KEY_K] = GROUNDED_KEY_K;
+    waylandKeycodeTranslationTable[KEY_L] = GROUNDED_KEY_L;
+    waylandKeycodeTranslationTable[KEY_M] = GROUNDED_KEY_M;
+    waylandKeycodeTranslationTable[KEY_N] = GROUNDED_KEY_N;
+    waylandKeycodeTranslationTable[KEY_O] = GROUNDED_KEY_O;
+    waylandKeycodeTranslationTable[KEY_P] = GROUNDED_KEY_P;
+    waylandKeycodeTranslationTable[KEY_Q] = GROUNDED_KEY_Q;
+    waylandKeycodeTranslationTable[KEY_R] = GROUNDED_KEY_R;
+    waylandKeycodeTranslationTable[KEY_S] = GROUNDED_KEY_S;
+    waylandKeycodeTranslationTable[KEY_T] = GROUNDED_KEY_T;
+    waylandKeycodeTranslationTable[KEY_U] = GROUNDED_KEY_U;
+    waylandKeycodeTranslationTable[KEY_V] = GROUNDED_KEY_V;
+    waylandKeycodeTranslationTable[KEY_W] = GROUNDED_KEY_W;
+    waylandKeycodeTranslationTable[KEY_X] = GROUNDED_KEY_X;
+    waylandKeycodeTranslationTable[KEY_Y] = GROUNDED_KEY_Y;
+    waylandKeycodeTranslationTable[KEY_Z] = GROUNDED_KEY_Z;
+    waylandKeycodeTranslationTable[KEY_F1] = GROUNDED_KEY_F1;
+    waylandKeycodeTranslationTable[KEY_F2] = GROUNDED_KEY_F2;
+    waylandKeycodeTranslationTable[KEY_F3] = GROUNDED_KEY_F3;
+    waylandKeycodeTranslationTable[KEY_F4] = GROUNDED_KEY_F4;
+    waylandKeycodeTranslationTable[KEY_F5] = GROUNDED_KEY_F5;
+    waylandKeycodeTranslationTable[KEY_F6] = GROUNDED_KEY_F6;
+    waylandKeycodeTranslationTable[KEY_F7] = GROUNDED_KEY_F7;
+    waylandKeycodeTranslationTable[KEY_F8] = GROUNDED_KEY_F8;
+    waylandKeycodeTranslationTable[KEY_F9] = GROUNDED_KEY_F9;
+    waylandKeycodeTranslationTable[KEY_F10] = GROUNDED_KEY_F10;
+    waylandKeycodeTranslationTable[KEY_F11] = GROUNDED_KEY_F11;
+    waylandKeycodeTranslationTable[KEY_F12] = GROUNDED_KEY_F12;
+    waylandKeycodeTranslationTable[KEY_F13] = GROUNDED_KEY_F13;
+    waylandKeycodeTranslationTable[KEY_F14] = GROUNDED_KEY_F14;
+    waylandKeycodeTranslationTable[KEY_F15] = GROUNDED_KEY_F15;
+    waylandKeycodeTranslationTable[KEY_F16] = GROUNDED_KEY_F16;
+    waylandKeycodeTranslationTable[KEY_SPACE] = GROUNDED_KEY_SPACE;
+    waylandKeycodeTranslationTable[KEY_LEFTSHIFT] = GROUNDED_KEY_LSHIFT;
+    waylandKeycodeTranslationTable[KEY_RIGHTSHIFT] = GROUNDED_KEY_RSHIFT;
+    waylandKeycodeTranslationTable[KEY_ESC] = GROUNDED_KEY_ESCAPE;
+    waylandKeycodeTranslationTable[KEY_LEFT] = GROUNDED_KEY_LEFT;
+    waylandKeycodeTranslationTable[KEY_RIGHT] = GROUNDED_KEY_RIGHT;
+    waylandKeycodeTranslationTable[KEY_UP] = GROUNDED_KEY_UP;
+    waylandKeycodeTranslationTable[KEY_DOWN] = GROUNDED_KEY_DOWN;
+    waylandKeycodeTranslationTable[KEY_ENTER] = GROUNDED_KEY_ENTER;
+    waylandKeycodeTranslationTable[KEY_BACKSPACE] = GROUNDED_KEY_BACKSPACE;
+    waylandKeycodeTranslationTable[KEY_INSERT] = GROUNDED_KEY_INSERT;
+    waylandKeycodeTranslationTable[KEY_HOME] = GROUNDED_KEY_HOME;
+    waylandKeycodeTranslationTable[KEY_PAGEUP] = GROUNDED_KEY_PAGE_UP;
+    waylandKeycodeTranslationTable[KEY_DELETE] = GROUNDED_KEY_DELETE;
+    waylandKeycodeTranslationTable[KEY_END] = GROUNDED_KEY_END;
+    waylandKeycodeTranslationTable[KEY_PAGEDOWN] = GROUNDED_KEY_PAGE_DOWN;
+    waylandKeycodeTranslationTable[KEY_TAB] = GROUNDED_KEY_TAB;
+    waylandKeycodeTranslationTable[KEY_COMMA] = GROUNDED_KEY_COMMA;
+    waylandKeycodeTranslationTable[KEY_DOT] = GROUNDED_KEY_DOT;
+    waylandKeycodeTranslationTable[KEY_SLASH] = GROUNDED_KEY_SLASH;
+    waylandKeycodeTranslationTable[KEY_LEFTCTRL] = GROUNDED_KEY_LCTRL;
+    waylandKeycodeTranslationTable[KEY_RIGHTCTRL] = GROUNDED_KEY_RCTRL;
+}
+
 static u8 translateWaylandKeycode(u32 key) {
     u8 result = 0;
-    switch(key) {
-        case KEY_0:
-        result = GROUNDED_KEY_0;
-        break;
-        case KEY_1:
-        result = GROUNDED_KEY_1;
-        break;
-        case KEY_2:
-        result = GROUNDED_KEY_2;
-        break;
-        case KEY_3:
-        result = GROUNDED_KEY_3;
-        break;
-        case KEY_4:
-        result = GROUNDED_KEY_4;
-        break;
-        case KEY_5:
-        result = GROUNDED_KEY_5;
-        break;
-        case KEY_6:
-        result = GROUNDED_KEY_6;
-        break;
-        case KEY_7:
-        result = GROUNDED_KEY_7;
-        break;
-        case KEY_8:
-        result = GROUNDED_KEY_8;
-        break;
-        case KEY_9:
-        result = GROUNDED_KEY_9;
-        break;
-        case KEY_A:
-        result = GROUNDED_KEY_A;
-        break;
-        case KEY_B:
-        result = GROUNDED_KEY_B;
-        break;
-        case KEY_C:
-        result = GROUNDED_KEY_C;
-        break;
-        case KEY_D:
-        result = GROUNDED_KEY_D;
-        break;
-        case KEY_E:
-        result = GROUNDED_KEY_E;
-        break;
-        case KEY_F:
-        result = GROUNDED_KEY_F;
-        break;
-        case KEY_G:
-        result = GROUNDED_KEY_G;
-        break;
-        case KEY_H:
-        result = GROUNDED_KEY_H;
-        break;
-        case KEY_I:
-        result = GROUNDED_KEY_I;
-        break;
-        case KEY_J:
-        result = GROUNDED_KEY_J;
-        break;
-        case KEY_K:
-        result = GROUNDED_KEY_K;
-        break;
-        case KEY_L:
-        result = GROUNDED_KEY_L;
-        break;
-        case KEY_M:
-        result = GROUNDED_KEY_M;
-        break;
-        case KEY_N:
-        result = GROUNDED_KEY_N;
-        break;
-        case KEY_O:
-        result = GROUNDED_KEY_O;
-        break;
-        case KEY_P:
-        result = GROUNDED_KEY_P;
-        break;
-        case KEY_Q:
-        result = GROUNDED_KEY_Q;
-        break;
-        case KEY_R:
-        result = GROUNDED_KEY_R;
-        break;
-        case KEY_S:
-        result = GROUNDED_KEY_S;
-        break;
-        case KEY_T:
-        result = GROUNDED_KEY_T;
-        break;
-        case KEY_U:
-        result = GROUNDED_KEY_U;
-        break;
-        case KEY_V:
-        result = GROUNDED_KEY_V;
-        break;
-        case KEY_W:
-        result = GROUNDED_KEY_W;
-        break;
-        case KEY_X:
-        result = GROUNDED_KEY_X;
-        break;
-        case KEY_Y:
-        result = GROUNDED_KEY_Y;
-        break;
-        case KEY_Z:
-        result = GROUNDED_KEY_Z;
-        break;
-        case KEY_F1:
-        result = GROUNDED_KEY_F1;
-        break;
-        case KEY_F2:
-        result = GROUNDED_KEY_F2;
-        break;
-        case KEY_F3:
-        result = GROUNDED_KEY_F3;
-        break;
-        case KEY_F4:
-        result = GROUNDED_KEY_F4;
-        break;
-        case KEY_F5:
-        result = GROUNDED_KEY_F5;
-        break;
-        case KEY_F6:
-        result = GROUNDED_KEY_F6;
-        break;
-        case KEY_F7:
-        result = GROUNDED_KEY_F7;
-        break;
-        case KEY_F8:
-        result = GROUNDED_KEY_F8;
-        break;
-        case KEY_F9:
-        result = GROUNDED_KEY_F9;
-        break;
-        case KEY_F10:
-        result = GROUNDED_KEY_F10;
-        break;
-        case KEY_F11:
-        result = GROUNDED_KEY_F11;
-        break;
-        case KEY_F12:
-        result = GROUNDED_KEY_F12;
-        break;
-        case KEY_F13:
-        result = GROUNDED_KEY_F13;
-        break;
-        case KEY_F14:
-        result = GROUNDED_KEY_F14;
-        break;
-        case KEY_F15:
-        result = GROUNDED_KEY_F15;
-        break;
-        case KEY_F16:
-        result = GROUNDED_KEY_F16;
-        break;
-        case KEY_SPACE:
-        result = GROUNDED_KEY_SPACE;
-        break;
-        case KEY_LEFTSHIFT:
-        result = GROUNDED_KEY_LSHIFT;
-        break;
-        case KEY_RIGHTSHIFT:
-        result = GROUNDED_KEY_RSHIFT;
-        break;
-        case KEY_ESC:
-        result = GROUNDED_KEY_ESCAPE;
-        break;
-        case KEY_LEFT:
-        result = GROUNDED_KEY_LEFT;
-        break;
-        case KEY_RIGHT:
-        result = GROUNDED_KEY_RIGHT;
-        break;
-        case KEY_UP:
-        result = GROUNDED_KEY_UP;
-        break;
-        case KEY_DOWN:
-        result = GROUNDED_KEY_DOWN;
-        break;
-        case KEY_ENTER:
-        result = GROUNDED_KEY_ENTER;
-        break;
-        case KEY_BACKSPACE:
-        result = GROUNDED_KEY_BACKSPACE;
-        break;
-        case KEY_INSERT:
-        result = GROUNDED_KEY_INSERT;
-        break;
-        case KEY_HOME:
-        result = GROUNDED_KEY_HOME;
-        break;
-        case KEY_PAGEUP:
-        result = GROUNDED_KEY_PAGE_UP;
-        break;
-        case KEY_DELETE:
-        result = GROUNDED_KEY_DELETE;
-        break;
-        case KEY_END:
-        result = GROUNDED_KEY_END;
-        break;
-        case KEY_PAGEDOWN:
-        result = GROUNDED_KEY_PAGE_DOWN;
-        break;
-        /*case KEY_PRINT:
-        result = GROUNDED_KEY_PRINT;
-        break;
-        case KEY_ROLL:
-        result = ;
-        break;
-        case KEY_PAUSE:
-        result = ;
-        break;
-        case KEY_GRAVE:
-        result = GROUNDED_KEY_GRAVE;
-        break;
-        case KEY_MINUS:
-        result = GROUNDED_KEY_MINUS;
-        break;
-        case KEY_EQUAL:
-        result = GROUNDED_KEY_EQUAL;
-        break;*/
-        case KEY_TAB:
-        result = GROUNDED_KEY_TAB;
-        break;
-        /*case KEY_LEFTBRACE:
-        result = GROUNDED_KEY_LEFTBRACE;
-        break;
-        case KEY_RIGHTBRACE:
-        result = GROUNDED_KEY_RIGHTBRACE;
-        break;
-        case KEY_CAPSLOCK:
-        result = GROUNDED_KEY_CAPSLOCK;
-        break;
-        case KEY_SEMICOLON:
-        result = GROUNDED_KEY_SEMICOLON;
-        break;
-        case KEY_APOSTROPHE:
-        result = GROUNDED_KEY_APOSTROPHE;
-        break;
-        case KEY_BACKSLASH:
-        result = GROUNDED_KEY_BACKSLASH;
-        break;
-        case KEY_102ND:
-        result = ;
-        break;*/
-        case KEY_COMMA:
-        result = GROUNDED_KEY_COMMA;
-        break;
-        case KEY_DOT:
-        result = GROUNDED_KEY_DOT;
-        break;
-        case KEY_SLASH:
-        result = GROUNDED_KEY_SLASH;
-        break;
-        case KEY_LEFTCTRL:
-        result = GROUNDED_KEY_LCTRL;
-        break;
-        case KEY_RIGHTCTRL:
-        result = GROUNDED_KEY_RCTRL;
-        break;
-        /*case KEY_LEFTMETA:
-        result = GROUNDED_KEY_LMETA;
-        break;
-        case KEY_RIGHTMETA:
-        result = GROUNDED_KEY_RMETA;
-        break;
-        case KEY_LEFTALT:
-        result = GROUNDED_KEY_LALT;
-        break;
-        case KEY_RIGHTALT:
-        result = GROUNDED_KEY_RALT;
-        break;*/
-        default:
+    if(key < ARRAY_COUNT(waylandKeycodeTranslationTable)) {
+        result = (u8)waylandKeycodeTranslationTable[key];
+    }
+    if(!result) {
         GROUNDED_LOG_WARNING("Unknown keycode");
-        break;
+    }
+    return result;
+}
+
+static u32 translateInverseWaylandKeycode(u32 keycode) {
+    u32 result = 0;
+    for(u32 i = 0; i < ARRAY_COUNT(waylandKeycodeTranslationTable); ++i) {
+        if(waylandKeycodeTranslationTable[i] == keycode) {
+            result = i;
+            break;
+        }
     }
     return result;
 }
@@ -1422,6 +1243,8 @@ static const struct zxdg_toplevel_decoration_v1_listener decorationListener = {
 static bool initWayland() {
     const char* error = 0;
 
+    waylandInitKeycodeTranslationTable();
+
     void* waylandLibrary = dlopen("libwayland-client.so", RTLD_LAZY | RTLD_LOCAL);
     if(!waylandLibrary) {
         error = "No wayland library found";
@@ -1812,6 +1635,25 @@ static void sendWaylandKeyRepeat() {
         };
     }
 }
+
+String8 groundedWaylandGetNameOfKeycode(MemoryArena* arena, u32 keycode) {
+    String8 result = EMPTY_STRING8;
+    keycode = translateInverseWaylandKeycode(keycode);
+    xkb_keysym_t keysym = xkb_state_key_get_one_sym(xkbState, keycode + 8); // Add 8 for evdev-to-XKB offset
+    keysym = xkb_keysym_to_upper(keysym);
+    u32 bufferSize = 256;
+    char* buffer = ARENA_PUSH_ARRAY_NO_CLEAR(arena, bufferSize, char);
+    ASSUME(buffer) {
+        s32 length = MIN(bufferSize, xkb_keysym_get_name(keysym, buffer, bufferSize));
+        if(length < 0) {
+            length = 0;
+        }
+        result.base = (u8*)buffer;
+        result.size = length;
+        arenaPopTo(arena, result.base + result.size);
+    }
+    return result;
+}   
 
 // Returns true when poll was successful. False on timeout
 static bool waylandPoll(u32 maxWaitingTimeInMs) {

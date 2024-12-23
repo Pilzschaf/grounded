@@ -269,7 +269,7 @@ struct GroundedFileDialogParameters {
 	bool chooseDirectories;
 	bool multiSelect;
 };
-GROUNDED_FUNCTION void groundedWindowOpenFileDialog(GroundedWindow* window, MemoryArena* arena, struct GroundedFileDialogParameters* parameters);
+GROUNDED_FUNCTION String8* groundedWindowOpenFileDialog(GroundedWindow* window, MemoryArena* arena, u32* outFileCount, struct GroundedFileDialogParameters* parameters);
 
 // Retuned array must not be used anymore once get or poll events is called again
 GROUNDED_FUNCTION GroundedEvent* groundedWindowGetEvents(u32* eventCount, u32 maxWaitingTimeInMs);
@@ -413,6 +413,8 @@ GROUNDED_FUNCTION_INLINE u32 groundedGetUnicodeCodepointForKeycode(u8 keycode) {
 	}
 	return 0;
 }
+
+GROUNDED_FUNCTION String8 groundedGetNameOfKeycode(MemoryArena* arena, u32 keycode);
 
 
 // ********************

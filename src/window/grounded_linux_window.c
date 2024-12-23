@@ -173,7 +173,7 @@ String8* dbusWaitForFileDialog(MemoryArena* arena, char* path, u32* outResultCou
                     u32 response = 0; // 0 for success, 1 for user cancel, 2 for error.
                     dbus_message_iter_get_basic(&args, &response); 
                     
-                    if (dbus_message_iter_next(&args) && dbus_message_iter_get_arg_type(&args) == DBUS_TYPE_ARRAY) {
+                    if (response == 0 && dbus_message_iter_next(&args) && dbus_message_iter_get_arg_type(&args) == DBUS_TYPE_ARRAY) {
                         dbus_message_iter_recurse(&args, &opts);
                         for (; dbus_message_iter_get_arg_type(&opts) == DBUS_TYPE_DICT_ENTRY; dbus_message_iter_next(&opts)) {
                             dbus_message_iter_recurse(&opts, &dict);
@@ -214,12 +214,14 @@ String8* dbusWaitForFileDialog(MemoryArena* arena, char* path, u32* outResultCou
 
 // Using https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.FileChooser.html
 // https://github.com/godotengine/godot/blob/89001f91d21ebd08b59756841426f540b154b97d/platform/linuxbsd/freedesktop_portal_desktop.cpp#L53
-GROUNDED_FUNCTION void groundedWindowOpenFileDialog(GroundedWindow* window, MemoryArena* arena, struct GroundedFileDialogParameters* parameters) {
+GROUNDED_FUNCTION String8* groundedWindowOpenFileDialog(GroundedWindow* window, MemoryArena* arena, u32* outFileCount, struct GroundedFileDialogParameters* parameters) {
     MemoryArena* scratch = threadContextGetScratch(arena);
     ArenaTempMemory temp = arenaBeginTemp(scratch);
     if(!dbusConnection) {
         initDbus();
     }
+    String8* result = 0;
+    u32 resultCount = 0;
     if(dbusConnection) {
         const char* portalService = "org.freedesktop.portal.Desktop";
         const char* portalObject = "/org/freedesktop/portal/desktop";
@@ -437,8 +439,8 @@ GROUNDED_FUNCTION void groundedWindowOpenFileDialog(GroundedWindow* window, Memo
                 }
 
                 dbus_message_unref(reply);
-                u32 resultCount = 0;
-                dbusWaitForFileDialog(arena, (char*)path.base, &resultCount);
+                result = dbusWaitForFileDialog(arena, (char*)path.base, &resultCount);
+                
                 dbus_bus_remove_match(dbusConnection, (const char*)dbusFilter.base, &dbusError);
                 if (dbus_error_is_set(&dbusError)) {
                     GROUNDED_PUSH_ERRORF("Failed to remove DBus match: %s", dbusError.message);
@@ -448,6 +450,10 @@ GROUNDED_FUNCTION void groundedWindowOpenFileDialog(GroundedWindow* window, Memo
         }
     }
     arenaEndTemp(temp);
+    if(outFileCount) {
+        *outFileCount = resultCount;
+    }
+    return result;
 }
 
 GROUNDED_FUNCTION GroundedWindowBackend groundedWindowSystemGetSelectedBackend() {
@@ -1022,6 +1028,21 @@ GROUNDED_FUNCTION void* groundedWindowDragPayloadGetUserData(struct  GroundedDra
         result = payload->userData;
     }
     return result;
+}
+
+GROUNDED_FUNCTION String8 groundedGetNameOfKeycode(MemoryArena* arena, u32 keycode) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            return groundedWaylandGetNameOfKeycode(arena, keycode);
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            ASSERT(false);
+            //return groundedXcbGetClipboardText(arena);
+        } break;
+        default:break;
+    }
+    return EMPTY_STRING8;
 }
 
 /*GROUNDED_FUNCTION void groundedStartDragAndDropWithSingleDataType(GroundedWindow* window, String8 mimeType, u8* data, u64 size, GroundedWindowDragPayloadImage* image) {
