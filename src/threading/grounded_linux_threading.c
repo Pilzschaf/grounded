@@ -69,10 +69,12 @@ GROUNDED_FUNCTION bool groundedHasError() {
     return !str8IsEmpty(threadContext.lastError.text);
 }
 
-GROUNDED_FUNCTION GroundedError* groundedPopError() {
+GROUNDED_FUNCTION GroundedError* groundedPopError(MemoryArena* arena) {
     GroundedError* result = 0;
     if(!str8IsEmpty(threadContext.lastError.text)) {
-        result = &threadContext.lastError;
+        result = ARENA_PUSH_STRUCT_NO_CLEAR(arena, GroundedError);
+        *result = threadContext.lastError;
+        result->text = str8CopyAndNullTerminate(arena, threadContext.lastError.text);
         threadContext.lastError.text = EMPTY_STRING8;
         arenaResetToMarker(threadContext.errorMarker);
     }

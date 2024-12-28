@@ -294,6 +294,5 @@ typedef struct GroundedError {
 GROUNDED_FUNCTION void groundedPushError(String8 str, String8 filename, u64 line);
 GROUNDED_FUNCTION void groundedPushErrorf(String8 filename, u64 line, const char* fmt, ...);
 GROUNDED_FUNCTION bool groundedHasError();
-GROUNDED_FUNCTION GroundedError* groundedPopError();
 
 #endif // GROUNDED_H

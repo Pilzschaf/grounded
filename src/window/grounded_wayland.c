@@ -1084,26 +1084,6 @@ static void registry_global(void* data, struct wl_registry* registry, uint32_t i
         // Shared memory. Needed for custom cursor themes and framebuffers - TODO: might have been replaced by drm (Drm is not particular useful for software rendering)
         waylandShm = (struct wl_shm*)wl_registry_bind(registry, id, wl_shm_interface, 1);
         ASSERT(waylandShm);
-        //TODO: We assume that the compositor always comes before wl_shm. I do not see any guarantee by wayland that would actually suggest this so this is probably very unstable!
-        ASSERT(compositor);
-        if(waylandCursorLibraryPresent) {
-            // Load default cursor theme in default size
-            const char* sizeText = getenv("XCURSOR_SIZE");
-            int cursorSize = 0;
-            if(sizeText) {
-                cursorSize = (int)strtol(sizeText, 0, 10);
-            }
-            if(!cursorSize) {
-                // Fallback to size 24
-                cursorSize = 24;
-            }
-            const char* cursorThemeName = getenv("XCURSOR_THEME");
-            cursorTheme = wl_cursor_theme_load(cursorThemeName, cursorSize, waylandShm);
-        }
-        if(cursorTheme) {
-            cursorSurface = wl_compositor_create_surface(compositor);
-        }
-        //wl_shm_add_listener(waylandShm, &shmListener, 0);
     } else {
         GROUNDED_LOG_INFO(interface);
     }
@@ -1317,6 +1297,27 @@ static bool initWayland() {
 
         // Roundtrip to retrieve all registry objects
         wl_display_roundtrip(waylandDisplay);
+
+        if(waylandShm) {
+            ASSERT(compositor);
+            if(waylandCursorLibraryPresent) {
+                // Load default cursor theme in default size
+                const char* sizeText = getenv("XCURSOR_SIZE");
+                int cursorSize = 0;
+                if(sizeText) {
+                    cursorSize = (int)strtol(sizeText, 0, 10);
+                }
+                if(!cursorSize) {
+                    // Fallback to size 24
+                    cursorSize = 24;
+                }
+                const char* cursorThemeName = getenv("XCURSOR_THEME");
+                cursorTheme = wl_cursor_theme_load(cursorThemeName, cursorSize, waylandShm);
+            }
+            if(cursorTheme) {
+                cursorSurface = wl_compositor_create_surface(compositor);
+            }
+        }
 
         // Roundtrip to retrieve all initial output events
         wl_display_roundtrip(waylandDisplay);

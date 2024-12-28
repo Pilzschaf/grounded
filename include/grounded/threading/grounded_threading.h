@@ -33,6 +33,7 @@ GROUNDED_FUNCTION GroundedLogFunction* threadContextGetLogFunction();
 
 GROUNDED_FUNCTION void threadContextClear();
 
+GROUNDED_FUNCTION GroundedError* groundedPopError(MemoryArena* arena);
 GROUNDED_FUNCTION void groundedFlushErrors();
 GROUNDED_FUNCTION void groundedSetUnhandledErrorFunction(GroundedHandleErrorFunction* func);
 GroundedHandleErrorFunction groundedDefaultUnhandledErrorHandler;
