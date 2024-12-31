@@ -64,6 +64,26 @@ GROUNDED_FUNCTION int str8Compare(String8 a, String8 b) {
     return a.size < b.size ? -1 : ((a.size > b.size) ? 1 : 0);
 }
 
+GROUNDED_FUNCTION int str8CompareCaseInsensitive(String8 a, String8 b) {
+    s64 offsetA = 0;
+    s64 offsetB = 0;
+
+    while(offsetA < a.size && offsetB < b.size) {
+        StringDecode decodeA = strDecodeUtf8(a.base + offsetA, a.size - offsetA);
+        offsetA += decodeA.size;
+        StringDecode decodeB = strDecodeUtf8(b.base + offsetB, b.size - offsetB);
+        offsetB += decodeB.size;
+        u32 codepointA = strCodepointToLower(decodeA.codepoint);
+        u32 codepointB = strCodepointToLower(decodeB.codepoint);
+        if(codepointA < codepointB) {
+            return -1;
+        } else if(codepointA > codepointB) {
+            return 1;
+        }
+    }
+    return a.size < b.size ? -1 : ((a.size > b.size) ? 1 : 0);
+}
+
 GROUNDED_FUNCTION u64 str8GetFirstOccurence(String8 str, char c) {
     for(u64 i = 0; i < str.size; ++i) {
         if(str.base[i] == c) return i;
@@ -534,7 +554,7 @@ GROUNDED_FUNCTION bool str8IsValidUtf8(String8 str) {
     return true;
 }
 
-GROUNDED_FUNCTION StringDecode strDecodeUtf8(u8* string, u32 capacity) {
+GROUNDED_FUNCTION StringDecode strDecodeUtf8(u8* string, s64 capacity) {
     static u8 lengthTable[] = {
         1, 1, 1, 1, // 000xx
         1, 1, 1, 1,
@@ -599,7 +619,7 @@ GROUNDED_FUNCTION u32 strEncodeUtf8(u8* dst, u32 codepoint) {
     return size;
 }
 
-GROUNDED_FUNCTION StringDecode strDecodeUtf16(u16* string, u32 capacity) {
+GROUNDED_FUNCTION StringDecode strDecodeUtf16(u16* string, s64 capacity) {
     StringDecode result = {0};
     if(capacity > 0) {
         u16 x = string[0];
@@ -635,11 +655,19 @@ GROUNDED_FUNCTION u32 strEncodeUtf16(u16* dst, u32 codepoint) {
 }
 
 GROUNDED_FUNCTION u32 strCodepointToLower(u32 codepoint) {
-    return lookupCodepointConversion(toLower, ARRAY_COUNT(toLower), codepoint);
+    u32 result = lookupCodepointConversion(toLower, ARRAY_COUNT(toLower), codepoint);
+    if(result == UINT32_MAX) {
+        result = codepoint;
+    }
+    return result;
 }
 
 GROUNDED_FUNCTION u32 strCodepointToUpper(u32 codepoint) {
-    return lookupCodepointConversion(toUpper, ARRAY_COUNT(toUpper), codepoint);
+    u32 result = lookupCodepointConversion(toUpper, ARRAY_COUNT(toUpper), codepoint);
+    if(result == UINT32_MAX) {
+        result = codepoint;
+    }
+    return result;
 }
 
 GROUNDED_FUNCTION String8 str8FromStr16(MemoryArena* arena, String16 str) {

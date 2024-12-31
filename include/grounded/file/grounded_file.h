@@ -36,9 +36,14 @@ enum GroundedDirectoryEntryType {
     GROUNDED_DIRECTORY_ENTRY_TYPE_DIRECTORY,
     GROUNDED_DIRECTORY_ENTRY_TYPE_COUNT,
 };
+enum GroundedDirectoryEntryFlags {
+    GROUNDED_DIRECTORY_ENTRY_FLAG_NONE = 0,
+    GROUNDED_DIRECTORY_ENTRY_FLAG_HIDDEN = 1<<0,
+};
 typedef struct GroundedDirectoryEntry {
     String8 name;
     enum GroundedDirectoryEntryType type;
+    enum GroundedDirectoryEntryFlags flags;
 } GroundedDirectoryEntry;
 GROUNDED_FUNCTION GroundedDirectoryIterator* createDirectoryIterator(MemoryArena* arena, String8 directory);
 GROUNDED_FUNCTION struct GroundedDirectoryEntry getNextDirectoryEntry(GroundedDirectoryIterator* iterator);

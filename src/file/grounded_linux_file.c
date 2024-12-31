@@ -487,6 +487,9 @@ GROUNDED_FUNCTION GroundedDirectoryEntry getNextDirectoryEntry(GroundedDirectory
 
     if(entry) {
         result.name = str8FromCstr(entry->d_name);
+        if(entry->d_name[0] == '.') {
+            result.flags |= GROUNDED_DIRECTORY_ENTRY_FLAG_HIDDEN;
+        }
         //TODO: Actually not every filesystem supports returning the type here. It might be DT_UNKNOWN
         switch(entry->d_type) {
             case DT_DIR:
@@ -513,7 +516,7 @@ GROUNDED_FUNCTION void destroyDirectoryIterator(GroundedDirectoryIterator* itera
 }
 
 static int compareFilenames(GroundedDirectoryEntry* a, GroundedDirectoryEntry* b) {
-    return str8Compare(a->name, b->name);
+    return str8CompareCaseInsensitive(a->name, b->name);
 }
 
 GROUNDED_FUNCTION GroundedDirectoryEntry* groundedListFilesOfDirectory(MemoryArena* arena, String8 directory, u64* resultCount, GroundedListFilesParameters* parameters) {
@@ -556,9 +559,15 @@ GROUNDED_FUNCTION GroundedDirectoryEntry* groundedListFilesOfDirectory(MemoryAre
         u64 fileCount = 0;
         while((d = readdir(dir))) {
             String8 name = str8FromCstr(d->d_name);
+            enum GroundedDirectoryEntryType type = GROUNDED_DIRECTORY_ENTRY_TYPE_NONE;
+            enum GroundedDirectoryEntryFlags flags = 0;
+
+            if(*name.base == '.') {
+                flags |= GROUNDED_DIRECTORY_ENTRY_FLAG_HIDDEN;
+            }
 
             // Skip hidden files if it was requested
-            if(parameters->ignoreHiddenFiles && *name.base == '.') {
+            if(parameters->ignoreHiddenFiles && (flags & GROUNDED_DIRECTORY_ENTRY_FLAG_HIDDEN)) {
                 continue;
             }
 
@@ -570,9 +579,26 @@ GROUNDED_FUNCTION GroundedDirectoryEntry* groundedListFilesOfDirectory(MemoryAre
                 continue;
             }
 
+            if(d->d_type == DT_DIR) {
+                type = GROUNDED_DIRECTORY_ENTRY_TYPE_DIRECTORY;
+            } else if(d->d_type == DT_REG) {
+                type = GROUNDED_DIRECTORY_ENTRY_TYPE_FILE;
+            } else if(d->d_type == DT_UNKNOWN) {
+                // Explicitly stat the file to check type
+                struct stat stats = {0};
+                if(fstatat(dirfd, d->d_name, &stats, 0) == 0) {
+                    if(S_ISREG(stats.st_mode)) {
+                        type = GROUNDED_DIRECTORY_ENTRY_TYPE_FILE;
+                    } else if(S_ISDIR(stats.st_mode)) {
+                        type = GROUNDED_DIRECTORY_ENTRY_TYPE_DIRECTORY;
+                    }
+                }
+            }
+
             GroundedDirectoryEntry entry = {
                 .name = str8CopyAndNullTerminate(arena, name), // Copy name onto final arena
-                .type = GROUNDED_DIRECTORY_ENTRY_TYPE_NONE,
+                .type = type,
+                .flags = flags,
             };
             
             // Add to list

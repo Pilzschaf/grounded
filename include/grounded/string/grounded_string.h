@@ -37,6 +37,7 @@ GROUNDED_FUNCTION String8 str8Skip(String8 str, u64 amount);
 GROUNDED_FUNCTION String8 str8Substring(String8 str, u64 first, u64 last);
 GROUNDED_FUNCTION bool str8IsEqual(String8 a, String8 b);
 GROUNDED_FUNCTION int str8Compare(String8 a, String8 b);
+GROUNDED_FUNCTION int str8CompareCaseInsensitive(String8 a, String8 b);
 GROUNDED_FUNCTION u64 str8GetFirstOccurence(String8 str, char c); // Returns UINT64_MAX if not found
 GROUNDED_FUNCTION u64 str8GetLastOccurence(String8 str, char c); // Returns UINT64_MAX if not found
 GROUNDED_FUNCTION bool str8IsPrefixOf(String8 prefix, String8 str);
@@ -98,11 +99,11 @@ GROUNDED_FUNCTION bool str8IsValidUtf8(String8 str);
 
 // Single codepoint encoding/decoding
 // In error case result.size is 0
-GROUNDED_FUNCTION StringDecode strDecodeUtf8(u8* string, u32 capacity); // result.size is the number of bytes that have been advanced
+GROUNDED_FUNCTION StringDecode strDecodeUtf8(u8* string, s64 capacity); // result.size is the number of bytes that have been advanced
 // dst must have at least 4 bytes of space available
 GROUNDED_FUNCTION u32 strEncodeUtf8(u8* dst, u32 codepoint); // Returns bytes advanced in dst. Maximum possible advance is 4 bytes.
 // Capacity is the number of u16 left. In error case result.size is 0
-GROUNDED_FUNCTION StringDecode strDecodeUtf16(u16* string, u32 capacity); // result.size is the number of u16 that have been advanced
+GROUNDED_FUNCTION StringDecode strDecodeUtf16(u16* string, s64 capacity); // result.size is the number of u16 that have been advanced
 // dst must have at least 4 bytes (2 u16) of space available
 GROUNDED_FUNCTION u32 strEncodeUtf16(u16* dst, u32 codepoint); // Returns u16 advanced in dst. Maximum possible advance is 2
 
