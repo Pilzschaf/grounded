@@ -43,7 +43,12 @@ typedef struct GroundedDirectoryEntry {
 GROUNDED_FUNCTION GroundedDirectoryIterator* createDirectoryIterator(MemoryArena* arena, String8 directory);
 GROUNDED_FUNCTION struct GroundedDirectoryEntry getNextDirectoryEntry(GroundedDirectoryIterator* iterator);
 GROUNDED_FUNCTION void destroyDirectoryIterator(GroundedDirectoryIterator* iterator);
-
+typedef struct GroundedListFilesParameters {
+    bool allowDot;
+    bool allowDoubleDot;
+    bool ignoreHiddenFiles;
+} GroundedListFilesParameters;
+GROUNDED_FUNCTION GroundedDirectoryEntry* groundedListFilesOfDirectory(MemoryArena* arena, String8 directory, u64* resultCount, GroundedListFilesParameters* parameters);
 
 #define WATCH_FILE_CREATE_CALLBACK(name) void name(String8 filename, String8 directory)
 typedef WATCH_FILE_CREATE_CALLBACK(WatchFileCreateCallback);

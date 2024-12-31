@@ -422,7 +422,7 @@ GROUNDED_FUNCTION String8* groundedWindowOpenFileDialog(GroundedWindow* window, 
                     if (dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_OBJECT_PATH) {
                         const char *newPath = 0;
                         dbus_message_iter_get_basic(&iter, &newPath);
-                        if(!str8Compare(str8FromCstr(newPath), path)) {
+                        if(!str8IsEqual(str8FromCstr(newPath), path)) {
                             dbus_bus_remove_match(dbusConnection, (const char*)dbusFilter.base, &dbusError);
                             if (dbus_error_is_set(&dbusError)) {
                                 GROUNDED_PUSH_ERRORF("Failed to remove DBus match: %s", dbusError.message);

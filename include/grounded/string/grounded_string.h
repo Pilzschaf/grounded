@@ -35,7 +35,8 @@ GROUNDED_FUNCTION String8 str8Chop(String8 str, u64 amount);
 GROUNDED_FUNCTION String8 str8PostFix(String8 str, u64 size);
 GROUNDED_FUNCTION String8 str8Skip(String8 str, u64 amount);
 GROUNDED_FUNCTION String8 str8Substring(String8 str, u64 first, u64 last);
-GROUNDED_FUNCTION bool str8Compare(String8 a, String8 b);
+GROUNDED_FUNCTION bool str8IsEqual(String8 a, String8 b);
+GROUNDED_FUNCTION int str8Compare(String8 a, String8 b);
 GROUNDED_FUNCTION u64 str8GetFirstOccurence(String8 str, char c); // Returns UINT64_MAX if not found
 GROUNDED_FUNCTION u64 str8GetLastOccurence(String8 str, char c); // Returns UINT64_MAX if not found
 GROUNDED_FUNCTION bool str8IsPrefixOf(String8 prefix, String8 str);
@@ -142,7 +143,7 @@ GROUNDED_FUNCTION_INLINE StringAtom createAtom(String8 string) {
 GROUNDED_FUNCTION_INLINE bool compareAtoms(StringAtom* a0, StringAtom* a1) {
     if(a0->hash == a1->hash) {
         // Hash the same so check the string to make sure
-        return str8Compare(a0->string, a1->string);
+        return str8IsEqual(a0->string, a1->string);
     }
     return false;
 }

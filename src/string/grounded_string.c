@@ -45,11 +45,23 @@ GROUNDED_FUNCTION String8 str8Substring(String8 str, u64 first, u64 last) {
     return result;
 }
 
-GROUNDED_FUNCTION bool str8Compare(String8 a, String8 b) {
+GROUNDED_FUNCTION bool str8IsEqual(String8 a, String8 b) {
     if(a.size == b.size) {
         return groundedCompareMemory(a.base, b.base, a.size);
     }
     return false;
+}
+
+GROUNDED_FUNCTION int str8Compare(String8 a, String8 b) {
+    u64 size = MIN(a.size, b.size);
+    for(u64 i = 0; i < size; ++i) {
+        if(a.base[i] < b.base[i]) {
+            return -1;
+        } else if(a.base[i] > b.base[i]) {
+            return 1;
+        }
+    }
+    return a.size < b.size ? -1 : ((a.size > b.size) ? 1 : 0);
 }
 
 GROUNDED_FUNCTION u64 str8GetFirstOccurence(String8 str, char c) {

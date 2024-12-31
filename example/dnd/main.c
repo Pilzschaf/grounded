@@ -127,7 +127,7 @@ GROUNDED_WINDOW_DND_DROP_CALLBACK(boxDropCallback) {
 
 GROUNDED_WINDOW_DND_CALLBACK(dndCallback) {
     for(u32 i = 0; i < mimeTypeCount; ++i) {
-        if(str8Compare(mimeTypes[i], STR8_LITERAL("application/box"))) {
+        if(str8IsEqual(mimeTypes[i], STR8_LITERAL("application/box"))) {
             *onDropCallback = boxDropCallback;
             return i;
         }

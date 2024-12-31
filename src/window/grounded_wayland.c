@@ -2613,7 +2613,7 @@ static void dataSourceHandleSend(void *data, struct wl_data_source *wl_data_sour
     u64 mimeTypeIndex = UINT64_MAX;
     if(waylandDataSource) {
         for(u64 i = 0; i < waylandDataSource->mimeTypeCount; ++i) {
-            if(str8Compare(waylandDataSource->mimeTypes[i], mimeType)) {
+            if(str8IsEqual(waylandDataSource->mimeTypes[i], mimeType)) {
                 mimeTypeIndex = i;
                 mimeType = waylandDataSource->mimeTypes[i];
                 break;

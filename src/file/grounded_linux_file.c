@@ -495,6 +495,10 @@ GROUNDED_FUNCTION GroundedDirectoryEntry getNextDirectoryEntry(GroundedDirectory
             case DT_REG:
                 result.type = GROUNDED_DIRECTORY_ENTRY_TYPE_FILE;
                 break;
+            case DT_UNKNOWN:
+                //TODO: Need to check with statat
+                result.type = GROUNDED_DIRECTORY_ENTRY_TYPE_NONE;
+                break;
             default:
                 result.type = GROUNDED_DIRECTORY_ENTRY_TYPE_NONE;
                 break;
@@ -506,6 +510,108 @@ GROUNDED_FUNCTION GroundedDirectoryEntry getNextDirectoryEntry(GroundedDirectory
 GROUNDED_FUNCTION void destroyDirectoryIterator(GroundedDirectoryIterator* iterator) {
     ASSERT(iterator);
     closedir(iterator->dir);
+}
+
+static int compareFilenames(GroundedDirectoryEntry* a, GroundedDirectoryEntry* b) {
+    return str8Compare(a->name, b->name);
+}
+
+GROUNDED_FUNCTION GroundedDirectoryEntry* groundedListFilesOfDirectory(MemoryArena* arena, String8 directory, u64* resultCount, GroundedListFilesParameters* parameters) {
+    if(!parameters) {
+        static struct GroundedListFilesParameters defaultParameters = {0};
+        parameters = &defaultParameters;
+    }
+    MemoryArena* scratch = threadContextGetScratch(arena);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
+    GroundedDirectoryEntry* result = 0;
+
+    int dirfd = -1;
+    {
+        ArenaTempMemory temp = arenaBeginTemp(arena);
+        dirfd = open(str8GetCstr(arena, directory), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+        if(dirfd < 0) {
+            //TODO: Check errno and return matching error
+        }
+        arenaEndTemp(temp);
+    }
+
+    DIR* dir = 0;
+    if(dirfd >= 0) {
+        dir = fdopendir(dirfd);
+        if(!dir) {
+            //TODO: Error
+            close(dirfd);
+            dirfd = -1;
+        }
+    }
+
+    struct DirectoryNode {
+        struct DirectoryNode* next;
+        GroundedDirectoryEntry entry;
+    };
+
+    struct DirectoryNode* head;
+    if(dir) {
+        struct dirent* d = 0;
+        u64 fileCount = 0;
+        while((d = readdir(dir))) {
+            String8 name = str8FromCstr(d->d_name);
+
+            // Skip hidden files if it was requested
+            if(parameters->ignoreHiddenFiles && *name.base == '.') {
+                continue;
+            }
+
+            // Ignore . and ..
+            if(*name.base == '.' && name.base[1] == '\0' && !parameters->allowDot) {
+                continue;
+            }
+            if(*name.base == '.' && name.base[1] == '.' && name.base[2] == '\0' && !parameters->allowDoubleDot) {
+                continue;
+            }
+
+            GroundedDirectoryEntry entry = {
+                .name = str8CopyAndNullTerminate(arena, name), // Copy name onto final arena
+                .type = GROUNDED_DIRECTORY_ENTRY_TYPE_NONE,
+            };
+            
+            // Add to list
+            struct DirectoryNode* node = ARENA_PUSH_STRUCT(scratch, struct DirectoryNode);
+            ASSUME(node) {
+                node->entry = entry;
+                node->next = head;
+                head = node;
+                fileCount++;
+            }
+        }
+
+        result = ARENA_PUSH_ARRAY_NO_CLEAR(arena, fileCount, GroundedDirectoryEntry);
+        if(result) {
+            if(resultCount) {
+                *resultCount = fileCount;
+            }
+
+            struct DirectoryNode* node = head;
+            for(u64 i = 0; i < fileCount; ++i) {
+                ASSUME(node) {
+                    result[i] = node->entry;
+                    node = node->next;
+                } else {
+                    //TODO: List is shorter if we are here
+                }
+            }
+        }
+
+        // Sort the list
+        qsort(result, fileCount, sizeof(GroundedDirectoryEntry), (__compar_fn_t)&compareFilenames);
+
+        // Also closes fd
+        closedir(dir);
+        dir = 0;
+    }
+
+    arenaEndTemp(temp);
+    return result;
 }
 
 GROUNDED_FUNCTION u64 groundedGetCreationTimestamp(String8 filename) {
