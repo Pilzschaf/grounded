@@ -474,6 +474,7 @@ static void keyboardHandleKey(void *data, struct wl_keyboard *keyboard, uint32_t
         }
         
     } else if(state == WL_KEYBOARD_KEY_STATE_RELEASED) {
+        printf("Key release\n");
         waylandKeyState.keys[keycode] = false;
         eventQueue[eventQueueIndex++] = (GroundedEvent){
             .type = GROUNDED_EVENT_TYPE_KEY_UP,
@@ -1705,6 +1706,12 @@ static bool waylandPoll(u32 maxWaitingTimeInMs) {
 static GroundedEvent* waylandPollEvents(u32* eventCount) {
     eventQueueIndex = 0;
 
+    // Sends out pending requests to all event queues
+    wl_display_roundtrip(waylandDisplay);
+
+    // Dispatches pending events from server
+    wl_display_dispatch_pending(waylandDisplay);
+
     // Check key repeat timer
     struct pollfd pfd[1];
     pfd[0].fd = keyRepeatTimer;
@@ -1725,12 +1732,6 @@ static GroundedEvent* waylandPollEvents(u32* eventCount) {
             }
         }
     }
-
-    // Sends out pending requests to all event queues
-    wl_display_roundtrip(waylandDisplay);
-
-    // Dispatches pending events from server
-    wl_display_dispatch_pending(waylandDisplay);
 
     *eventCount = eventQueueIndex;
     return eventQueue;
