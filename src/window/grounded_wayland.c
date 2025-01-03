@@ -474,7 +474,7 @@ static void keyboardHandleKey(void *data, struct wl_keyboard *keyboard, uint32_t
         }
         
     } else if(state == WL_KEYBOARD_KEY_STATE_RELEASED) {
-        printf("Key release\n");
+        //printf("Key release\n");
         waylandKeyState.keys[keycode] = false;
         eventQueue[eventQueueIndex++] = (GroundedEvent){
             .type = GROUNDED_EVENT_TYPE_KEY_UP,
@@ -1201,7 +1201,7 @@ static void zxdgExportedHandleHandle(void* data, struct zxdg_exported_v2 *zxdg_e
     GroundedWaylandWindow* window = (GroundedWaylandWindow*)data;
     window->foreignHandle = (char*)malloc(strlen(handle)+1);
     memcpy(window->foreignHandle, handle, strlen(handle)+1);
-    printf("Foreign handle:%s\n", handle);
+    //printf("Foreign handle:%s\n", handle);
 }
 
 static const struct zxdg_exported_v2_listener exportedListener = {
