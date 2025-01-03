@@ -249,9 +249,13 @@ typedef struct {
 #ifndef __cplusplus
 #define STR8_LITERAL(s) ((String8){(u8*)(s), sizeof(s) - 1})
 #define EMPTY_STRING8 ((String8){0, 0})
+#define EMPTY_STRING16 ((String16){0, 0})
+#define EMPTY_STRING32 ((String32){0, 0})
 #else
 #define STR8_LITERAL(s) (String8{(u8*)(s), sizeof(s) - 1})
 #define EMPTY_STRING8 (String8{0, 0})
+#define EMPTY_STRING16 (String16{0, 0})
+#define EMPTY_STRING32 (String32{0, 0})
 #endif
 
 GROUNDED_FUNCTION_INLINE u32 groundedNextPow2u32(u32 value) {

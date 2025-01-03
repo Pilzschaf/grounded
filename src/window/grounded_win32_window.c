@@ -80,7 +80,7 @@ static u8 translateWin32Keycode(WPARAM wParam) {
     case(0x25):
         result = GROUNDED_KEY_LEFT;
         break;
-    case(0x226):
+    case(0x26):
         result = GROUNDED_KEY_UP;
         break;
     case(0x27):
@@ -96,10 +96,55 @@ static u8 translateWin32Keycode(WPARAM wParam) {
     return result;
 }
 
+static WPARAM inverseTranslateWin32Keycode(u32 keycode) {
+    WPARAM result = 0;
+    if (keycode >= 0x30 && keycode <= 0x39) return (u8)keycode; // Numbers
+    if (keycode >= 0x41 && keycode <= 0x5A) return (u8)keycode; // Characters
+    if (keycode >= 0x70 && keycode <= 0x7F) return (u8)keycode; // F keys
+    switch (keycode) {
+    case(GROUNDED_KEY_BACKSPACE):
+        result = 0x08;
+        break;
+    case(GROUNDED_KEY_TAB):
+        result = 0x09;
+        break;
+    case (GROUNDED_KEY_LSHIFT):
+        //TODO: Differentiation between LSHIFT and RSHIFT is only done by low level keyboard handler.
+        // See https://stackoverflow.com/questions/1811206/on-win32-how-to-detect-whether-a-left-shift-or-right-alt-is-pressed-using-perl
+        result = 0x10;
+        break;
+    case(GROUNDED_KEY_RETURN):
+        result = 0x0D;
+        break;
+    case(GROUNDED_KEY_ESCAPE):
+        result = 0x1B;
+        break;
+    case(GROUNDED_KEY_SPACE):
+        result = 0x20;
+        break;
+    case(GROUNDED_KEY_LEFT):
+        result = 0x25;
+        break;
+    case(GROUNDED_KEY_UP):
+        result = 0x26;
+        break;
+    case(GROUNDED_KEY_RIGHT):
+        result = 0x27;
+        break;
+    case(GROUNDED_KEY_DOWN):
+        result = 0x28;
+        break;
+    default:
+        printf("Unknown keycode: %i\n", (int)keycode);
+        break;
+    }
+    return result;
+}
+
 GroundedWin32Window* currentlyCreatingWindow;
 
 static GroundedWin32Window* getGroundedWindow(HWND hWnd) {
-    GroundedWin32Window* result = GetWindowLongPtr(hWnd, GWLP_USERDATA);
+    GroundedWin32Window* result = (GroundedWin32Window*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
     if (!result) {
         result = currentlyCreatingWindow;
     }
@@ -119,7 +164,7 @@ HRESULT STDMETHODCALLTYPE QueryInterface(MyDropTarget* This, REFIID vTableGuid, 
     }
 
     *ppv = This;
-    This->vTable->AddRef(This);
+    This->vTable->AddRef((IDropTarget*)This);
     return(NOERROR);
 }
 
@@ -181,7 +226,7 @@ HRESULT STDMETHODCALLTYPE DragEnter(MyDropTarget* This, IDataObject* pDataObject
     if (hdropFound) {
         This->currentDropCallback = 0;
         void* userData = 0; //TODO:
-        u32 newMimeIndex = window->dndCallback(0, window, pt.x, pt.y, 1, &STR8_LITERAL("text/uri-list"), &This->currentDropCallback, userData);
+        u32 newMimeIndex = window->dndCallback(0, (GroundedWindow*)window, pt.x, pt.y, 1, &STR8_LITERAL("text/uri-list"), &This->currentDropCallback, userData);
 
         /*STGMEDIUM medium;
         if (SUCCEEDED(pDataObject->lpVtbl->GetData(pDataObject, &hdropFormat, &medium))) {
@@ -209,7 +254,7 @@ HRESULT STDMETHODCALLTYPE DragOver(MyDropTarget* This, DWORD grfKeyState, POINTL
     if (window && window->dndCallback) {
         This->currentDropCallback = 0;
         void* userData = 0; //TODO:
-        u32 newMimeIndex = window->dndCallback(0, window, pt.x, pt.y, 1, &STR8_LITERAL("text/uri-list"), &This->currentDropCallback, userData);
+        u32 newMimeIndex = window->dndCallback(0, (GroundedWindow*)window, pt.x, pt.y, 1, &STR8_LITERAL("text/uri-list"), &This->currentDropCallback, userData);
         if (newMimeIndex != UINT32_MAX) {
             *pdwEffect = DROPEFFECT_COPY;
             return S_OK;
@@ -251,7 +296,7 @@ HRESULT STDMETHODCALLTYPE Drop(MyDropTarget* This, IDataObject* pDataObject, DWO
             ReleaseStgMedium(&medium);
         }
 
-        This->currentDropCallback(0, data, window, pt.x, pt.y, STR8_LITERAL("text/uri-list"));
+        This->currentDropCallback(0, data, (GroundedWindow*)window, pt.x, pt.y, STR8_LITERAL("text/uri-list"));
         *pdwEffect = DROPEFFECT_COPY;
         arenaEndTemp(temp);
     } else {
@@ -262,7 +307,7 @@ HRESULT STDMETHODCALLTYPE Drop(MyDropTarget* This, IDataObject* pDataObject, DWO
 }
 
 // Initialize IDropTarget vtable
-IDropTargetVtbl MyDropTargetVtbl = {
+/*IDropTargetVtbl MyDropTargetVtbl = {
     .QueryInterface = QueryInterface,
     .AddRef = AddRef,
     .Release = Release,
@@ -270,6 +315,15 @@ IDropTargetVtbl MyDropTargetVtbl = {
     .DragOver = DragOver,
     .DragLeave = DragLeave,
     .Drop = Drop,
+};*/
+IDropTargetVtbl MyDropTargetVtbl = {
+    .QueryInterface = (HRESULT (STDMETHODCALLTYPE *)(IDropTarget *, REFIID, void **)) QueryInterface,
+    .AddRef = (ULONG (STDMETHODCALLTYPE *)(IDropTarget *)) AddRef,
+    .Release = (ULONG (STDMETHODCALLTYPE *)(IDropTarget *)) Release,
+    .DragEnter = (HRESULT (STDMETHODCALLTYPE *)(IDropTarget *, IDataObject *, DWORD, POINTL, DWORD *)) DragEnter,
+    .DragOver = (HRESULT (STDMETHODCALLTYPE *)(IDropTarget *, DWORD, POINTL, DWORD *)) DragOver,
+    .DragLeave = (HRESULT (STDMETHODCALLTYPE *)(IDropTarget *)) DragLeave,
+    .Drop = (HRESULT (STDMETHODCALLTYPE *)(IDropTarget *, IDataObject *, DWORD, POINTL, DWORD *)) Drop,
 };
 
 // This can be called directly from the thread that created the window with this message loop. For example by calls to createWindow, ShowWindow etc.
@@ -282,7 +336,7 @@ static LRESULT CALLBACK win32MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam,
             window->dropTarget.hWnd = hWnd;
             window->dropTarget.referenceCount = 1;
             window->dropTarget.vTable = &MyDropTargetVtbl;
-            RegisterDragDrop(hWnd, &window->dropTarget);
+            RegisterDragDrop(hWnd, (LPDROPTARGET)&window->dropTarget);
 
             return DefWindowProcW(hWnd, uMsg, wParam, lParam);
         } break;
@@ -301,7 +355,9 @@ static LRESULT CALLBACK win32MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam,
             win32MouseState.buttonDownTransitions[GROUNDED_MOUSE_BUTTON_LEFT]++;
             eventQueue[eventQueueIndex++] = (GroundedEvent){
                 .type = GROUNDED_EVENT_TYPE_BUTTON_DOWN,
-                .buttonDown = GROUNDED_MOUSE_BUTTON_LEFT,
+                .buttonDown.button = GROUNDED_MOUSE_BUTTON_LEFT,
+                .buttonDown.mousePositionX = win32MouseState.x,
+                .buttonDown.mousePositionY = win32MouseState.y,
             };
         } break;
         case WM_LBUTTONUP: {
@@ -309,7 +365,9 @@ static LRESULT CALLBACK win32MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam,
             win32MouseState.buttonUpTransitions[GROUNDED_MOUSE_BUTTON_LEFT]++;
             eventQueue[eventQueueIndex++] = (GroundedEvent){
                 .type = GROUNDED_EVENT_TYPE_BUTTON_UP,
-                .buttonDown = GROUNDED_MOUSE_BUTTON_LEFT,
+                .buttonUp.button = GROUNDED_MOUSE_BUTTON_LEFT,
+                .buttonUp.mousePositionX = win32MouseState.x,
+                .buttonUp.mousePositionY = win32MouseState.y,
             };
         } break;
         case WM_RBUTTONDOWN: {
@@ -317,7 +375,9 @@ static LRESULT CALLBACK win32MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam,
             win32MouseState.buttonDownTransitions[GROUNDED_MOUSE_BUTTON_RIGHT]++;
             eventQueue[eventQueueIndex++] = (GroundedEvent){
                 .type = GROUNDED_EVENT_TYPE_BUTTON_DOWN,
-                .buttonDown = GROUNDED_MOUSE_BUTTON_RIGHT,
+                .buttonDown.button = GROUNDED_MOUSE_BUTTON_RIGHT,
+                .buttonDown.mousePositionX = win32MouseState.x,
+                .buttonDown.mousePositionY = win32MouseState.y,
             };
         } break;
         case WM_RBUTTONUP: {
@@ -325,7 +385,9 @@ static LRESULT CALLBACK win32MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam,
             win32MouseState.buttonUpTransitions[GROUNDED_MOUSE_BUTTON_RIGHT]++;
             eventQueue[eventQueueIndex++] = (GroundedEvent){
                 .type = GROUNDED_EVENT_TYPE_BUTTON_UP,
-                .buttonDown = GROUNDED_MOUSE_BUTTON_RIGHT,
+                .buttonUp.button = GROUNDED_MOUSE_BUTTON_RIGHT,
+                .buttonUp.mousePositionX = win32MouseState.x,
+                .buttonUp.mousePositionY = win32MouseState.y,
             };
         } break;
         case WM_MBUTTONDOWN: {
@@ -333,7 +395,9 @@ static LRESULT CALLBACK win32MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam,
             win32MouseState.buttonDownTransitions[GROUNDED_MOUSE_BUTTON_MIDDLE]++;
             eventQueue[eventQueueIndex++] = (GroundedEvent){
                 .type = GROUNDED_EVENT_TYPE_BUTTON_DOWN,
-                .buttonDown = GROUNDED_MOUSE_BUTTON_MIDDLE,
+                .buttonDown.button = GROUNDED_MOUSE_BUTTON_MIDDLE,
+                .buttonDown.mousePositionX = win32MouseState.x,
+                .buttonDown.mousePositionY = win32MouseState.y,
             };
         } break;
         case WM_MBUTTONUP: {
@@ -341,7 +405,9 @@ static LRESULT CALLBACK win32MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam,
             win32MouseState.buttonUpTransitions[GROUNDED_MOUSE_BUTTON_MIDDLE]++;
             eventQueue[eventQueueIndex++] = (GroundedEvent){
                 .type = GROUNDED_EVENT_TYPE_BUTTON_UP,
-                .buttonDown = GROUNDED_MOUSE_BUTTON_MIDDLE,
+                .buttonUp.button = GROUNDED_MOUSE_BUTTON_MIDDLE,
+                .buttonUp.mousePositionX = win32MouseState.x,
+                .buttonUp.mousePositionY = win32MouseState.y,
             };
         } break;
         case WM_MOUSEWHEEL: {
@@ -497,7 +563,7 @@ GROUNDED_FUNCTION GroundedWindow* groundedCreateWindow(MemoryArena* arena, struc
     }
     
     if(!error) {
-        SetWindowLongPtr(result->hWnd, GWLP_USERDATA, result);
+        SetWindowLongPtr(result->hWnd, GWLP_USERDATA, (LONG_PTR)result);
         currentlyCreatingWindow = 0;
         result->minWidth = parameters->minWidth;
         result->minHeight = parameters->minHeight;
@@ -530,6 +596,93 @@ GROUNDED_FUNCTION void groundedWindowSetTitle(GroundedWindow* window, String8 ti
     SetWindowTextW(win32Window->hWnd, utf16Title.base);
 
     arenaEndTemp(temp);
+}
+
+GROUNDED_FUNCTION void groundedWindowSetFullscreen(GroundedWindow* window, bool fullscreen) {
+    //TODO: Implement
+    ASSERT(false);
+}
+
+GROUNDED_FUNCTION void groundedWindowSetBorderless(GroundedWindow* window, bool borderless) {
+    //TODO: Implement
+    ASSERT(false);
+}
+
+GROUNDED_FUNCTION void groundedWindowSetHidden(GroundedWindow* window, bool hidden) {
+    GroundedWin32Window* win32Window = (GroundedWin32Window*)window;
+    ShowWindow(win32Window->hWnd, hidden ? SW_HIDE : SW_SHOW);
+}
+
+GROUNDED_FUNCTION bool groundedWindowIsFullscreen(GroundedWindow* window) {
+    //TODO: Implement
+    ASSERT(false);
+    return false;
+}
+
+GROUNDED_FUNCTION String8* groundedWindowOpenFileDialog(GroundedWindow* window, MemoryArena* arena, u32* outFileCount, struct GroundedFileDialogParameters* parameters) {
+    String8* result = 0;
+    MemoryArena* scratch = threadContextGetScratch(arena);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
+    //TODO: Might have multiple files that require a larger buffer!
+    u16 filenameBuffer[KB(2)];
+
+    //TODO: Apparently GetOpenFileNameW does not support selection of directories. Alternative might be SHBrowseForFolder
+    ASSERT(!parameters->chooseDirectories);
+
+    if(!parameters) {
+        static struct GroundedFileDialogParameters defaultParameters = {0};
+        parameters = &defaultParameters;
+    }
+
+    HWND hWnd = 0;
+    if(window) {
+        GroundedWin32Window* win32Window = (GroundedWin32Window*)window;
+        hWnd = win32Window->hWnd;
+    }
+    String16 initialDirectory = EMPTY_STRING16;
+    if(!str8IsEmpty(parameters->currentDirectory)) {
+        initialDirectory = str16FromStr8(scratch, parameters->currentDirectory);
+    }
+    String16 title = EMPTY_STRING16;
+    if(!str8IsEmpty(parameters->title)) {
+        // Autmatically 0-terminated
+        title = str16FromStr8(scratch, parameters->title);
+    }
+    DWORD flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+    if(parameters->multiSelect) {
+        ASSERT(false); // TODO: We do not handle the result right now
+        flags |= OFN_ALLOWMULTISELECT;
+    }
+
+    OPENFILENAMEW openFileName = {0};
+    openFileName.lStructSize = sizeof(openFileName);
+    openFileName.hwndOwner = hWnd;
+    openFileName.lpstrFile = filenameBuffer;
+    openFileName.nMaxFile = ARRAY_COUNT(filenameBuffer);
+    openFileName.lpstrFilter = 0; //TODO: Implement
+    openFileName.nFilterIndex = 0; //TODO: Implement
+    openFileName.lpstrInitialDir = initialDirectory.size > 0 ? initialDirectory.base : 0;
+    openFileName.lpstrTitle = title.size > 0 ? title.base : 0;
+    openFileName.Flags = flags;
+
+    if(GetOpenFileNameW(&openFileName)) {
+        // Success
+        result = ARENA_PUSH_STRUCT(arena, String8);
+        ASSUME(result) {
+            *result = str8FromStr16(arena, str16FromWcstr(filenameBuffer));
+        }
+    } else {
+        DWORD dwError = CommDlgExtendedError();
+        if(dwError != 0) {
+            GROUNDED_PUSH_ERRORF("Error occurred while opening the file dialog: %lu\n", dwError);
+        }
+    }
+
+    if(result && outFileCount) {
+        *outFileCount = 1;
+    }
+    arenaEndTemp(temp);
+    return result;
 }
 
 GROUNDED_FUNCTION GroundedEvent* groundedWindowGetEvents(u32* eventCount, u32 maxWaitingTimeInMs) {
@@ -612,8 +765,8 @@ GROUNDED_FUNCTION void groundedWindowFetchMouseState(GroundedWindow* opaqueWindo
     }
     mouseState->x = p.x;
     mouseState->y = p.y;
-    mouseState->windowWidth = groundedWindowGetWidth(window);
-    mouseState->windowHeight = groundedWindowGetHeight(window);
+    mouseState->windowWidth = groundedWindowGetWidth((GroundedWindow*)window);
+    mouseState->windowHeight = groundedWindowGetHeight((GroundedWindow*)window);
     //printf("Mouse location: %i,%i\n", p.x, p.y);
 
     // Set mouse button state
@@ -818,7 +971,39 @@ GROUNDED_FUNCTION void groundedWindowBeginDragAndDrop(GroundedWindowDragPayloadD
     arenaEndTemp(temp);
 }
 
+GROUNDED_FUNCTION String8 groundedWindowGetClipboardText(MemoryArena* arena) {
+    String8 result = EMPTY_STRING8;
 
+    // Open the clipboard
+    if (OpenClipboard(0)) {
+         // Get handle to clipboard object for text in CF_TEXT or CF_UNICODETEXT format
+        HANDLE hClipboardData = GetClipboardData(CF_UNICODETEXT); // Use CF_UNICODETEXT for Unicode
+        if (hClipboardData == 0) {
+            // Lock the clipboard data to get a pointer to the text
+            char* pchData = (char*)GlobalLock(hClipboardData);
+            if(pchData) {
+                result = str8Copy(arena, str8FromCstr(pchData));
+                GlobalUnlock(hClipboardData);
+            }
+        }
+        CloseClipboard();
+    }
+
+    return result;
+}
+
+GROUNDED_FUNCTION String8 groundedGetNameOfKeycode(MemoryArena* arena, u32 keycode) {
+    String8 result = EMPTY_STRING8;
+    u16 buffer[256];
+
+    LONG lParam = MapVirtualKey (inverseTranslateWin32Keycode(keycode), MAPVK_VK_TO_VSC);
+    int length = GetKeyNameTextW(lParam, buffer, ARRAY_COUNT(buffer));
+    if(length > 0) {
+        result = str8FromStr16(arena, str16FromBlock(buffer, length));
+    }
+
+    return result;
+}
 
 // ************
 // OpenGL stuff
@@ -844,13 +1029,13 @@ static bool loadWGL() {
     HINSTANCE hInstance = GetModuleHandle(0);
     bool loaded = false;
 
-    WNDCLASS wc = { 0 };
+    WNDCLASSW wc = { 0 };
     wc.style = CS_OWNDC;
     wc.hInstance = hInstance;
     wc.lpszClassName = openGLDummyClassName;
     wc.lpfnWndProc = DefWindowProc;
 
-    if (!RegisterClass(&wc)) {
+    if (!RegisterClassW(&wc)) {
         GROUNDED_LOG_ERROR("Error registering OpenGL Initialization Dummy Window class");
         return false;
     }

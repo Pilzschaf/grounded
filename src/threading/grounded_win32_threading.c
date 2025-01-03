@@ -99,15 +99,18 @@ GROUNDED_FUNCTION bool groundedHasError() {
     if(threadContext) {
         return !str8IsEmpty(threadContext->lastError.text);
     }
+    return false;
 }
 
-GROUNDED_FUNCTION GroundedError* groundedPopError() {
+GROUNDED_FUNCTION GroundedError* groundedPopError(MemoryArena* arena) {
     GroundedError* result = 0;
     void* tlsMemory = TlsGetValue(threadContextIndex);
     GroundedThreadContext* threadContext = (GroundedThreadContext*) tlsMemory;
     if(threadContext) {
         if(!str8IsEmpty(threadContext->lastError.text)) {
-            result = &threadContext->lastError;
+            result = ARENA_PUSH_STRUCT_NO_CLEAR(arena, GroundedError);
+            *result = threadContext->lastError;
+            result->text = str8CopyAndNullTerminate(arena, threadContext->lastError.text);
             threadContext->lastError.text = EMPTY_STRING8;
             arenaResetToMarker(threadContext->errorMarker);
         }

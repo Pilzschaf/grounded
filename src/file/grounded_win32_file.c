@@ -6,11 +6,11 @@
 
 //TODO: Remove the UTF conversions from here
 inline static const char* UTF16ToUTF8(MemoryArena* arena, const wchar_t* s) {
-	int requiredLength = WideCharToMultiByte(CP_UTF8, 0, s, -1, 0, 0, 0, false);
+	int requiredLength = WideCharToMultiByte(CP_UTF8, 0, s, -1, 0, 0, 0, 0);
 	ASSERT(requiredLength >= 0);
     char* result = ARENA_PUSH_ARRAY(arena, (u64)requiredLength, char);
 	ASSERT(result);
-	WideCharToMultiByte(CP_UTF8, 0, s, -1, result, requiredLength, 0, false);
+	WideCharToMultiByte(CP_UTF8, 0, s, -1, result, requiredLength, 0, 0);
 	return result;
 }
 
@@ -140,7 +140,7 @@ GROUNDED_FUNCTION GroundedDirectoryIterator* createDirectoryIterator(MemoryArena
 
 GROUNDED_FUNCTION GroundedDirectoryEntry getNextDirectoryEntry(GroundedDirectoryIterator* iterator) {
 	GroundedDirectoryEntry result = {0};
-    WIN32_FIND_DATA entry;
+    WIN32_FIND_DATAW entry;
 
 	if (iterator->findHandle == INVALID_HANDLE_VALUE) {
 		HANDLE handle = FindFirstFileW(iterator->directory, &entry);
@@ -152,7 +152,7 @@ GROUNDED_FUNCTION GroundedDirectoryEntry getNextDirectoryEntry(GroundedDirectory
 	}
 	else {
 	A:
-		if (!FindNextFile(iterator->findHandle, &entry)) {
+		if (!FindNextFileW(iterator->findHandle, &entry)) {
 			// Invalid
 			result = (GroundedDirectoryEntry){0};
 			return result;
@@ -180,12 +180,95 @@ GROUNDED_FUNCTION void destroyDirectoryIterator(GroundedDirectoryIterator* itera
 	FindClose(iterator->findHandle);
 }
 
+static int compareFilenames(const void* a, const void* b) {
+    const GroundedDirectoryEntry* entryA = (const GroundedDirectoryEntry*)a;
+    const GroundedDirectoryEntry* entryB = (const GroundedDirectoryEntry*)b;
+    return str8CompareCaseInsensitive(entryA->name, entryB->name);
+}
+
+GROUNDED_FUNCTION GroundedDirectoryEntry* groundedListFilesOfDirectory(MemoryArena* arena, String8 directory, u64* resultCount, GroundedListFilesParameters* parameters) {
+    if (!parameters) {
+        static struct GroundedListFilesParameters defaultParameters = {0};
+        parameters = &defaultParameters;
+    }
+    MemoryArena* scratch = threadContextGetScratch(arena);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
+    GroundedDirectoryEntry* result = 0;
+
+    struct DirectoryNode {
+        struct DirectoryNode* next;
+        GroundedDirectoryEntry entry;
+    };
+
+    u64 fileCount = 0;
+    WIN32_FIND_DATAW findData;
+    HANDLE hFind = FindFirstFileW(L"\\*", &findData);
+    struct DirectoryNode* head = 0;
+    if (hFind != INVALID_HANDLE_VALUE) {
+        do {
+            String8 name = str8FromStr16(scratch, str16FromWcstr(findData.cFileName));
+            enum GroundedDirectoryEntryType type = GROUNDED_DIRECTORY_ENTRY_TYPE_NONE;
+            enum GroundedDirectoryEntryFlags flags = 0;
+
+            if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+                type = GROUNDED_DIRECTORY_ENTRY_TYPE_DIRECTORY;
+            } else {
+                type = GROUNDED_DIRECTORY_ENTRY_TYPE_FILE;
+            }
+
+            GroundedDirectoryEntry entry = {
+                .name = str8CopyAndNullTerminate(arena, name), // Copy name onto final arena
+                .type = type,
+                .flags = flags,
+            };
+
+            // Add to list
+            struct DirectoryNode* node = ARENA_PUSH_STRUCT(scratch, struct DirectoryNode);
+            ASSUME(node) {
+                node->entry = entry;
+                node->next = head;
+                head = node;
+                fileCount++;
+            }
+
+        } while (FindNextFileW(hFind, &findData));
+
+        FindClose(hFind);
+    } else {
+        // TODO: Handle error cases with GetLastError()
+    }
+
+    // Copy results into the result array
+    result = ARENA_PUSH_ARRAY_NO_CLEAR(arena, fileCount, GroundedDirectoryEntry);
+    if (result) {
+        if (resultCount) {
+            *resultCount = fileCount;
+        }
+
+        struct DirectoryNode* node = head;
+        for (u64 i = 0; i < fileCount; ++i) {
+            ASSUME(node) {
+                result[i] = node->entry;
+                node = node->next;
+            } else {
+                // TODO: Handle truncated list case
+            }
+        }
+
+        // Sort the list
+        qsort(result, fileCount, sizeof(GroundedDirectoryEntry), &compareFilenames);
+    }
+    
+    arenaEndTemp(temp);
+    return result;
+}
+
 GROUNDED_FUNCTION bool groundedCreateDirectory(String8 directory) {
     MemoryArena* scratch = threadContextGetScratch(0);
     ArenaTempMemory temp = arenaBeginTemp(scratch);
 
     wchar_t* utf16Directory = UTF8ToUTF16(scratch, str8GetCstr(scratch, directory));
-	int result = CreateDirectory(utf16Directory, 0);
+	int result = CreateDirectoryW(utf16Directory, 0);
 
     arenaEndTemp(temp);
 
@@ -198,7 +281,7 @@ GROUNDED_FUNCTION bool groundedWriteFile(String8 filename, const void* data, u64
     
 	//TODO: Handle sizes larger than DWORD
     wchar_t* utf16Filename = (UTF8ToUTF16(scratch, str8GetCstr(scratch, filename)));
-    HANDLE handle = CreateFile(utf16Filename, GENERIC_WRITE, FILE_SHARE_READ, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+    HANDLE handle = CreateFileW(utf16Filename, GENERIC_WRITE, FILE_SHARE_READ, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
     WriteFile(handle, data, (DWORD)size, 0, 0);
     CloseHandle(handle);
 
@@ -230,7 +313,7 @@ GROUNDED_FUNCTION GroundedFile* groundedOpenFile(MemoryArena* arena, String8 fil
 
     struct GroundedFile* result = ARENA_PUSH_STRUCT(arena, struct GroundedFile);
     wchar_t* utf16Filename = (UTF8ToUTF16(scratch, str8GetCstr(scratch, filename)));
-    result->handle = CreateFile(utf16Filename, access, FILE_SHARE_READ, 0, creation, FILE_ATTRIBUTE_NORMAL, 0);
+    result->handle = CreateFileW(utf16Filename, access, FILE_SHARE_READ, 0, creation, FILE_ATTRIBUTE_NORMAL, 0);
     result->arena = arena;
     result->bufferSize = 4096;
     result->buffer = ARENA_PUSH_ARRAY(arena, result->bufferSize, u8);
@@ -241,7 +324,7 @@ GROUNDED_FUNCTION GroundedFile* groundedOpenFile(MemoryArena* arena, String8 fil
 
 static enum GroundedStreamErrorCode fileRefill(BufferedStreamReader* r) {
     struct GroundedFile* f = (struct GroundedFile*)r->implementationPointer;
-    s32 bytesRead = 0;
+    DWORD bytesRead = 0;
     s32 bytesToRead = (s32)CLAMP(0, f->bufferSize, INT32_MAX);
     if (!ReadFile(f->handle, f->buffer, bytesToRead, &bytesRead, 0)) {
         refillZeros(r);
@@ -322,6 +405,17 @@ GROUNDED_FUNCTION void groundedCloseFile(GroundedFile* file) {
     CloseHandle(f->handle);
 }
 
+GROUNDED_FUNCTION bool groundedDoesDirectoryExist(String8 directory) {
+    MemoryArena* scratch = threadContextGetScratch(0);
+	ArenaTempMemory temp = arenaBeginTemp(scratch);
+
+    String16 directory16 = str16FromStr8(scratch, directory);
+    DWORD attributes = GetFileAttributesW(directory16.base);
+    
+    arenaEndTemp(temp);
+    return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY);
+}
+
 GROUNDED_FUNCTION u64 groundedGetCreationTimestamp(String8 filename) {
 	MemoryArena* scratch = threadContextGetScratch(0);
 	ArenaTempMemory temp = arenaBeginTemp(scratch);
@@ -386,4 +480,65 @@ GROUNDED_FUNCTION u64 groundedGetModificationTimestamp(String8 filename) {
 	result.LowPart = modificationTime.dwLowDateTime;
 	return result.QuadPart;
 #endif
+}
+
+GROUNDED_FUNCTION String8 groundedGetUserConfigDirectory(MemoryArena* arena) {
+    //SHGetFolderPath(0, CSIDL_APPDATA, 0, 0, buffer)
+    ASSERT(false);
+}
+
+GROUNDED_FUNCTION String8 groundedGetCacheDirectory(MemoryArena* arena) {
+    //SHGetFolderPath(0, CSIDL_LOCAL_APPDATA, 0, 0, buffer)
+    ASSERT(false);
+}
+
+GROUNDED_FUNCTION String8 groundedGetCurrentWorkingDirectory(MemoryArena* arena) {
+    String8 result = EMPTY_STRING8;
+    MemoryArena* scratch = threadContextGetScratch(arena);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
+
+    int requiredSize = GetCurrentDirectoryW(0, 0);
+    while(requiredSize > 0 && !result.size) {
+        u16* buffer = ARENA_PUSH_ARRAY(scratch, requiredSize, u16);
+        int writtenSize = GetCurrentDirectoryW(requiredSize, buffer);
+        if(writtenSize <= requiredSize) {
+            result = str8FromStr16(arena, str16FromBlock(buffer, writtenSize));
+            break;
+        } else {
+            requiredSize = writtenSize;
+            arenaEndTemp(temp);
+            temp = arenaBeginTemp(scratch);
+        }
+    }
+    if(result.size == 0) {
+        GROUNDED_PUSH_ERROR("Error retrieving cwd");
+    }
+    
+    arenaEndTemp(temp);
+    return result;
+}
+
+GROUNDED_FUNCTION String8 groundedGetBinaryDirectory(MemoryArena* arena) {
+    String8 result = EMPTY_STRING8;
+    u16 exePath[MAX_PATH];
+    MemoryArena* scratch = threadContextGetScratch(arena);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
+
+    // Get the full path to the executable
+    int pathLength = GetModuleFileNameW(0, exePath, MAX_PATH);
+    if (!pathLength) {
+        GROUNDED_PUSH_ERRORF("Failed to get executable path. Error code: %lu\n", GetLastError());
+    } else {
+        String8 path = str8FromStr16(scratch, str16FromBlock(exePath, pathLength));
+        u64 lastSlash = str8GetLastOccurence(path, '/');
+        if(lastSlash < path.size) {
+            result = str8Copy(arena, str8Prefix(path, lastSlash));
+        }
+    }
+    if(result.size == 0) {
+        GROUNDED_PUSH_ERROR("Error retrieving binary directory");
+    }
+
+    arenaEndTemp(temp);
+    return result;
 }

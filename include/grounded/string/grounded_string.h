@@ -81,6 +81,11 @@ GROUNDED_FUNCTION_INLINE String16 str16FromRange(u16* first, u16* opl) {
     return result;
 }
 
+GROUNDED_FUNCTION_INLINE String16 str16FromWcstr(const wchar_t* wcstr) {
+    if(!wcstr) return EMPTY_STRING16;
+    return str16FromBlock((u16*)wcstr, wcslen(wcstr));
+}
+
 // Size in number of u32
 GROUNDED_FUNCTION_INLINE String32 str32FromBlock(const u32* str, u64 size) {
     String32 result = {(u32*)str, size};
