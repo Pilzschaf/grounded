@@ -81,16 +81,14 @@ extern const struct wl_interface wp_cursor_shape_manager_v1_interface;
  * @page page_iface_wp_cursor_shape_device_v1 wp_cursor_shape_device_v1
  * @section page_iface_wp_cursor_shape_device_v1_desc Description
  *
- * This interface advertises the list of supported cursor shapes for a
- * device, and allows clients to set the cursor shape.
+ * This interface allows clients to set the cursor shape.
  * @section page_iface_wp_cursor_shape_device_v1_api API
  * See @ref iface_wp_cursor_shape_device_v1.
  */
 /**
  * @defgroup iface_wp_cursor_shape_device_v1 The wp_cursor_shape_device_v1 interface
  *
- * This interface advertises the list of supported cursor shapes for a
- * device, and allows clients to set the cursor shape.
+ * This interface allows clients to set the cursor shape.
  */
 extern const struct wl_interface wp_cursor_shape_device_v1_interface;
 #endif
@@ -149,6 +147,9 @@ wp_cursor_shape_manager_v1_destroy(struct wp_cursor_shape_manager_v1 *wp_cursor_
  * @ingroup iface_wp_cursor_shape_manager_v1
  *
  * Obtain a wp_cursor_shape_device_v1 for a wl_pointer object.
+ *
+ * When the pointer capability is removed from the wl_seat, the
+ * wp_cursor_shape_device_v1 object becomes inert.
  */
 static inline struct wp_cursor_shape_device_v1 *
 wp_cursor_shape_manager_v1_get_pointer(struct wp_cursor_shape_manager_v1 *wp_cursor_shape_manager_v1, struct wl_pointer *pointer)
@@ -165,6 +166,9 @@ wp_cursor_shape_manager_v1_get_pointer(struct wp_cursor_shape_manager_v1 *wp_cur
  * @ingroup iface_wp_cursor_shape_manager_v1
  *
  * Obtain a wp_cursor_shape_device_v1 for a zwp_tablet_tool_v2 object.
+ *
+ * When the zwp_tablet_tool_v2 is removed, the wp_cursor_shape_device_v1
+ * object becomes inert.
  */
 static inline struct wp_cursor_shape_device_v1 *
 wp_cursor_shape_manager_v1_get_tablet_tool_v2(struct wp_cursor_shape_manager_v1 *wp_cursor_shape_manager_v1, struct zwp_tablet_tool_v2 *tablet_tool)

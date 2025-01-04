@@ -456,6 +456,69 @@ GROUNDED_FUNCTION String8* groundedWindowOpenFileDialog(GroundedWindow* window, 
     return result;
 }
 
+// On Gnome this should be available
+static String8 dbusGetCursorThemeName(MemoryArena* arena) {
+    String8 result = EMPTY_STRING8;
+
+    MemoryArena* scratch = threadContextGetScratch(arena);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
+    if(!dbusConnection) {
+        initDbus();
+    }
+
+    if(dbusConnection) {
+        // https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.Settings.html
+        // Available for query: color-scheme, accent-color, contrast
+
+        // Try first with gnome
+        const char* portalService = "org.freedesktop.portal.Desktop";
+        const char* portalObject = "/org/freedesktop/portal/desktop";
+        const char* portalInterface = "org.freedesktop.portal.Settings";
+        const char* portalMethod = "Read";
+
+        DBusMessage *message = dbus_message_new_method_call(portalService, portalObject, portalInterface, portalMethod);
+        if(!message) {
+            GROUNDED_PUSH_ERROR("Could not create dbus message");
+        } else {
+            // Add data to message
+            DBusMessageIter args;
+            dbus_message_iter_init_append(message, &args);
+
+            // https://github.com/GNOME/gsettings-desktop-schemas/blob/master/schemas/org.gnome.desktop.interface.gschema.xml.in
+            static const char* namespace = "org.gnome.desktop.interface";
+            dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &namespace);
+
+            static const char* key = "cursor-theme"; // Also available: "cursor-size"
+            dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &key);
+        }
+
+        if(message) {
+            DBusMessage *reply = dbus_connection_send_with_reply_and_block(dbusConnection, message, DBUS_TIMEOUT_INFINITE, &dbusError);
+            dbus_message_unref(message);
+
+            if(dbus_error_is_set(&dbusError) || !reply) {
+
+            } else {
+                DBusMessageIter args, variantIter;
+                if(dbus_message_iter_init(reply, &args) && dbus_message_iter_get_arg_type(&args) == DBUS_TYPE_VARIANT) {
+                    dbus_message_iter_recurse(&args, &variantIter);
+
+                    if (dbus_message_iter_get_arg_type(&variantIter) == DBUS_TYPE_STRING) {
+                        const char* setting_value = 0;
+                        dbus_message_iter_get_basic(&variantIter, &setting_value);
+                        printf("Setting Value: %s\n", setting_value);
+                    } else {
+                        printf("Unexpected value type in reply\n");
+                    }
+                }
+            }
+        }
+    }
+    
+    arenaEndTemp(temp);
+    return result;
+}
+
 GROUNDED_FUNCTION GroundedWindowBackend groundedWindowSystemGetSelectedBackend() {
     GroundedWindowBackend result = GROUNDED_WINDOW_BACKEND_NONE;
     if(linuxWindowBackend == GROUNDED_LINUX_WINDOW_BACKEND_XCB) {
@@ -799,9 +862,9 @@ static const char** getCursorNameCandidates(enum GroundedMouseCursor cursorType,
     // Not useful in a practical sense but interestig nonetheless
     static const char* specialCursors[] = {"dot", "pirate", "heart"};
 
-    static const char* grabbingCursors[] = {"closedhand", "grabbing", "hand2"};
+    static const char* grabbableCursors[] = {"openhand", "grab", "hand1", "closedhand", "grabbing", "hand2"};
+    static const char* grabbingCursors[] = {"closedhand", "grabbing", "hand2", "grab", "hand1"};
 
-    // Grab: openhand, grab, hand1
     // northeastsouthwestresize: size_bdiag, nesw-resize, fd_double_arrow
     // northwestsourtheastresize: size_fdiag, nwse-resize, bd_double_arrow
     // zoomin: zoom-in
@@ -846,6 +909,9 @@ static const char** getCursorNameCandidates(enum GroundedMouseCursor cursorType,
         } break;
         case GROUNDED_MOUSE_CURSOR_DND_COPY:{
             USE_CURSOR_CANDIDATE(dndCopyCursors);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_GRABBABLE:{
+            USE_CURSOR_CANDIDATE(grabbableCursors);
         } break;
         case GROUNDED_MOUSE_CURSOR_GRABBING:{
             USE_CURSOR_CANDIDATE(grabbingCursors);

@@ -160,6 +160,7 @@ struct wl_registry* registry;
 struct xdg_wm_base* xdgWmBase;
 struct wl_keyboard* keyboard;
 struct wl_pointer* pointer;
+struct wp_cursor_shape_device_v1* cursorShapeDevice;
 struct zwp_relative_pointer_v1* relativePointer;
 u32 lastPointerSerial;
 struct wl_seat* pointerSeat;
@@ -172,6 +173,7 @@ struct zxdg_output_manager_v1* xdgOutputManager;
 struct zwp_idle_inhibit_manager_v1* idleInhibitManager;
 struct zwp_pointer_constraints_v1* pointerConstraints;
 struct zwp_relative_pointer_manager_v1* relativePointerManager;
+struct wp_cursor_shape_manager_v1* cursorShapeManager;
 
 struct zxdg_exporter_v2* zxdgExporter;
 
@@ -235,6 +237,7 @@ STATIC_ASSERT(sizeof(waylandScreens) < KB(4)); // Make sure we require a sane am
 #include "wayland_protocols/pointer-constraints-unstable-v1.h"
 #include "wayland_protocols/relative-pointer-unstable-v1.h"
 #include "wayland_protocols/xdg-foreign-unstable-v2.h"
+#include "wayland_protocols/cursor-shape-v1.h"
 
 static void waylandWindowSetMaximized(GroundedWaylandWindow* window, bool maximized);
 GROUNDED_FUNCTION void waylandSetCursorType(enum GroundedMouseCursor cursorType);
@@ -1085,6 +1088,9 @@ static void registry_global(void* data, struct wl_registry* registry, uint32_t i
         // Shared memory. Needed for custom cursor themes and framebuffers - TODO: might have been replaced by drm (Drm is not particular useful for software rendering)
         waylandShm = (struct wl_shm*)wl_registry_bind(registry, id, wl_shm_interface, 1);
         ASSERT(waylandShm);
+    } else if(strcmp(interface, "wp_cursor_shape_manager_v1") == 0) {
+        cursorShapeManager = (struct wp_cursor_shape_manager_v1*)wl_registry_bind(registry, id, &wp_cursor_shape_manager_v1_interface, 1);
+        ASSERT(cursorShapeManager);
     } else {
         GROUNDED_LOG_INFO(interface);
     }
@@ -1313,6 +1319,9 @@ static bool initWayland() {
                     cursorSize = 24;
                 }
                 const char* cursorThemeName = getenv("XCURSOR_THEME");
+                if(!cursorThemeName) {
+                    cursorThemeName = "default";
+                }
                 cursorTheme = wl_cursor_theme_load(cursorThemeName, cursorSize, waylandShm);
             }
             if(cursorTheme) {
@@ -1341,9 +1350,19 @@ static void shutdownWayland() {
     //if(cursor) ... free
     if(cursorTheme) {
         wl_cursor_theme_destroy(cursorTheme);
+        cursorTheme = 0;
     }
     if(cursorSurface) {
         wl_surface_destroy(cursorSurface);
+        cursorSurface = 0;
+    }
+    if(cursorShapeDevice) {
+        wp_cursor_shape_device_v1_destroy(cursorShapeDevice);
+        cursorShapeDevice = 0;
+    }
+    if(cursorShapeManager) {
+        wp_cursor_shape_manager_v1_destroy(cursorShapeManager);
+        cursorShapeManager = 0;
     }
     if(compositor) {
         wl_compositor_destroy(compositor);
@@ -1975,50 +1994,116 @@ GROUNDED_FUNCTION void waylandSubmitFramebuffer(GroundedWaylandWindow* window, G
     window->framebufferPointers[0] = nextFramebuffer;
 }
 
+static u32 waylandTranslateCursorTypeToShape(u32 cursorType) {
+    u32 result = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT;
+    switch(cursorType) {
+        case GROUNDED_MOUSE_CURSOR_IBEAM:
+        result = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_TEXT;
+        break;
+        case GROUNDED_MOUSE_CURSOR_LEFTRIGHT:
+        result = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_EW_RESIZE;
+        break;
+        case GROUNDED_MOUSE_CURSOR_UPDOWN:
+        result = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NS_RESIZE;
+        break;
+        case GROUNDED_MOUSE_CURSOR_UPRIGHT:
+        result = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NE_RESIZE;
+        break;
+        case GROUNDED_MOUSE_CURSOR_UPLEFT:
+        result = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NW_RESIZE;
+        break;
+        case GROUNDED_MOUSE_CURSOR_DOWNRIGHT:
+        result = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_SE_RESIZE;
+        break;
+        case GROUNDED_MOUSE_CURSOR_DOWNLEFT:
+        result = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_SW_RESIZE;
+        break;
+        case GROUNDED_MOUSE_CURSOR_POINTER:
+        result = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_POINTER;
+        break;
+        case GROUNDED_MOUSE_CURSOR_DND_NO_DROP:
+        result = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NO_DROP;
+        break;
+        case GROUNDED_MOUSE_CURSOR_DND_MOVE:
+        result = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_MOVE;
+        break;
+        case GROUNDED_MOUSE_CURSOR_DND_COPY:
+        result = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_COPY;
+        break;
+        case GROUNDED_MOUSE_CURSOR_GRABBABLE:
+        result = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_GRAB;
+        break;
+        case GROUNDED_MOUSE_CURSOR_GRABBING:
+        result = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_GRABBING;
+        break;
+    }
+    return result;
+}
+
 GROUNDED_FUNCTION void waylandSetCursorType(enum GroundedMouseCursor cursorType) {
     const char* error = 0;
+    bool changed = false;
     if(waylandCursorTypeOverwrite < GROUNDED_MOUSE_CURSOR_COUNT) {
         waylandCursorTypeOverwrite = cursorType;
-    } else if(waylandCursorLibraryPresent && cursorTheme) {
-        struct wl_cursor* cursor = 0;
-        struct wl_cursor_image* cursorImage = 0;
-        struct wl_buffer* cursorBuffer = 0;
-        int scale = 1;
-
-        u64 candidateCount = 0;
-        const char** candidateNames = getCursorNameCandidates(cursorType, &candidateCount);
-
-        for(u64 i = 0; i < candidateCount; ++i) {
-            cursor = wl_cursor_theme_get_cursor(cursorTheme, candidateNames[i]);
-            if(cursor) {
-                break;
-            }
+        changed = true;
+    } 
+    if(!changed && cursorShapeManager) {
+        if(!cursorShapeDevice) {
+            cursorShapeDevice = wp_cursor_shape_manager_v1_get_pointer(cursorShapeManager, pointer);
         }
-        if(!cursor) {
-            error = "Could not find cursor";
-        } else {
-            cursorImage = cursor->images[0];
-            if(!cursorImage) {
-                error = "Could not load cursor image";
-            }
-        }
-        if(!error) {
-            cursorBuffer = wl_cursor_image_get_buffer(cursorImage);
-            if(!cursorBuffer) {
-                error = "Could not get cursor buffer";
-            }
-        }
-        if(!error) {
-            wl_pointer_set_cursor(pointer, pointerEnterSerial, cursorSurface, cursorImage->hotspot_x / scale, cursorImage->hotspot_y / scale);
-            wl_surface_set_buffer_scale(cursorSurface, scale);
-            wl_surface_attach(cursorSurface, cursorBuffer, 0, 0);
-            wl_surface_damage(cursorSurface, 0, 0, cursorImage->width, cursorImage->height);
-            wl_surface_commit(cursorSurface);
+        if(cursorShapeDevice) {
+            u32 shape = waylandTranslateCursorTypeToShape(cursorType);
+            wp_cursor_shape_device_v1_set_shape(cursorShapeDevice, pointerEnterSerial, shape);
+            changed = true;
             waylandCurrentCursorType = cursorType;
+        } else {
+            error = "Could not create cursor shape device";
         }
-    } else {
-        error = "Wayland compositor does not support required cursor interface";
     }
+    if(!changed)
+        if(waylandCursorLibraryPresent && cursorTheme) {
+            struct wl_cursor* cursor = 0;
+            struct wl_cursor_image* cursorImage = 0;
+            struct wl_buffer* cursorBuffer = 0;
+            int scale = 1;
+
+            u64 candidateCount = 0;
+            const char** candidateNames = getCursorNameCandidates(cursorType, &candidateCount);
+
+            for(u64 i = 0; i < candidateCount; ++i) {
+                cursor = wl_cursor_theme_get_cursor(cursorTheme, candidateNames[i]);
+                if(cursor) {
+                    break;
+                }
+            }
+            if(!cursor) {
+                error = "Could not find cursor";
+            } else {
+                cursorImage = cursor->images[0];
+                if(!cursorImage) {
+                    error = "Could not load cursor image";
+                }
+            }
+            if(!error) {
+                cursorBuffer = wl_cursor_image_get_buffer(cursorImage);
+                if(!cursorBuffer) {
+                    error = "Could not get cursor buffer";
+                }
+            }
+            if(!error) {
+                wl_pointer_set_cursor(pointer, pointerEnterSerial, cursorSurface, cursorImage->hotspot_x / scale, cursorImage->hotspot_y / scale);
+                wl_surface_set_buffer_scale(cursorSurface, scale);
+                wl_surface_attach(cursorSurface, cursorBuffer, 0, 0);
+                wl_surface_damage(cursorSurface, 0, 0, cursorImage->width, cursorImage->height);
+                wl_surface_commit(cursorSurface);
+                waylandCurrentCursorType = cursorType;
+                changed = true;
+            }
+        else {
+            error = "Wayland compositor does not support required cursor interface";
+        }
+    }
+    
     if(error) {
         GROUNDED_LOG_WARNING("Could not satisfy cursor request");
     }

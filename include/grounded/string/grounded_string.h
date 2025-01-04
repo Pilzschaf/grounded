@@ -104,7 +104,7 @@ GROUNDED_FUNCTION bool str8IsValidUtf8(String8 str);
 
 // Single codepoint encoding/decoding
 // In error case result.size is 0
-GROUNDED_FUNCTION StringDecode strDecodeUtf8(u8* string, s64 capacity); // result.size is the number of bytes that have been advanced
+GROUNDED_FUNCTION_INLINE StringDecode strDecodeUtf8(u8* string, s64 capacity); // result.size is the number of bytes that have been advanced
 // dst must have at least 4 bytes of space available
 GROUNDED_FUNCTION u32 strEncodeUtf8(u8* dst, u32 codepoint); // Returns bytes advanced in dst. Maximum possible advance is 4 bytes.
 // Capacity is the number of u16 left. In error case result.size is 0
@@ -123,6 +123,44 @@ GROUNDED_FUNCTION String16 str16FromStr8(struct MemoryArena* arena, String8 str)
 GROUNDED_FUNCTION String16 str16FromStr32(struct MemoryArena* arena, String32 str);
 GROUNDED_FUNCTION String32 str32FromStr8(struct MemoryArena* arena, String8 str);
 GROUNDED_FUNCTION String32 str32FromStr16(struct MemoryArena* arena, String16 str);
+
+GROUNDED_FUNCTION_INLINE StringDecode strDecodeUtf8(u8* string, s64 capacity) {
+    static u8 lengthTable[] = {
+        1, 1, 1, 1, // 000xx
+        1, 1, 1, 1,
+        1, 1, 1, 1,
+        1, 1, 1, 1,
+        0, 0, 0, 0, // 100xx
+        0, 0, 0, 0,
+        2, 2, 2, 2, // 110xx
+        3, 3,       // 1110x
+        4,          // 11110
+        0,          // 11111
+    };
+    static u8 firstByteMask[] = {0, 0x7F, 0x1F, 0x0F, 0x07 };
+    static u8 finalShift[] = {0, 18, 12, 6, 0};
+    StringDecode result = {0};
+    if(capacity > 0) {
+        result.codepoint = '#';
+        result.size = 1;
+
+        u8 byte = string[0];
+        u8 length = lengthTable[byte >> 3];
+        if(length > 0 && length <= capacity) {
+            u32 codepoint = (byte & firstByteMask[length]) << 18;
+            switch(length-1) {
+                case 3: codepoint |= ((string[3] & 0x3F) << 0); // fallthrough
+                case 2: codepoint |= ((string[2] & 0x3F) << 6); // fallthrough
+                case 1: codepoint |= ((string[1] & 0x3F) << 12); // fallthrough
+                case 0: codepoint >>= finalShift[length];
+            }
+            result.codepoint = codepoint;
+            result.size = length;
+        }
+    }
+
+    return result;
+}
 
 ////////
 // Atoms

@@ -6,4 +6,6 @@
 #include "wayland_protocols/pointer-constraints-unstable-v1.c"
 #include "wayland_protocols/relative-pointer-unstable-v1.c"
 #include "wayland_protocols/xdg-foreign-unstable-v2.c"
+#include "wayland_protocols/cursor-shape-v1.c"
+#include "wayland_protocols/tablet-v2.c"
 #endif
