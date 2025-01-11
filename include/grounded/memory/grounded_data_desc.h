@@ -106,4 +106,29 @@ GROUNDED_FUNCTION_INLINE u32 getAlignmentOfDataType(enum DataType type) {
     }
 }
 
+GROUNDED_FUNCTION_INLINE u64 getSizeOfType(DataDesc* desc, u64 descCount) {
+    u64 result = 0;
+    u64 maxAlignemnt = 1;
+
+    for(u64 i = 0; i < descCount; ++i) {
+        u64 alignment = getAlignmentOfDataType(desc[i].dataType);
+        ASSERT(IS_POW2(alignment));
+        maxAlignemnt = MAX(alignment, maxAlignemnt);
+        result = ALIGN_UP_POW2(result, alignment);
+
+        u64 typeSize = getSizeOfDataType(desc[i].dataType);
+        typeSize = ALIGN_UP_POW2(typeSize, alignment);
+        
+        u64 elementCount = desc[i].elementCount;
+        if(elementCount == 0) {
+            elementCount = 1;
+        }
+        u64 thisSize = typeSize * elementCount;
+        result += thisSize;
+    }
+
+    result = ALIGN_UP_POW2(result, maxAlignemnt);
+    return result;
+}
+
 #endif // GROUNDED_DATA_DESC_H
