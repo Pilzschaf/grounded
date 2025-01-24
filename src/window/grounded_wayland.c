@@ -1160,7 +1160,9 @@ static void xdgToplevelHandleConfigure(void* data,  struct xdg_toplevel* topleve
         window->width = width;
         window->height = height;
         #ifdef GROUNDED_OPENGL_SUPPORT
-        waylandResizeEglSurface(window);
+        if(window->eglWindow) {
+            waylandResizeEglSurface(window);
+        }
         #endif
     }
 }
