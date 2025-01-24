@@ -905,9 +905,19 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreateOrthographicProject
 }
 
 GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreateOrthographicProjectionFromCoordinates(float left, float right, float top, float bottom) {
+    /*
+    // OpenGL
     GROUNDED_MATH_PREFIX(mat4) result = {{
         2/(right - left), 0.0f, 0.0f, - (right + left) / (right - left),
         0.0f, 2/(top-bottom), 0.0f, -(top + bottom) / (top - bottom),
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+    }};*/
+
+    // Vulkan
+    GROUNDED_MATH_PREFIX(mat4) result = {{
+        2/(right - left), 0.0f, 0.0f, - (right + left) / (right - left),
+        0.0f, -2/(top-bottom), 0.0f, (top + bottom) / (top - bottom),
         0.0f, 0.0f, 1.0f, 0.0f,
         0.0f, 0.0f, 0.0f, 1.0f,
     }};

@@ -1108,6 +1108,7 @@ static void registry_global_remove(void* data, struct wl_registry* registry, uin
         }
     }
     // Removal of unknown id
+    //TODO: This triggered upon manual source switch on my screen. Look into this!
     ASSERT(false);
 }
 

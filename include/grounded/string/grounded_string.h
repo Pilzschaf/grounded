@@ -67,7 +67,8 @@ GROUNDED_FUNCTION void str8ListPush(struct MemoryArena* arena, String8List* list
 GROUNDED_FUNCTION void str8ListPushCopy(struct MemoryArena* arena, String8List* list, String8 str);
 GROUNDED_FUNCTION void str8ListPushCopyAndNullTerminate(struct MemoryArena* arena, String8List* list, String8 str);
 GROUNDED_FUNCTION String8 str8ListJoin(struct MemoryArena* arena, String8List* list, StringJoin* optionalJoin);
-GROUNDED_FUNCTION String8List str8Split(struct MemoryArena* arena, String8 str, u8* splitCharacters, u64 count);
+GROUNDED_FUNCTION String8List str8Split(struct MemoryArena* arena, String8 str, u8* splitCharacters, u64 splitCharacterCount);
+GROUNDED_FUNCTION String8* str8SplitToArray(struct MemoryArena* arena, String8 str, u8* splitCharacters, u64 splitCharacterCount, u64* outCount);
 
 // Size in number of u16
 GROUNDED_FUNCTION_INLINE String16 str16FromBlock(u16* str, u64 size) {
@@ -190,6 +191,18 @@ GROUNDED_FUNCTION_INLINE bool compareAtoms(StringAtom* a0, StringAtom* a1) {
         return str8IsEqual(a0->string, a1->string);
     }
     return false;
+}
+
+//TODO: String conversion functions like strToU64 etc.
+GROUNDED_FUNCTION_INLINE u64 str8ToU64(String8 str) {
+    u64 result = 0;
+    for (u64 i = 0; i < str.size; i++) {
+        u8 c = str.base[i];
+        if(c <= '9' && c >= '0') {
+            result = result * 10 + (c - '0');
+        }
+    }
+    return result;
 }
 
 #endif // GROUNDED_STRING_H

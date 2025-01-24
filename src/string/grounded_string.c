@@ -482,7 +482,7 @@ GROUNDED_FUNCTION String8 str8ListJoin(MemoryArena* arena, String8List* list, St
     return result;
 }
 
-GROUNDED_FUNCTION String8List str8Split(MemoryArena* arena, String8 str, u8* splitCharacters, u64 count) {
+GROUNDED_FUNCTION String8List str8Split(MemoryArena* arena, String8 str, u8* splitCharacters, u64 splitCharacterCount) {
     String8List result = {0};
 
     u8* ptr = str.base;
@@ -491,7 +491,7 @@ GROUNDED_FUNCTION String8List str8Split(MemoryArena* arena, String8 str, u8* spl
     for(;ptr < opl; ptr += 1) {
         u8 byte = *ptr;
         bool isSplitByte = false;
-        for(u64 i = 0; i < count; ++i) {
+        for(u64 i = 0; i < splitCharacterCount; ++i) {
             if(byte == splitCharacters[i]) {
                 isSplitByte = true;
                 break;
@@ -510,6 +510,32 @@ GROUNDED_FUNCTION String8List str8Split(MemoryArena* arena, String8 str, u8* spl
         str8ListPush(arena, &result, str8FromRange(wordFirst, ptr));
     }
 
+    return result;
+}
+
+GROUNDED_FUNCTION String8* str8SplitToArray(MemoryArena* arena, String8 str, u8* splitCharacters, u64 splitCharacterCount, u64* outCount) {
+    String8* result = 0;
+    MemoryArena* scratch = threadContextGetScratch(arena);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
+    
+    String8List list = str8Split(scratch, str, splitCharacters, splitCharacterCount);
+    if(list.numNodes) {
+        result = ARENA_PUSH_ARRAY_NO_CLEAR(arena, list.numNodes, String8);
+        if(!result) {
+            list.numNodes = 0;
+        } else {
+            String8Node* node = list.first;
+            for(u64 i = 0; i < list.numNodes; ++i) {
+                result[i] = node->string;
+                node = node->next;
+            }
+        }
+    }
+
+    if(outCount) {
+        *outCount = list.numNodes;
+    }
+    arenaEndTemp(temp);
     return result;
 }
 
