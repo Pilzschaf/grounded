@@ -458,8 +458,10 @@ static void keyboardHandleKey(void *data, struct wl_keyboard *keyboard, uint32_t
                 modifiers |= GROUNDED_KEY_MODIFIER_SHIFT;
             }
         }
+        ASSERT(activeWindow);
         eventQueue[eventQueueIndex++] = (GroundedEvent){
             .type = GROUNDED_EVENT_TYPE_KEY_DOWN,
+            .window = (GroundedWindow*)activeWindow,
             .keyDown.keycode = keycode,
             .keyDown.modifiers = modifiers,
             .keyDown.codepoint = codepoint,
@@ -1651,8 +1653,10 @@ static void sendWaylandKeyRepeat() {
                 modifiers |= GROUNDED_KEY_MODIFIER_SHIFT;
             }
         }
+        ASSERT(activeWindow);
         eventQueue[eventQueueIndex++] = (GroundedEvent){
             .type = GROUNDED_EVENT_TYPE_KEY_DOWN,
+            .window = (GroundedWindow*)activeWindow,
             .keyDown.keycode = keycode,
             .keyDown.modifiers = modifiers,
             .keyDown.codepoint = codepoint,
@@ -2619,7 +2623,7 @@ static void dataDeviceListenerDrop(void* data, struct wl_data_device* dataDevice
         // Allows for flexibility of different functions for different windows
         // Control and data flow is very clear. I decided to implement this
         if(waylandOffer->dropCallback) {
-            waylandOffer->dropCallback(0, data, (GroundedWindow*)waylandOffer->window, waylandOffer->x, waylandOffer->y, mimeType);
+            waylandOffer->dropCallback(&waylandOffer->payload, data, (GroundedWindow*)waylandOffer->window, waylandOffer->x, waylandOffer->y, mimeType);
         }
     } else {
         // We do not accept
@@ -2812,7 +2816,7 @@ GROUNDED_FUNCTION void groundedWaylandDragPayloadSetImage(GroundedWindowDragPayl
 
             wl_surface_attach(desc->waylandIcon, wlBuffer, 0, 0);
             //TODO: Do we always want to set this or only when the user requests this via a flag or similar?
-            wl_surface_set_buffer_transform(desc->waylandIcon, WL_OUTPUT_TRANSFORM_FLIPPED_180);
+            //wl_surface_set_buffer_transform(desc->waylandIcon, WL_OUTPUT_TRANSFORM_FLIPPED_180);
             //wl_surface_offset(desc->icon, 100, 100);
             wl_surface_damage(desc->waylandIcon, 0, 0, UINT32_MAX, UINT32_MAX);
             wl_surface_commit(desc->waylandIcon); // Commit staged changes to surface

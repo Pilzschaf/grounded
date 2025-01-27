@@ -1083,6 +1083,7 @@ GROUNDED_FUNCTION String8 groundedWindowGetClipboardText(MemoryArena* arena) {
 }
 
 GROUNDED_FUNCTION void groundedWindowDragPayloadSetUserData(struct GroundedDragPayload* payload, void* userData) {
+    printf("Setting drag payload user data\n");
     if(payload) {
         payload->userData = userData;
     }
