@@ -187,7 +187,8 @@ int keyRepeatTimer = -1;
 u32 keyRepeatDelay = 500;
 u32 keyRepeatRate = 25;
 u32 keyRepeatKey;
-GroundedWaylandWindow* activeWindow; // The window (if any) the mouse cursor is currently hovering
+GroundedWaylandWindow* activeCursorWindow; // The window (if any) the mouse cursor is currently hovering
+GroundedWaylandWindow* activeKeyboardWindow; // The window (if any) the keyboard is currently active in
 
 GroundedKeyboardState waylandKeyState;
 
@@ -323,10 +324,18 @@ static void keyboardHandleKeymap(void *data, struct wl_keyboard *keyboard, uint3
 
 static void keyboardHandleEnter(void *data, struct wl_keyboard *keyboard, uint32_t serial, struct wl_surface *surface, struct wl_array *keys) {
     //GROUNDED_LOG_VERBOSE("Keyboard gained focus");
+    if(surface) {
+        GroundedWaylandWindow* window = (GroundedWaylandWindow*)wl_surface_get_user_data(surface);
+        ASSUME(window) {
+            activeKeyboardWindow = window;
+        }
+    }
 }
 
 static void keyboardHandleLeave(void *data, struct wl_keyboard *keyboard, uint32_t serial, struct wl_surface *surface) {
     GROUNDED_LOG_VERBOSE("Keyboard lost focus");
+
+    activeKeyboardWindow = 0;
 
     // Stop keyrepeat timer
     struct itimerspec timer = {0};
@@ -458,10 +467,10 @@ static void keyboardHandleKey(void *data, struct wl_keyboard *keyboard, uint32_t
                 modifiers |= GROUNDED_KEY_MODIFIER_SHIFT;
             }
         }
-        ASSERT(activeWindow);
+        ASSERT(activeKeyboardWindow);
         eventQueue[eventQueueIndex++] = (GroundedEvent){
             .type = GROUNDED_EVENT_TYPE_KEY_DOWN,
-            .window = (GroundedWindow*)activeWindow,
+            .window = (GroundedWindow*)activeKeyboardWindow,
             .keyDown.keycode = keycode,
             .keyDown.modifiers = modifiers,
             .keyDown.codepoint = codepoint,
@@ -523,7 +532,7 @@ static void pointerHandleEnter(void *data, struct wl_pointer *wl_pointer, uint32
     // Can be called when surface has already been destroyed. So we check if we have valid surface first
     if(surface) {
         GroundedWaylandWindow* window = (GroundedWaylandWindow*)wl_surface_get_user_data(surface);
-        activeWindow = window;
+        activeCursorWindow = window;
         lastPointerSerial = serial;
         pointerEnterSerial = serial;
         window->mouseState.mouseInWindow = true;
@@ -541,18 +550,18 @@ static void pointerHandleEnter(void *data, struct wl_pointer *wl_pointer, uint32
 
 static void pointerHandleLeave(void *data, struct wl_pointer *wl_pointer, uint32_t serial, struct wl_surface *surface) {
     //printf("Pointer Leave\n");
-    if(activeWindow) {
+    if(activeCursorWindow) {
         // Make sure mouse position is outside screen
-        activeWindow->mouseState.x = -1;
-        activeWindow->mouseState.y = -1;
-        activeWindow->mouseState.mouseInWindow = false;
+        activeCursorWindow->mouseState.x = -1;
+        activeCursorWindow->mouseState.y = -1;
+        activeCursorWindow->mouseState.mouseInWindow = false;
 
         // Reset buttons to non-pressed state
-        MEMORY_CLEAR_ARRAY(activeWindow->mouseState.buttons);
+        MEMORY_CLEAR_ARRAY(activeCursorWindow->mouseState.buttons);
         //TODO: Should probably also send button up events for all buttons that were pressed upon leave. Or maybe we send a cursor leave event and let the applicatio handle it
     }
     lastPointerSerial = serial;
-    activeWindow = 0;
+    activeCursorWindow = 0;
     if(waylandCursorTypeOverwrite < GROUNDED_MOUSE_CURSOR_COUNT) {
         // Remove cursor overwrite
         GroundedMouseCursor prevCursor = waylandCursorTypeOverwrite;
@@ -585,18 +594,18 @@ static void pointerHandleMotion(void *data, struct wl_pointer *wl_pointer, uint3
     s32 posY = wl_fixed_to_int(surface_y);
     //float posXf = (float)wl_fixed_to_double(surface_x);
     //float posYf = (float)wl_fixed_to_double(surface_y);
-    if(activeWindow) {
-        activeWindow->mouseState.mouseInWindow = true;
-        activeWindow->mouseState.x = posX;
-        activeWindow->mouseState.y = posY;
+    if(activeCursorWindow) {
+        activeCursorWindow->mouseState.mouseInWindow = true;
+        activeCursorWindow->mouseState.x = posX;
+        activeCursorWindow->mouseState.y = posY;
         bool handled = false;
-        if(activeWindow->customTitlebarCallback) {
-            GroundedWindowCustomTitlebarHit hit = activeWindow->customTitlebarCallback((GroundedWindow*)activeWindow, activeWindow->mouseState.x, activeWindow->mouseState.y);
+        if(activeCursorWindow->customTitlebarCallback) {
+            GroundedWindowCustomTitlebarHit hit = activeCursorWindow->customTitlebarCallback((GroundedWindow*)activeCursorWindow, activeCursorWindow->mouseState.x, activeCursorWindow->mouseState.y);
             if(hit == GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_BORDER) {
                 float x = posX;
                 float y = posY;
-                float width = groundedWindowGetWidth((GroundedWindow*)activeWindow);
-                float height = groundedWindowGetHeight((GroundedWindow*)activeWindow);
+                float width = groundedWindowGetWidth((GroundedWindow*)activeCursorWindow);
+                float height = groundedWindowGetHeight((GroundedWindow*)activeCursorWindow);
                 float offset = 10.0f;
                 u32 edges = 0;
                 if(x < offset) {
@@ -629,9 +638,9 @@ static void pointerHandleMotion(void *data, struct wl_pointer *wl_pointer, uint3
         if(!handled) {
             eventQueue[eventQueueIndex++] = (GroundedEvent){
                 .type = GROUNDED_EVENT_TYPE_MOUSE_MOVE,
-                .window = (GroundedWindow*)activeWindow,
-                .mouseMove.mousePositionX = activeWindow->mouseState.x,
-                .mouseMove.mousePositionY = activeWindow->mouseState.y,
+                .window = (GroundedWindow*)activeCursorWindow,
+                .mouseMove.mousePositionX = activeCursorWindow->mouseState.x,
+                .mouseMove.mousePositionY = activeCursorWindow->mouseState.y,
             };
         }
     }
@@ -648,23 +657,23 @@ static void pointerHandleButton(void *data, struct wl_pointer *wl_pointer, uint3
     }
     lastPointerSerial = serial;
     //printf("Click serial: %u\n", lastPointerSerial);
-    if(pressed && activeWindow && activeWindow->customTitlebarCallback) {
-        GroundedWindowCustomTitlebarHit hit = activeWindow->customTitlebarCallback((GroundedWindow*)activeWindow, activeWindow->mouseState.x, activeWindow->mouseState.y);
+    if(pressed && activeCursorWindow && activeCursorWindow->customTitlebarCallback) {
+        GroundedWindowCustomTitlebarHit hit = activeCursorWindow->customTitlebarCallback((GroundedWindow*)activeCursorWindow, activeCursorWindow->mouseState.x, activeCursorWindow->mouseState.y);
         if(hit == GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_BAR) {
             /*struct wl_region* region = wl_compositor_create_region(compositor);
             wl_region_add(region, 0, 0, 0, 0);
             wl_surface_set_input_region(activeWindow->surface, region);
             wl_surface_commit(activeWindow->surface);
             wl_region_destroy(region);*/
-            xdg_toplevel_move(activeWindow->xdgToplevel, pointerSeat, serial);
+            xdg_toplevel_move(activeCursorWindow->xdgToplevel, pointerSeat, serial);
             // Do not process this event further
             return;
         } else if(hit == GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_BORDER) {
             u32 edges = 0;
-            float x = activeWindow->mouseState.x;
-            float y = activeWindow->mouseState.y;
-            float width = groundedWindowGetWidth((GroundedWindow*)activeWindow);
-            float height = groundedWindowGetHeight((GroundedWindow*)activeWindow);
+            float x = activeCursorWindow->mouseState.x;
+            float y = activeCursorWindow->mouseState.y;
+            float width = groundedWindowGetWidth((GroundedWindow*)activeCursorWindow);
+            float height = groundedWindowGetHeight((GroundedWindow*)activeCursorWindow);
             float offset = 20.0f;
             if(x < offset) {
                 edges |= XDG_TOPLEVEL_RESIZE_EDGE_LEFT;
@@ -676,30 +685,30 @@ static void pointerHandleButton(void *data, struct wl_pointer *wl_pointer, uint3
             } else if(y > height - offset) {
                 edges |= XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM;
             }
-            xdg_toplevel_resize(activeWindow->xdgToplevel, pointerSeat, serial, edges);
+            xdg_toplevel_resize(activeCursorWindow->xdgToplevel, pointerSeat, serial, edges);
             // Do not process this event further
             return;
         }
     }
     
-    if(activeWindow) {
-        activeWindow->mouseState.buttons[buttonCode] = pressed;
+    if(activeCursorWindow) {
+        activeCursorWindow->mouseState.buttons[buttonCode] = pressed;
     }
     if(pressed) {
         eventQueue[eventQueueIndex++] = (GroundedEvent){
             .type = GROUNDED_EVENT_TYPE_BUTTON_DOWN,
-            .window = (GroundedWindow*)activeWindow,
+            .window = (GroundedWindow*)activeCursorWindow,
             .buttonDown.button = buttonCode,
-            .buttonDown.mousePositionX = activeWindow->mouseState.x,
-            .buttonDown.mousePositionY = activeWindow->mouseState.y,
+            .buttonDown.mousePositionX = activeCursorWindow->mouseState.x,
+            .buttonDown.mousePositionY = activeCursorWindow->mouseState.y,
         };
     } else {
         eventQueue[eventQueueIndex++] = (GroundedEvent){
             .type = GROUNDED_EVENT_TYPE_BUTTON_UP,
-            .window = (GroundedWindow*)activeWindow,
+            .window = (GroundedWindow*)activeCursorWindow,
             .buttonUp.button = buttonCode,
-            .buttonUp.mousePositionX = activeWindow->mouseState.x,
-            .buttonUp.mousePositionY = activeWindow->mouseState.y,
+            .buttonUp.mousePositionX = activeCursorWindow->mouseState.x,
+            .buttonUp.mousePositionY = activeCursorWindow->mouseState.y,
         };
     }
 }
@@ -707,11 +716,11 @@ static void pointerHandleButton(void *data, struct wl_pointer *wl_pointer, uint3
 static void pointerHandleAxis(void *data, struct wl_pointer *wl_pointer, uint32_t time, uint32_t axis, wl_fixed_t value) {
     bool vertical = axis == 0;
     s32 amount = value;
-    if(activeWindow) {
+    if(activeCursorWindow) {
         if(vertical) {
-            activeWindow->mouseState.scrollDelta = amount / -5000.f;
+            activeCursorWindow->mouseState.scrollDelta = amount / -5000.f;
         } else {
-            activeWindow->mouseState.horizontalScrollDelta = amount / -5000.f;
+            activeCursorWindow->mouseState.horizontalScrollDelta = amount / -5000.f;
         }
     }
 }
@@ -826,11 +835,11 @@ extern const struct wl_data_device_listener dataDeviceListener;
 static void relativePointerHandleMotion(void* userData,
                                         struct zwp_relative_pointer_v1* movedPointer, u32 utime_hi, u32 utime_lo, s32 dx, s32 dy, s32 dx_unaccel, s32 dy_unaccel){
     
-    if(activeWindow) {
+    if(activeCursorWindow) {
         float relativeX = (float)wl_fixed_to_double(dx);
         float relativeY = (float)wl_fixed_to_double(dy);
-        activeWindow->mouseState.relativeX += relativeX;
-        activeWindow->mouseState.relativeY += relativeY;
+        activeCursorWindow->mouseState.relativeX += relativeX;
+        activeCursorWindow->mouseState.relativeY += relativeY;
     }
 }
 
@@ -1653,10 +1662,10 @@ static void sendWaylandKeyRepeat() {
                 modifiers |= GROUNDED_KEY_MODIFIER_SHIFT;
             }
         }
-        ASSERT(activeWindow);
+        ASSERT(activeKeyboardWindow);
         eventQueue[eventQueueIndex++] = (GroundedEvent){
             .type = GROUNDED_EVENT_TYPE_KEY_DOWN,
-            .window = (GroundedWindow*)activeWindow,
+            .window = (GroundedWindow*)activeKeyboardWindow,
             .keyDown.keycode = keycode,
             .keyDown.modifiers = modifiers,
             .keyDown.codepoint = codepoint,
@@ -2486,9 +2495,9 @@ static void updateWaylandDragPosition(GroundedWaylandWindow* window, struct Wayl
     ASSERT(waylandOffer->enterSerial);
     waylandOffer->x = posX;
     waylandOffer->y = posY;
-    if(activeWindow) {
-        activeWindow->mouseState.x = posX;
-        activeWindow->mouseState.y = posY;
+    if(activeCursorWindow) {
+        activeCursorWindow->mouseState.x = posX;
+        activeCursorWindow->mouseState.y = posY;
     }
     u32 newMimeIndex = window->dndCallback(&waylandOffer->payload, (GroundedWindow*)window, posX, posY, waylandOffer->mimeTypeCount, waylandOffer->mimeTypes, &waylandOffer->dropCallback, window->dndUserData);
     // I think spec told us that we do not have to answer if the last accept is still valid. However in practice it seems to be best to always answer with an accept
@@ -2524,7 +2533,7 @@ static void dataDeviceListenerEnter(void* data, struct wl_data_device* dataDevic
     }
 
     if(window && window->dndCallback) {
-        activeWindow = window;
+        activeCursorWindow = window;
 
         u32 mimeCount = 0;
         for(String8Node* node = waylandOffer->availableMimeTypeList.first; node != 0; node = node->next) {
@@ -2552,13 +2561,13 @@ static void dataDeviceListenerLeave(void* data, struct wl_data_device* dataDevic
     ASSERT(dragOffer);
     ASSERT(dragOffer->dnd);
 
-    if(activeWindow && activeWindow == dragOffer->window) {
+    if(activeCursorWindow && activeCursorWindow == dragOffer->window) {
         // Make sure mouse position is outside screen
-        activeWindow->mouseState.x = -1;
-        activeWindow->mouseState.y = -1;
+        activeCursorWindow->mouseState.x = -1;
+        activeCursorWindow->mouseState.y = -1;
 
         // Reset buttons to non-pressed state
-        MEMORY_CLEAR_ARRAY(activeWindow->mouseState.buttons);
+        MEMORY_CLEAR_ARRAY(activeCursorWindow->mouseState.buttons);
         //TODO: Should probably also send button up events for all buttons that were pressed upon leave. Or maybe we send a cursor leave event and let the applicatio handle it
     }
 
@@ -2863,7 +2872,7 @@ GROUNDED_FUNCTION void groundedWaylandBeginDragAndDrop(GroundedWindowDragPayload
 
     printf("Drag serial: %u\n", lastPointerSerial);
     dragDataSource->dataSource = dataSource;
-    wl_data_device_start_drag(dataDevice, dataSource, activeWindow->surface, desc->waylandIcon, lastPointerSerial);
+    wl_data_device_start_drag(dataDevice, dataSource, activeCursorWindow->surface, desc->waylandIcon, lastPointerSerial);
 
     arenaEndTemp(temp);
 }

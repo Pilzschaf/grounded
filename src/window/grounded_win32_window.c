@@ -185,6 +185,8 @@ ULONG STDMETHODCALLTYPE Release(MyDropTarget* This) {
     return(This->referenceCount);
 }
 
+// Win32 DND image with IDragSourceHelper
+
 /*
 Formats:
 https://learn.microsoft.com/en-us/windows/win32/dataxchg/standard-clipboard-formats
