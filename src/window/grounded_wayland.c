@@ -450,23 +450,25 @@ static u32 translateInverseWaylandKeycode(u32 keycode) {
 static void keyboardHandleKey(void *data, struct wl_keyboard *keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state) {
     u8 keycode = translateWaylandKeycode(key);
     struct itimerspec timer = {0};
+    u32 modifiers = 0;
+    u32 codepoint = 0;
+
+    if(xkbContext && xkbState) {
+        // Wayland keycodes are offset by 8
+        xkb_keysym_t keysym = xkb_state_key_get_one_sym(xkbState, key + 8);
+        codepoint = xkb_keysym_to_utf32(keysym);
+        modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_SHIFT, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_SHIFT : 0;
+        modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_CTRL, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_CONTROL : 0;
+        modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_ALT, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_ALT : 0;
+        modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_LOGO, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_WINDOWS : 0;
+    } else {
+        if(waylandKeyState.keys[GROUNDED_KEY_LSHIFT] || waylandKeyState.keys[GROUNDED_KEY_RSHIFT]) {
+            modifiers |= GROUNDED_KEY_MODIFIER_SHIFT;
+        }
+    }
+
     if(state == WL_KEYBOARD_KEY_STATE_PRESSED) {
         waylandKeyState.keys[keycode] = true;
-        u32 modifiers = 0;
-        u32 codepoint = 0;
-        if(xkbContext && xkbState) {
-            // Wayland keycodes are offset by 8
-            xkb_keysym_t keysym = xkb_state_key_get_one_sym(xkbState, key + 8);
-            codepoint = xkb_keysym_to_utf32(keysym);
-            modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_SHIFT, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_SHIFT : 0;
-            modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_CTRL, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_CONTROL : 0;
-            modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_ALT, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_ALT : 0;
-            modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_LOGO, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_WINDOWS : 0;
-        } else {
-            if(waylandKeyState.keys[GROUNDED_KEY_LSHIFT] || waylandKeyState.keys[GROUNDED_KEY_RSHIFT]) {
-                modifiers |= GROUNDED_KEY_MODIFIER_SHIFT;
-            }
-        }
         ASSERT(activeKeyboardWindow);
         eventQueue[eventQueueIndex++] = (GroundedEvent){
             .type = GROUNDED_EVENT_TYPE_KEY_DOWN,
@@ -493,6 +495,8 @@ static void keyboardHandleKey(void *data, struct wl_keyboard *keyboard, uint32_t
         eventQueue[eventQueueIndex++] = (GroundedEvent){
             .type = GROUNDED_EVENT_TYPE_KEY_UP,
             .keyUp.keycode = keycode,
+            .keyUp.modifiers = modifiers,
+            .keyUp.codepoint = codepoint,
         };
     }
 

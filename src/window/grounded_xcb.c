@@ -1570,6 +1570,15 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             xcbKeyboardState.keyUpTransitions[keycode]++;
             result.type = GROUNDED_EVENT_TYPE_KEY_UP;
             result.keyUp.keycode = keycode;
+            result.keyUp.modifiers = 0;
+            result.keyUp.modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_SHIFT, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_SHIFT : 0;
+            result.keyUp.modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_CTRL, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_CONTROL : 0;
+            result.keyUp.modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_ALT, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_ALT : 0;
+            result.keyUp.modifiers |= (xkb_state_mod_name_is_active(xkbState, XKB_MOD_NAME_LOGO, XKB_STATE_MODS_EFFECTIVE) == 1) ? GROUNDED_KEY_MODIFIER_WINDOWS : 0;
+            // Get the unicode codepoint for this key
+            xkb_keysym_t keysym = xkb_state_key_get_one_sym(xkbState, keyReleaseEvent->detail);
+            u32 codepoint = xkb_keysym_to_utf32(keysym);
+            result.keyUp.codepoint = codepoint;
         } break;
         case XCB_NO_EXPOSURE:{
             // We ignore for now
