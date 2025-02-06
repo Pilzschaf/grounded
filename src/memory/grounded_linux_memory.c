@@ -3,7 +3,6 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-#include <stdio.h> // For snprintf
 #include <stdlib.h> // For strtoul, strtof
 #include <ctype.h> // For isspace
 
