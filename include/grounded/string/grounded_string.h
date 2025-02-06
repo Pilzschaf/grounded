@@ -205,4 +205,7 @@ GROUNDED_FUNCTION_INLINE u64 str8ToU64(String8 str) {
     return result;
 }
 
+GROUNDED_FUNCTION void groundedPrintString(String8 str);
+GROUNDED_FUNCTION void groundedPrintStringf(const char* str, ...);
+
 #endif // GROUNDED_STRING_H

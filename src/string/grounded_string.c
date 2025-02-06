@@ -796,3 +796,24 @@ GROUNDED_FUNCTION String32 str32FromStr16(struct MemoryArena* arena, String16 st
     String32 result = {memory, stringCount};
     return result;
 }
+
+#ifdef _WIN32
+#else
+#include <unistd.h>
+GROUNDED_FUNCTION void groundedPrintString(String8 str) {
+    write(1, str.base, str.size);
+}
+#endif
+
+GROUNDED_FUNCTION void groundedPrintStringf(const char* str, ...) {
+    va_list args;
+    va_start(args, str);
+    MemoryArena* scratch = threadContextGetScratch(0);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
+
+    String8 result = str8FromFormatVaList(scratch, str, args);
+    groundedPrintString(result);
+    
+    arenaEndTemp(temp);
+    va_end(args);
+}
