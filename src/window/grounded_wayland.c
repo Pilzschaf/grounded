@@ -740,13 +740,13 @@ static const struct wl_pointer_listener pointerListener = {
 static void lockedPointerHandleLocked(void* userData,
                                       struct zwp_confined_pointer_v1* lockedPointer)
 {
-    GROUNDED_LOG_INFOF("Lock enabled\n");
+    GROUNDED_LOG_INFO("Lock enabled\n");
 }
 
 static void lockedPointerHandleUnlocked(void* userData,
                                         struct zwp_confined_pointer_v1* lockedPointer)
 {
-    GROUNDED_LOG_INFOF("Lock disabled\n");
+    GROUNDED_LOG_INFO("Lock disabled\n");
 }
 
 static const struct zwp_confined_pointer_v1_listener confinedPointerListener =
@@ -1648,7 +1648,7 @@ static u32 waylandGetWindowHeight(GroundedWaylandWindow* window) {
 }
 
 static void sendWaylandKeyRepeat() {
-    printf("Sending key repeat\n");
+    GROUNDED_LOG_INFO("Sending key repeat\n");
     if(keyRepeatKey) {
         u8 keycode = translateWaylandKeycode(keyRepeatKey);
         u32 modifiers = 0;
@@ -1729,7 +1729,7 @@ static bool waylandPoll(u32 maxWaitingTimeInMs) {
         u64 repeats = 0;
         if (read(keyRepeatTimer, &repeats, sizeof(repeats)) == 8) {
             if(repeats >= 5) {
-                printf("Somehow we got very many key repeat events. Probably some kind of delay so we ignore them\n");
+                GROUNDED_LOG_INFO("Somehow we got very many key repeat events. Probably some kind of delay so we ignore them\n");
                 repeats = 0;
             }
             for(u64 i = 0; i < repeats; ++i) {
@@ -1761,7 +1761,7 @@ static GroundedEvent* waylandPollEvents(u32* eventCount) {
             u64 repeats;
             if (read(keyRepeatTimer, &repeats, sizeof(repeats)) == 8) {
                 if(repeats >= 5) {
-                    printf("Somehow we got very many key repeat events. Probably some kind of hickup so we ignore them\n");
+                    GROUNDED_LOG_INFO("Somehow we got very many key repeat events. Probably some kind of hickup so we ignore them\n");
                     repeats = 0;
                 }
                 for(u64 i = 0; i < repeats; ++i) {
@@ -1951,7 +1951,7 @@ static void resizeWaylandFramebuffer(GroundedWaylandWindow* window) {
 
     // Assumes 32bit per pixel for now
     u32 size = newWidth * newHeight * 4;
-    printf("Resizing framebuffer to %ux%u", newWidth, newHeight);
+    GROUNDED_LOG_INFOF("Resizing framebuffer to %ux%u", newWidth, newHeight);
     if(window->framebufferPointers[0]) {
         ASSERT(window->waylandBuffers[0] && window->waylandBuffers[1] && window->framebufferPointers[1]);
         // Detach shm
@@ -2701,7 +2701,7 @@ static void dataSourceHandleTarget(void* data, struct wl_data_source* source, co
         if(mimeType) {
             GROUNDED_LOG_INFOF("Empty mime type: %s\n", mimeType);
         }
-		GROUNDED_LOG_INFOF("Destination would reject if dropped\n");
+		GROUNDED_LOG_INFO("Destination would reject if dropped\n");
         setCursorOverwrite(GROUNDED_MOUSE_CURSOR_DND_NO_DROP);
 	}
 }
@@ -2789,15 +2789,15 @@ static void dataSourceHandleAction(void *data, struct wl_data_source *source, u3
     }
 	switch (dnd_action) {
 	case WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE:
-		GROUNDED_LOG_INFOF("Destination would perform a move action if dropped\n");
+		GROUNDED_LOG_INFO("Destination would perform a move action if dropped\n");
         setCursorOverwrite(GROUNDED_MOUSE_CURSOR_GRABBING);
 		break;
 	case WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY:
-		GROUNDED_LOG_INFOF("Destination would perform a copy action if dropped\n");
+		GROUNDED_LOG_INFO("Destination would perform a copy action if dropped\n");
         setCursorOverwrite(GROUNDED_MOUSE_CURSOR_GRABBING);
 		break;
 	case WL_DATA_DEVICE_MANAGER_DND_ACTION_NONE:
-		GROUNDED_LOG_INFOF("Destination would reject the drag if dropped\n");
+		GROUNDED_LOG_INFO("Destination would reject the drag if dropped\n");
         setCursorOverwrite(GROUNDED_MOUSE_CURSOR_DND_NO_DROP);
 		break;
 	}

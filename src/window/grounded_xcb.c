@@ -1313,7 +1313,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                     result.type = GROUNDED_EVENT_TYPE_CLOSE_REQUEST;
                     result.window = (GroundedWindow*)window;
                 } else if(clientMessageEvent->type == xcbAtoms.xdndEnterAtom) {
-                    GROUNDED_LOG_INFOF("DND Enter\n");
+                    GROUNDED_LOG_INFO("DND Enter\n");
                     if(window->dndCallback) {
                         // We override pointer inside as we want to receive mouse position during drag
                         window->pointerInside = true;
@@ -1351,25 +1351,25 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                         }
                     }
                 } else if(clientMessageEvent->type == xcbAtoms.xdndPositionAtom) {
-                    GROUNDED_LOG_INFOF("DND Move\n");
+                    GROUNDED_LOG_INFO("DND Move\n");
                     xcb_window_t source = clientMessageEvent->data.data32[0];
                     s32 x = clientMessageEvent->data.data32[2] >> 16;
                     s32 y = clientMessageEvent->data.data32[2] & 0xFFFF;
                     xcbHandleDndMove(window, source, x, y);
                 } else if(clientMessageEvent->type == xcbAtoms.xdndLeaveAtom) {
-                    GROUNDED_LOG_INFOF("DND Leave\n");
+                    GROUNDED_LOG_INFO("DND Leave\n");
                     xcbHandleLeave(window);
                 } else if(clientMessageEvent->type == xcbAtoms.xdndDropAtom) {
-                    GROUNDED_LOG_INFOF("DND Drop\n");
+                    GROUNDED_LOG_INFO("DND Drop\n");
                     xcb_window_t source = clientMessageEvent->data.data32[0];
                     xcb_timestamp_t time = clientMessageEvent->data.data32[2];
                     xcbHandleDrop(window, source, time);
                 } else if(clientMessageEvent->type == xcbAtoms.xdndStatusAtom) {
-                    GROUNDED_LOG_INFOF("DND Status\n");
+                    GROUNDED_LOG_INFO("DND Status\n");
                     bool dropPossible = clientMessageEvent->data.data32[1];
                     xcbHandleStatus(dropPossible);
                 } else if(clientMessageEvent->type == xcbAtoms.xdndFinishedAtom) {
-                    GROUNDED_LOG_INFOF("DND Finished\n");
+                    GROUNDED_LOG_INFO("DND Finished\n");
                     xcbHandleFinished();
                 }
             } else {
@@ -1524,7 +1524,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                     }
                     xcb_flush(xcbConnection);
 
-                    GROUNDED_LOG_INFOF("Stopping drag\n");
+                    GROUNDED_LOG_INFO("Stopping drag\n");
                     xdndSourceData.dragActive = false;
                 }
             } else if(mouseButtonReleaseEvent->detail == 2) {
@@ -1625,7 +1625,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                     }
                     xdndSourceData.target = hoveredWindow;
                 } else {
-                    GROUNDED_LOG_INFOF("Nothing hovered\n");
+                    GROUNDED_LOG_INFO("Nothing hovered\n");
                     if(xdndSourceData.target) {
                         // Send leave event
                         xcbSendDndLeave(window->window, hoveredWindow);
@@ -1793,7 +1793,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             }
         } break;
         case XCB_SELECTION_NOTIFY:{
-            GROUNDED_LOG_INFOF("Selection notify\n");
+            GROUNDED_LOG_INFO("Selection notify\n");
             // Notifies us that a seleciton is now available to us. Probably something we have requested before. For example a drag payload
             
         } break;
@@ -1808,7 +1808,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
         } break;
         case XCB_GE_GENERIC:{
             // Some custom event we are probably not interested in
-            GROUNDED_LOG_WARNINGF("Unknown generic event\n");
+            GROUNDED_LOG_WARNING("Unknown generic event\n");
             //ASSERT(false);
         } break;
         default:{
@@ -2198,7 +2198,7 @@ static xcb_window_t getXdndAwareTarget(int rootX, int rootY) {
             // We have hit nothing or our drag payload image
             target = getXdndAwareTargetQueryTree(rootX, rootY, xcbScreen->root, 8);
             if(target) {
-                GROUNDED_LOG_INFOF("Found target by query tree search\n");
+                GROUNDED_LOG_INFO("Found target by query tree search\n");
             }
         }
     }
@@ -2396,7 +2396,7 @@ static void groundedXcbBeginDragAndDrop(GroundedWindowDragPayloadDescription* de
 
     xcbSetOverwriteCursor(xcbGetCursorOfType(GROUNDED_MOUSE_CURSOR_GRABBING));
 
-    GROUNDED_LOG_INFOF("Starting drag in xcb\n");
+    GROUNDED_LOG_INFO("Starting drag in xcb\n");
     xdndSourceData.dragActive = true;
 }
 

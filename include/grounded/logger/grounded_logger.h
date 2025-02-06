@@ -18,7 +18,7 @@ typedef GROUNDED_LOG_FUNCTION(GroundedLogFunction);
 
 GROUNDED_FUNCTION GroundedLogFunction* threadContextGetLogFunction();
 #define GROUNDED_LOG(message, level)  (threadContextGetLogFunction()(message, level, STR8_LITERAL(__FILE__), __LINE__))
-#define GROUNDED_LOGF(message, level, ...)  (logFunctionf()(level, STR8_LITERAL(__FILE__), __LINE__, message, __VA_ARGS__))
+#define GROUNDED_LOGF(message, level, ...)  logFunctionf(level, STR8_LITERAL(__FILE__), __LINE__, message, __VA_ARGS__)
 #define GROUNDED_LOG_VERBOSE(message) GROUNDED_LOG(message, GROUNDED_LOG_LEVEL_VERBOSE)
 #define GROUNDED_LOG_VERBOSEF(message, ...) GROUNDED_LOG(message, GROUNDED_LOG_LEVEL_VERBOSE, __VA_ARGS__)
 #define GROUNDED_LOG_DEBUG(message) GROUNDED_LOG(message, GROUNDED_LOG_LEVEL_DEBUG)
