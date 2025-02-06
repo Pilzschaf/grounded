@@ -137,7 +137,7 @@ GROUNDED_FUNCTION void* debugAllocateLog(MemoryArena* arena, u64 size, u64 align
     entry->next = sentinel->next;
     sentinel->next = entry;
 
-    printf("Allocate: at %.*s:%lu\t %lu bytes\n", (int)filename.size, filename.base, line, size);
+    GROUNDED_LOG_INFOF("Allocate: at %.*s:%lu\t %lu bytes\n", (int)filename.size, filename.base, line, size);
 
     return base;
 }
@@ -153,7 +153,7 @@ GROUNDED_FUNCTION void debugDeallocateLog(MemoryArena* arena, u8* newHead) {
         if(newHead == entry->base) {
             // We exaclty release this allocation
             sentinel->next = entry->next;
-            printf("Free allocation: at %.*s:%lu\t%lu bytes\n", (int)entry->filename.size, entry->filename.base, entry->line, entry->size);
+            GROUNDED_LOG_INFOF("Free allocation: at %.*s:%lu\t%lu bytes\n", (int)entry->filename.size, entry->filename.base, entry->line, entry->size);
 
             // Add entry to free list
             entry->next = freeAllocationLogSentinel.next;
@@ -163,7 +163,7 @@ GROUNDED_FUNCTION void debugDeallocateLog(MemoryArena* arena, u8* newHead) {
             // We set a head that is inside this allocation block. This effectively shrinks the size of this allocation
             if(entry->size != newHead - entry->base) {
                 entry->size = newHead - entry->base;
-                printf("Resize allocation: at %.*s:%lu\tto %lu bytes\n", (int)entry->filename.size, entry->filename.base, entry->line, entry->size);
+                GROUNDED_LOG_INFOF("Resize allocation: at %.*s:%lu\tto %lu bytes\n", (int)entry->filename.size, entry->filename.base, entry->line, entry->size);
             }
             break;
         } else {
@@ -173,7 +173,7 @@ GROUNDED_FUNCTION void debugDeallocateLog(MemoryArena* arena, u8* newHead) {
             entry = entry->next;
 
             // Add entryToRemove to free list
-            printf("Free allocation: at %.*s:%lu\t %" PRIu64 " bytes\n", (int)entryToRemove->filename.size, entryToRemove->filename.base, entryToRemove->line, entryToRemove->size);
+            GROUNDED_LOG_INFOF("Free allocation: at %.*s:%lu\t %" PRIu64 " bytes\n", (int)entryToRemove->filename.size, entryToRemove->filename.base, entryToRemove->line, entryToRemove->size);
             entryToRemove->next = freeAllocationLogSentinel.next;
             freeAllocationLogSentinel.next = entryToRemove;
         }

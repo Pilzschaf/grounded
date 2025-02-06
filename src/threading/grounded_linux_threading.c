@@ -39,6 +39,24 @@ GROUNDED_FUNCTION void threadContextClear() {
     threadContext = (GroundedThreadContext){0};
 }
 
+// Predeclare str8FromFormatVaList from grounded_string so we do not have to include stdarg.h in our headers
+String8 str8FromFormatVaList(struct MemoryArena* arena, const char* format, va_list args);
+
+//////////
+// Logging
+GROUNDED_FUNCTION void logFunctionf(GroundedLogLevel level, String8 filename, u64 line, const char* fmt, ...) {
+    MemoryArena* scratch = threadContextGetScratch(0);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
+    
+    va_list args;
+    va_start(args, fmt);
+    String8 str = str8FromFormatVaList(scratch, fmt, args);
+    threadContextGetLogFunction()((const char*)str.base, level, filename, line);
+    va_end(args);
+
+    arenaEndTemp(temp);
+}
+
 ////////
 // Error
 GROUNDED_FUNCTION void groundedPushError(String8 str, String8 filename, u64 line) {
@@ -51,8 +69,6 @@ GROUNDED_FUNCTION void groundedPushError(String8 str, String8 filename, u64 line
     threadContext.lastError.text = str8Copy(&threadContext.errorArena, str);
 }
 
-// Predeclare str8FromFormatVaList from grounded_string so we do not have to include stdarg.h in our headers
-String8 str8FromFormatVaList(struct MemoryArena* arena, const char* format, va_list args);
 GROUNDED_FUNCTION void groundedPushErrorf(String8 filename, u64 line, const char* fmt, ...) {
     if(!str8IsEmpty(threadContext.lastError.text)) {
         // We already have an error so print it!

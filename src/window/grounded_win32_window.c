@@ -90,7 +90,7 @@ static u8 translateWin32Keycode(WPARAM wParam) {
         result = GROUNDED_KEY_DOWN;
         break;
     default:
-        printf("Unknown keycode: %i\n", (int)wParam);
+        GROUNDED_LOG_WARNINGF("Unknown keycode: %i\n", (int)wParam);
         break;
     }
     return result;
@@ -612,7 +612,7 @@ GROUNDED_FUNCTION void groundedWindowFetchMouseState(GroundedWindow* opaqueWindo
     }
     mouseState->x = p.x;
     mouseState->y = p.y;
-    //printf("Mouse location: %i,%i\n", p.x, p.y);
+    //GROUNDED_LOG_INFOF("Mouse location: %i,%i\n", p.x, p.y);
 
     // Set mouse button state
     memcpy(mouseState->buttons, win32MouseState.buttons, sizeof(win32MouseState.buttons));
@@ -628,7 +628,7 @@ GROUNDED_FUNCTION void groundedWindowFetchMouseState(GroundedWindow* opaqueWindo
 
     mouseState->deltaX = mouseState->x - mouseState->lastX;
     mouseState->deltaY = mouseState->y - mouseState->lastY;
-    //printf("Mouse delta: %i,%i\n", mouseState->deltaX, mouseState->deltaY);
+    //GROUNDED_LOG_INFOF("Mouse delta: %i,%i\n", mouseState->deltaX, mouseState->deltaY);
 }
 
 GROUNDED_FUNCTION void groundedWindowFetchKeyboardState(GroundedKeyboardState* keyState) {
@@ -1123,7 +1123,7 @@ VkSurfaceKHR groundedWindowGetVulkanSurface(GroundedWindow* w, VkInstance instan
     }
 
     if(error) {
-        printf("Error creating vulkan surface: %s\n", error);
+        GROUNDED_LOG_ERRORF("Error creating vulkan surface: %s\n", error);
     }
     
     return surface;

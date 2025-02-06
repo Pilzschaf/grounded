@@ -633,7 +633,7 @@ GROUNDED_FUNCTION GroundedOpenGLContext* groundedCreateOpenGLContext(MemoryArena
             #include "types/grounded_egl_functions.h"
             #undef X
             if(firstMissingFunctionName) {
-                printf("Could not load egl function: %s\n", firstMissingFunctionName);
+                GROUNDED_LOG_WARNINGF("Could not load egl function: %s\n", firstMissingFunctionName);
                 const char* error = "Could not load all egl functions. Your egl version is incompatible";
                 GROUNDED_LOG_ERROR(error);
                 dlclose(eglLibrary);

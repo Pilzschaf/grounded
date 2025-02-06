@@ -480,11 +480,11 @@ static void keyboard_handle_key(void *data, struct wl_keyboard *keyboard, uint32
             .keyUp.keycode = keycode,
         };
     }
-    //fprintf(stderr, "Key is %d state is %d\n", key, state);
+    //GROUNDED_LOG_INFOF("Key is %d state is %d\n", key, state);
 }
 
 static void keyboard_handle_modifiers(void *data, struct wl_keyboard *keyboard, uint32_t serial, uint32_t mods_depressed, uint32_t mods_latched, uint32_t mods_locked, uint32_t group) {
-    //fprintf(stderr, "Modifiers depressed %d, latched %d, locked %d, group %d\n",
+    //GROUNDED_LOG_INFOF("Modifiers depressed %d, latched %d, locked %d, group %d\n",
     //        mods_depressed, mods_latched, mods_locked, group);
 }
 
@@ -509,13 +509,13 @@ static void pointerHandleEnter(void *data, struct wl_pointer *wl_pointer, uint32
     } else {
         waylandSetCursorType(waylandCurrentCursorType);
     }
-    //printf("Enter with serial %u\n", serial);
+    //GROUNDED_LOG_INFOF("Enter with serial %u\n", serial);
 
     pointerEnterSerial = serial;
 }
 
 static void pointerHandleLeave(void *data, struct wl_pointer *wl_pointer, uint32_t serial, struct wl_surface *surface) {
-    //printf("Pointer Leave\n");
+    //GROUNDED_LOG_INFOF("Pointer Leave\n");
     if(activeWindow) {
         // Make sure mouse position is outside screen
         activeWindow->mouseState.x = -1;
@@ -618,7 +618,7 @@ static void pointerHandleButton(void *data, struct wl_pointer *wl_pointer, uint3
         buttonCode = GROUNDED_MOUSE_BUTTON_MIDDLE;
     }
     lastPointerSerial = serial;
-    //printf("Click serial: %u\n", lastPointerSerial);
+    //GROUNDED_LOG_INFOF("Click serial: %u\n", lastPointerSerial);
     if(pressed && activeWindow && activeWindow->customTitlebarCallback) {
         GroundedWindowCustomTitlebarHit hit = activeWindow->customTitlebarCallback((GroundedWindow*)activeWindow, activeWindow->mouseState.x, activeWindow->mouseState.y);
         if(hit == GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_BAR) {
@@ -698,13 +698,13 @@ static const struct wl_pointer_listener pointerListener = {
 static void lockedPointerHandleLocked(void* userData,
                                       struct zwp_confined_pointer_v1* lockedPointer)
 {
-    printf("Lock enabled\n");
+    GROUNDED_LOG_INFOF("Lock enabled\n");
 }
 
 static void lockedPointerHandleUnlocked(void* userData,
                                         struct zwp_confined_pointer_v1* lockedPointer)
 {
-    printf("Lock disabled\n");
+    GROUNDED_LOG_INFOF("Lock disabled\n");
 }
 
 static const struct zwp_confined_pointer_v1_listener confinedPointerListener =
@@ -1090,7 +1090,7 @@ static const struct wl_registry_listener registryListener = {
 static void xdgToplevelHandleConfigure(void* data,  struct xdg_toplevel* toplevel,  int32_t width, int32_t height, struct wl_array* states) {
     GroundedWaylandWindow* window = (GroundedWaylandWindow*)data;
 
-    //printf("Toplevel Configure\n");
+    //GROUNDED_LOG_INFOF("Toplevel Configure\n");
 
     // States array tells us in which state the new window is
     u32* state;
@@ -1145,7 +1145,7 @@ static const struct xdg_toplevel_listener xdgToplevelListener = {
 static void xdgSurfaceHandleConfigure(void* data, struct xdg_surface* surface, uint32_t serial) {
     xdg_surface_ack_configure(surface, serial);
 
-    //printf("Xdg Configure\n");
+    //GROUNDED_LOG_INFOF("Xdg Configure\n");
 
     GroundedWaylandWindow* window = (GroundedWaylandWindow*) data;
     
@@ -1294,7 +1294,7 @@ static void shutdownWayland() {
     }
 
     if(dragOffer) {
-        printf("Leftover drag offer: %p, %p\n", dragOffer, dragOffer->offer);
+        GROUNDED_LOG_INFOF("Leftover drag offer: %p, %p\n", dragOffer, dragOffer->offer);
         wl_data_offer_destroy(dragOffer->offer);
         arenaRelease(&dragOffer->arena);
         dragOffer = 0;
@@ -1758,7 +1758,7 @@ GROUNDED_FUNCTION GroundedOpenGLContext* waylandCreateOpenGLContext(MemoryArena*
             #include "types/grounded_wayland_egl_functions.h"
             #undef X
             if(firstMissingFunctionName) {
-                printf("Could not load wayland function: %s\n", firstMissingFunctionName);
+                GROUNDED_LOG_WARNINGF("Could not load wayland function: %s\n", firstMissingFunctionName);
                 const char* error = "Could not load all wayland-egl functions. Your wayland-egl version is incompatible";
                 GROUNDED_LOG_ERROR(error);
                 dlclose(waylandEglLibrary);
@@ -2002,7 +2002,7 @@ static void dataOfferHandleOffer(void* userData, struct wl_data_offer* offer, co
 
     // I do not know if a copy is really necessary but it defenitely feels safer
     str8ListPushCopyAndNullTerminate(&waylandOffer->arena, &waylandOffer->availableMimeTypeList, str8FromCstr(mimeType));
-    //printf("Mimme: %s offer %p\n", waylandOffer->availableMimeTypeList.last->string.base, waylandOffer);
+    //GROUNDED_LOG_INFOF("Mimme: %s offer %p\n", waylandOffer->availableMimeTypeList.last->string.base, waylandOffer);
     //wl_data_offer_accept(waylandOffer->offer, waylandOffer->enterSerial, mimeType);
     //str8ListPush(&waylandOffer->arena, &waylandOffer->availableMimeTypeList, str8FromCstr(mimeType));
 }
@@ -2017,7 +2017,7 @@ static void dataOfferHandleSourceActions(void* userData, struct wl_data_offer *w
     struct WaylandDataOffer* waylandOffer = (struct WaylandDataOffer*)userData;
     waylandOffer->allowedActions = 0;
 
-    //printf("Data offer source actions\n");
+    //GROUNDED_LOG_INFOF("Data offer source actions\n");
     waylandOffer->allowedActions = sourceActions;
     // We do not have to do anything further upon receiving this event
 
@@ -2051,7 +2051,7 @@ static void dataOfferHandleAction(void* userData, struct wl_data_offer* dataOffe
         wl_data_offer_set_actions(dataOffer, waylandOffer->allowedActions & (~WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK), preferredAction);
     }
 
-    printf("Selected action: %i\n", waylandOffer->selectedAction);
+    GROUNDED_LOG_INFOF("Selected action: %i\n", waylandOffer->selectedAction);
 }
 
 static const struct wl_data_offer_listener dataOfferListener = {
@@ -2070,7 +2070,7 @@ static void dataDeviceListenerOffer(void* data, struct wl_data_device* dataDevic
     waylandOffer->offer = offer;
     waylandOffer->lastAcceptedMimeIndex = 0xFFFFFFFF;
 
-    //printf("New offer %p\n", waylandOffer);
+    //GROUNDED_LOG_INFOF("New offer %p\n", waylandOffer);
 
     // Add listener which tells us, what data type the offer contains
     wl_data_offer_add_listener(offer, &dataOfferListener, waylandOffer);
@@ -2245,7 +2245,7 @@ static void dataDeviceListenerSelection(void* data, struct wl_data_device* dataD
         
         //TODO: Read in the data
         
-        //printf("Data offer %p is selection and gets destroyed\n", waylandOffer);
+        //GROUNDED_LOG_INFOF("Data offer %p is selection and gets destroyed\n", waylandOffer);
         wl_data_offer_destroy(waylandOffer->offer);
         arenaRelease(&waylandOffer->arena);
     }
@@ -2277,13 +2277,13 @@ static void dataSourceHandleTarget(void* data, struct wl_data_source* source, co
     GROUNDED_WAYLAND_LOG_HANDLER("dataSource.target");
 
 	if (mimeType && *mimeType) {
-		printf("Destination would accept MIME type if dropped: %s\n", mimeType);
+		GROUNDED_LOG_INFOF("Destination would accept MIME type if dropped: %s\n", mimeType);
         setCursorOverwrite(GROUNDED_MOUSE_CURSOR_GRABBING);
 	} else {
         if(mimeType) {
-            printf("Empty mime type: %s\n", mimeType);
+            GROUNDED_LOG_INFOF("Empty mime type: %s\n", mimeType);
         }
-		printf("Destination would reject if dropped\n");
+		GROUNDED_LOG_INFOF("Destination would reject if dropped\n");
         setCursorOverwrite(GROUNDED_MOUSE_CURSOR_DND_NO_DROP);
 	}
 }
@@ -2294,7 +2294,7 @@ static void dataSourceHandleSend(void *data, struct wl_data_source *wl_data_sour
     struct WaylandDataSource* waylandDataSource = (struct WaylandDataSource*) data;
     ASSERT(waylandDataSource);
     //ASSERT(waylandDataSource->sendCallback);
-    //printf("Target requests data\n");
+    //GROUNDED_LOG_INFOF("Target requests data\n");
     
     // Get index of mimeType
     String8 mimeType = str8FromCstr(_mimeType);
@@ -2371,15 +2371,15 @@ static void dataSourceHandleAction(void *data, struct wl_data_source *source, u3
     }
 	switch (dnd_action) {
 	case WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE:
-		printf("Destination would perform a move action if dropped\n");
+		GROUNDED_LOG_INFOF("Destination would perform a move action if dropped\n");
         setCursorOverwrite(GROUNDED_MOUSE_CURSOR_GRABBING);
 		break;
 	case WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY:
-		printf("Destination would perform a copy action if dropped\n");
+		GROUNDED_LOG_INFOF("Destination would perform a copy action if dropped\n");
         setCursorOverwrite(GROUNDED_MOUSE_CURSOR_GRABBING);
 		break;
 	case WL_DATA_DEVICE_MANAGER_DND_ACTION_NONE:
-		printf("Destination would reject the drag if dropped\n");
+		GROUNDED_LOG_INFOF("Destination would reject the drag if dropped\n");
         setCursorOverwrite(GROUNDED_MOUSE_CURSOR_DND_NO_DROP);
 		break;
 	}
@@ -2456,7 +2456,7 @@ GROUNDED_FUNCTION void groundedWaylandBeginDragAndDrop(GroundedWindowDragPayload
 
     setCursorOverwrite(GROUNDED_MOUSE_CURSOR_GRABBING);
 
-    printf("Drag serial: %u\n", lastPointerSerial);
+    GROUNDED_LOG_INFOF("Drag serial: %u\n", lastPointerSerial);
     dragDataSource->dataSource = dataSource;
     wl_data_device_start_drag(dataDevice, dataSource, activeWindow->surface, desc->waylandIcon, lastPointerSerial);
 
