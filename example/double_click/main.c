@@ -50,9 +50,9 @@ int main() {
 
                 double deltaDown = (counter - lastButtonDownCounter) / 1000000.0;
                 double deltaUp = (counter - lastButtonUpCounter) / 1000000.0;
-                printf("Button down\n");
-                //printf("\t\tdeltaDown: %f\n", deltaDown);
-                //printf("\t\tdeltaUp: %f\n", deltaUp);
+                GROUNDED_LOG_INFOF("Button down\n");
+                //GROUNDED_LOG_INFOF("\t\tdeltaDown: %f\n", deltaDown);
+                //GROUNDED_LOG_INFOF("\t\tdeltaUp: %f\n", deltaUp);
                 lastButtonDownCounter = counter;
             }
             if(events[i].type == GROUNDED_EVENT_TYPE_BUTTON_UP && events[i].buttonUp.button == GROUNDED_MOUSE_BUTTON_LEFT) {
@@ -60,11 +60,11 @@ int main() {
 
                 double deltaDown = (counter - lastButtonDownCounter) / 1000000.0;
                 double deltaUp = (counter - lastButtonUpCounter) / 1000000.0;
-                printf("Button up\n");
-                printf("\t\tdeltaDown: %f\n", deltaDown);
-                printf("\t\tdeltaUp: %f\n", deltaUp);
+                GROUNDED_LOG_INFOF("Button up\n");
+                GROUNDED_LOG_INFOF("\t\tdeltaDown: %f\n", deltaDown);
+                GROUNDED_LOG_INFOF("\t\tdeltaUp: %f\n", deltaUp);
                 if(deltaUp < 250) {
-                    printf("Double click\n");
+                    GROUNDED_LOG_INFOF("Double click\n");
                 }
 
                 lastButtonUpCounter = counter;

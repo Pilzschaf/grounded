@@ -4,7 +4,6 @@
 #include <grounded/memory/grounded_memory.h>
 
 #include <dlfcn.h>
-#include <stdio.h> // Required for printf
 #include <poll.h>
 #include <stdlib.h> // For free (required for releasing memory from xcb)
 #include <sys/shm.h>
@@ -236,7 +235,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event);
 static xcb_cursor_t xcbGetCursorOfType(GroundedMouseCursor cursorType);
 
 static void reportXcbError(const char* message) {
-    printf("Error: %s\n", message);
+    GROUNDED_PUSH_ERRORF("XCB error: %s\n", message);
 }
 
 static GroundedXcbWindow* groundedWindowFromXcb(xcb_window_t window) {
@@ -313,7 +312,7 @@ static void initXcb() {
         #include "types/grounded_xcb_functions.h"
         #undef X
         if(firstMissingFunctionName) {
-            printf("Could not load xcb function: %s\n", firstMissingFunctionName);
+            GROUNDED_LOG_WARNINGF("Could not load xcb function: %s\n", firstMissingFunctionName);
             error = "Could not load all xcb functions. Your xcb version is incompatible";
         }
     }
@@ -350,7 +349,7 @@ static void initXcb() {
             #include "types/grounded_xcb_xkb_functions.h"
             #undef X
             if(firstMissingFunctionName) {
-                printf("Could not load xcb xkb function: %s\n", firstMissingFunctionName);
+                GROUNDED_LOG_WARNINGF("Could not load xcb xkb function: %s\n", firstMissingFunctionName);
                 error = "Could not load all xcb xkb functions";
             } else {
                 xcb_extension_t* xcb_xkb_id = (xcb_extension_t*)dlsym(xcbXkbLibrary, "xcb_xkb_id");
@@ -440,7 +439,7 @@ static void initXcb() {
             #include "types/grounded_xcb_cursor_functions.h"
             #undef X
             if(firstMissingFunctionName) {
-                printf("Could not load xcb cursor function: %s\n", firstMissingFunctionName);
+                GROUNDED_LOG_WARNINGF("Could not load xcb cursor function: %s\n", firstMissingFunctionName);
                 GROUNDED_LOG_WARNING("Could not load all xcb cursor functions. Cursor support might be limited");
             } else {
                 xcb_cursor_context_new(xcbConnection, xcbScreen, &xcbCursorContext);
@@ -456,7 +455,7 @@ static void initXcb() {
             #include "types/grounded_xcb_shm_functions.h"
             #undef X
             if(firstMissingFunctionName) {
-                printf("Could not load xcb shm function: %s\n", firstMissingFunctionName);
+                GROUNDED_LOG_WARNINGF("Could not load xcb shm function: %s\n", firstMissingFunctionName);
                 GROUNDED_LOG_WARNING("Could not load all xcb shm functions");
             } else {
                 xcb_shm_query_version_reply_t* reply;
@@ -479,7 +478,7 @@ static void initXcb() {
             #include "types/grounded_xcb_image_functions.h"
             #undef X
             if(firstMissingFunctionName) {
-                printf("Could not load xcb image function: %s\n", firstMissingFunctionName);
+                GROUNDED_LOG_WARNINGF("Could not load xcb image function: %s\n", firstMissingFunctionName);
                 GROUNDED_LOG_WARNING("Could not load all xcb image functions");
             }
         }
@@ -493,8 +492,7 @@ static void initXcb() {
             #include "types/grounded_xcb_render_functions.h"
             #undef X
             if(firstMissingFunctionName) {
-                printf("Could not load xcb render function: %s\n", firstMissingFunctionName);
-                GROUNDED_LOG_WARNING("Could not load all xcb render functions");
+                GROUNDED_LOG_WARNINGF("Could not load xcb render function: %s\n", firstMissingFunctionName);
             } else {
                 xcb_render_query_pict_formats_cookie_t formats_cookie = xcb_render_query_pict_formats(xcbConnection);
                 xcb_render_query_pict_formats_reply_t* formatsReply = xcb_render_query_pict_formats_reply(xcbConnection,
@@ -899,7 +897,7 @@ static void xcbHandleDrop(GroundedXcbWindow* window, xcb_window_t source, xcb_ti
                             if (propertyReply) {
                                 // Process the data as needed
                                 data = str8Copy(&xdndTargetData.offerArena, str8FromBlock(xcb_get_property_value(propertyReply), xcb_get_property_value_length(propertyReply)));
-                                //printf("Received data: %.*s\n", xcb_get_property_value_length(propertyReply),    (char *)xcb_get_property_value(propertyReply));
+                                //GROUNDED_LOG_INFOF("Received data: %.*s\n", xcb_get_property_value_length(propertyReply),    (char *)xcb_get_property_value(propertyReply));
 
                                 free(propertyReply);
                             }
@@ -1275,7 +1273,7 @@ static u8 translateXcbKeycode(u8 xcbKeycode) {
         //result = GROUNDED_KEY_PAUSE;
         //break;
         default:
-        printf("Unknown keycode: %i\n", (int)xcbKeycode);
+        GROUNDED_LOG_WARNINGF("Unknown keycode: %i\n", (int)xcbKeycode);
         break;
     }
     return result;
@@ -1315,7 +1313,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                     result.type = GROUNDED_EVENT_TYPE_CLOSE_REQUEST;
                     result.window = (GroundedWindow*)window;
                 } else if(clientMessageEvent->type == xcbAtoms.xdndEnterAtom) {
-                    printf("DND Enter\n");
+                    GROUNDED_LOG_INFOF("DND Enter\n");
                     if(window->dndCallback) {
                         // We override pointer inside as we want to receive mouse position during drag
                         window->pointerInside = true;
@@ -1353,25 +1351,25 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                         }
                     }
                 } else if(clientMessageEvent->type == xcbAtoms.xdndPositionAtom) {
-                    printf("DND Move\n");
+                    GROUNDED_LOG_INFOF("DND Move\n");
                     xcb_window_t source = clientMessageEvent->data.data32[0];
                     s32 x = clientMessageEvent->data.data32[2] >> 16;
                     s32 y = clientMessageEvent->data.data32[2] & 0xFFFF;
                     xcbHandleDndMove(window, source, x, y);
                 } else if(clientMessageEvent->type == xcbAtoms.xdndLeaveAtom) {
-                    printf("DND Leave\n");
+                    GROUNDED_LOG_INFOF("DND Leave\n");
                     xcbHandleLeave(window);
                 } else if(clientMessageEvent->type == xcbAtoms.xdndDropAtom) {
-                    printf("DND Drop\n");
+                    GROUNDED_LOG_INFOF("DND Drop\n");
                     xcb_window_t source = clientMessageEvent->data.data32[0];
                     xcb_timestamp_t time = clientMessageEvent->data.data32[2];
                     xcbHandleDrop(window, source, time);
                 } else if(clientMessageEvent->type == xcbAtoms.xdndStatusAtom) {
-                    printf("DND Status\n");
+                    GROUNDED_LOG_INFOF("DND Status\n");
                     bool dropPossible = clientMessageEvent->data.data32[1];
                     xcbHandleStatus(dropPossible);
                 } else if(clientMessageEvent->type == xcbAtoms.xdndFinishedAtom) {
-                    printf("DND Finished\n");
+                    GROUNDED_LOG_INFOF("DND Finished\n");
                     xcbHandleFinished();
                 }
             } else {
@@ -1526,7 +1524,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                     }
                     xcb_flush(xcbConnection);
 
-                    printf("Stopping drag\n");
+                    GROUNDED_LOG_INFOF("Stopping drag\n");
                     xdndSourceData.dragActive = false;
                 }
             } else if(mouseButtonReleaseEvent->detail == 2) {
@@ -1627,7 +1625,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                     }
                     xdndSourceData.target = hoveredWindow;
                 } else {
-                    printf("Nothing hovered\n");
+                    GROUNDED_LOG_INFOF("Nothing hovered\n");
                     if(xdndSourceData.target) {
                         // Send leave event
                         xcbSendDndLeave(window->window, hoveredWindow);
@@ -1727,7 +1725,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
                         if(xdndSourceData.desc->dataCallback) {
                             data = xdndSourceData.desc->dataCallback(&xdndSourceData.desc->arena, mimeType, i, xdndSourceData.userData);
                         }
-                        printf("Requested mime type %s\n", (const char*)mimeType.base);
+                        GROUNDED_LOG_INFOF("Requested mime type %s\n", (const char*)mimeType.base);
                         
                         // Send data
                         xcb_change_property(xcbConnection, XCB_PROP_MODE_REPLACE, selectionRequestEvent->requestor, selectionRequestEvent->property, selectionRequestEvent->target, 8, data.size, data.base);
@@ -1795,7 +1793,7 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
             }
         } break;
         case XCB_SELECTION_NOTIFY:{
-            printf("Selection notify\n");
+            GROUNDED_LOG_INFOF("Selection notify\n");
             // Notifies us that a seleciton is now available to us. Probably something we have requested before. For example a drag payload
             
         } break;
@@ -1804,14 +1802,13 @@ static GroundedEvent xcbTranslateToGroundedEvent(xcb_generic_event_t* event) {
         } break;
         case 0:{
             // response_type 0 means error
-            GROUNDED_LOG_ERROR("Received error from xcb");
             xcb_generic_error_t* error = (xcb_generic_error_t*)event;
-            printf("XCB errorcode: %d sequence:%i\n", error->error_code, error->sequence);
+            GROUNDED_PUSH_ERRORF("XCB errorcode: %d sequence:%i\n", error->error_code, error->sequence);
             ASSERT(false);
         } break;
         case XCB_GE_GENERIC:{
             // Some custom event we are probably not interested in
-            printf("Unknown generic event\n");
+            GROUNDED_LOG_WARNINGF("Unknown generic event\n");
             //ASSERT(false);
         } break;
         default:{
@@ -1855,7 +1852,7 @@ static void xcbFetchMouseState(GroundedXcbWindow* window, MouseState* mouseState
         mouseState->x = -1;
         mouseState->y = -1;
         mouseState->mouseInWindow = false;
-        //printf("Pointer not in window%u\n", window->window);
+        //GROUNDED_LOG_INFOF("Pointer not in window%u\n", window->window);
     }
 
     // Set mouse button state
@@ -2091,7 +2088,7 @@ static xcb_window_t xcbGetHoveredWindow(xcb_window_t startingWindow, int rootX, 
     if(queryTreeReply->response_type) {
         xcb_window_t* children = xcb_query_tree_children(queryTreeReply);
         int childrenCount = xcb_query_tree_children_length(queryTreeReply);
-        printf("children count: %i\n", childrenCount);
+        GROUNDED_LOG_INFOF("children count: %i\n", childrenCount);
         for(int i = childrenCount -1; i >= 0; --i) {
             // Get window attributes
             //xcb_get_window_attributes_cookie_t attributesCookie = xcb_get_window_attributes(xcbConnection, children[i]);
@@ -2201,7 +2198,7 @@ static xcb_window_t getXdndAwareTarget(int rootX, int rootY) {
             // We have hit nothing or our drag payload image
             target = getXdndAwareTargetQueryTree(rootX, rootY, xcbScreen->root, 8);
             if(target) {
-                printf("Found target by query tree search\n");
+                GROUNDED_LOG_INFOF("Found target by query tree search\n");
             }
         }
     }
@@ -2210,7 +2207,7 @@ static xcb_window_t getXdndAwareTarget(int rootX, int rootY) {
 }
 
 static void xcbSendDndEnter(xcb_window_t source, xcb_window_t target) {
-    printf("Sending enter from %u to %u\n", source, target);
+    GROUNDED_LOG_INFOF("Sending enter from %u to %u\n", source, target);
     u32 flags = (5 << 24);
     if(xdndSourceData.mimeTypeCount > 3) {
         flags |= 0x01;
@@ -2231,7 +2228,7 @@ static void xcbSendDndEnter(xcb_window_t source, xcb_window_t target) {
 }
 
 static void xcbSendDndPosition(xcb_window_t source, xcb_window_t target, int x, int y) {
-    printf("Sending position from %u to %u\n", source, target);
+    GROUNDED_LOG_INFOF("Sending position from %u to %u\n", source, target);
     xcb_client_message_event_t positionEvent = {
         .response_type = XCB_CLIENT_MESSAGE,
         .window = target,
@@ -2250,7 +2247,7 @@ static void xcbSendDndStatus(xcb_window_t source, xcb_window_t target) {
     if(accept) {
         //accept |= 2;
     }
-    printf("Sending status from %u to %u with accept=%i\n", source, target, accept);
+    GROUNDED_LOG_INFOF("Sending status from %u to %u with accept=%i\n", source, target, accept);
     xcb_client_message_event_t statusEvent = {
         .response_type = XCB_CLIENT_MESSAGE,
         .window = target,
@@ -2263,7 +2260,7 @@ static void xcbSendDndStatus(xcb_window_t source, xcb_window_t target) {
 }
 
 static void xcbSendDndLeave(xcb_window_t source, xcb_window_t target) {
-    printf("Sending leave from %u to %u\n", source, target);
+    GROUNDED_LOG_INFOF("Sending leave from %u to %u\n", source, target);
     xcb_client_message_event_t leaveEvent = {
         .response_type = XCB_CLIENT_MESSAGE,
         .window = target,
@@ -2276,7 +2273,7 @@ static void xcbSendDndLeave(xcb_window_t source, xcb_window_t target) {
 }
 
 static void xcbSendDndDrop(xcb_window_t source, xcb_window_t target) {
-    printf("Sending drop from %u to %u\n", source, target);
+    GROUNDED_LOG_INFOF("Sending drop from %u to %u\n", source, target);
     xcb_client_message_event_t dropEvent = {
         .response_type = XCB_CLIENT_MESSAGE,
         .window = target,
@@ -2289,7 +2286,7 @@ static void xcbSendDndDrop(xcb_window_t source, xcb_window_t target) {
 }
 
 static void xcbSendFinished(xcb_window_t source, xcb_window_t target) {
-    printf("Sending dnd finished from %u to %u\n", source, target);
+    GROUNDED_LOG_INFOF("Sending dnd finished from %u to %u\n", source, target);
     int accepted = 1; // 1 for accepted
     xcb_atom_t action = 0;
     if(accepted) {
@@ -2303,7 +2300,7 @@ static void xcbSendFinished(xcb_window_t source, xcb_window_t target) {
         .data.data32 = {source, accepted, action},
     };
     xcb_void_cookie_t cookie = xcb_send_event(xcbConnection, 0, target, XCB_EVENT_MASK_NO_EVENT, (const char *)&finishedEvent);
-    printf("Send finished sequence: %u\n", cookie.sequence);
+    GROUNDED_LOG_INFOF("Send finished sequence: %u\n", cookie.sequence);
     xcb_flush(xcbConnection);
 }
 
@@ -2387,7 +2384,7 @@ static void groundedXcbBeginDragAndDrop(GroundedWindowDragPayloadDescription* de
         xcb_void_cookie_t copyCheck = xcb_copy_area_checked(xcbConnection, desc->xcbIcon, xdndSourceData.dragImageWindow, gc, 0, 0, 0, 0, width, height);
         xcb_generic_error_t* error = xcb_request_check(xcbConnection, copyCheck);
         xcb_value_error_t* valueError = (xcb_value_error_t*)error;
-        printf("Copy sequence: %i\n", copyCheck.sequence);
+        GROUNDED_LOG_INFOF("Copy sequence: %i\n", copyCheck.sequence);
 
         xcb_free_gc(xcbConnection, gc);
         xcb_flush(xcbConnection);
@@ -2399,7 +2396,7 @@ static void groundedXcbBeginDragAndDrop(GroundedWindowDragPayloadDescription* de
 
     xcbSetOverwriteCursor(xcbGetCursorOfType(GROUNDED_MOUSE_CURSOR_GRABBING));
 
-    printf("Starting drag in xcb\n");
+    GROUNDED_LOG_INFOF("Starting drag in xcb\n");
     xdndSourceData.dragActive = true;
 }
 
@@ -2457,7 +2454,7 @@ String8 groundedXcbGetClipboardText(MemoryArena* arena) {
                         if (propertyReply) {
                             // Process the data as needed
                             result = str8Copy(&xdndTargetData.offerArena, str8FromBlock(xcb_get_property_value(propertyReply), xcb_get_property_value_length(propertyReply)));
-                            printf("Received data: %.*s\n", xcb_get_property_value_length(propertyReply),    (char *)xcb_get_property_value(propertyReply));
+                            GROUNDED_LOG_INFOF("Received data: %.*s\n", xcb_get_property_value_length(propertyReply),    (char *)xcb_get_property_value(propertyReply));
 
                             free(propertyReply);
                         }
@@ -2608,7 +2605,7 @@ static VkSurfaceKHR xcbGetVulkanSurface(GroundedXcbWindow* window, VkInstance in
     }
 
     if(error) {
-        printf("Error creating vulkan surface: %s\n", error);
+        GROUNDED_LOG_ERRORF("Error creating vulkan surface: %s\n", error);
     }
     
     return surface;

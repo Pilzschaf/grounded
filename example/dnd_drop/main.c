@@ -11,14 +11,14 @@ void (*glClear)(int);
 
 GROUNDED_WINDOW_DND_DROP_CALLBACK(uriListCallback) {
     //TODO: Fix data retrieval in xcb
-    printf("Dropped an text/uri-list\n");
-    printf("Data: %.*s\n", (int)data.size, (const char*)data.base);
+    GROUNDED_LOG_INFOF("Dropped an text/uri-list\n");
+    GROUNDED_LOG_INFOF("Data: %.*s\n", (int)data.size, (const char*)data.base);
 }
 
 GROUNDED_WINDOW_DND_CALLBACK(dndCallback) {
     u32 acceptedIndex = UINT32_MAX;
     for(u32 i = 0; i < mimeTypeCount; ++i) {
-        printf("Mime type[%u]: %s\n", i, (const char*)mimeTypes[i].base);
+        GROUNDED_LOG_INFOF("Mime type[%u]: %s\n", i, (const char*)mimeTypes[i].base);
         if(str8IsEqual(mimeTypes[i], STR8_LITERAL("text/uri-list"))) {
             *onDropCallback = &uriListCallback;
             acceptedIndex = i;

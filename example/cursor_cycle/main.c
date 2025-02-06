@@ -44,7 +44,7 @@ int main() {
                 if(cursorType >= GROUNDED_MOUSE_CURSOR_COUNT) {
                     cursorType = 0;
                 }
-                printf("Switching to cursor %u\n", cursorType);
+                GROUNDED_LOG_INFOF("Switching to cursor %u\n", cursorType);
                 groundedSetCursorType(cursorType);
             }
         }

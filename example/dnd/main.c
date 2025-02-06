@@ -115,7 +115,7 @@ void updateAndRenderWindow(GroundedWindow* window) {
 }
 
 GROUNDED_WINDOW_DND_DROP_CALLBACK(boxDropCallback) {
-    printf("Box drop\n");
+    GROUNDED_LOG_INFOF("Box drop\n");
     for(u32 i = 0; i < ARRAY_COUNT(boxes); ++i) {
         if(boxes[i].color.a < 1.0f) {
             boxes[i].associatedWindow = window;

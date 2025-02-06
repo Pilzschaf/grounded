@@ -422,16 +422,16 @@ GROUNDED_FUNCTION u64 groundedGetCreationTimestamp(String8 filename) {
     HANDLE file = CreateFileA(str8GetCstr(scratch, filename), GENERIC_READ, FILE_SHARE_READ, 0, 0, 0, 0);
 	arenaEndTemp(temp);
 	if (file == INVALID_HANDLE_VALUE) {
-		printf("Filetime of file that does not exist queried\n");
+		GROUNDED_LOG_ERRORF("Filetime of file that does not exist queried\n");
 		return 0;
 	}
 	FILETIME creationTime;
 	if (!GetFileTime(file, &creationTime, 0, 0)) {
-		printf("Error getting file creation timestamp\n");
+		GROUNDED_LOG_ERRORF("Error getting file creation timestamp\n");
 		return 0;
 	}
 	if (!CloseHandle(file)) {
-		printf("Error closing file handle after time query\n");
+		GROUNDED_LOG_ERRORF("Error closing file handle after time query\n");
 	}
 	// Simple cast is not allowed as it can result in alignment issues. See https://docs.microsoft.com/de-de/windows/win32/api/minwinbase/ns-minwinbase-filetime
 	ULARGE_INTEGER result;
@@ -453,7 +453,7 @@ GROUNDED_FUNCTION u64 groundedGetModificationTimestamp(String8 filename) {
 	if (success) {
 		lastWriteTime = data.ftLastWriteTime;
 	} else {
-		printf("Filetime of file that does not exist queried\n");
+		GROUNDED_LOG_INFOF("Filetime of file that does not exist queried\n");
 		return 0;
 	}
 	ULARGE_INTEGER result;
