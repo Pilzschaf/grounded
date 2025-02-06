@@ -2,7 +2,6 @@
 #include <grounded/threading/grounded_threading.h>
 
 #include <windows.h>
-#include <stdio.h>
 
 //TODO: Remove the UTF conversions from here
 inline static const char* UTF16ToUTF8(MemoryArena* arena, const wchar_t* s) {

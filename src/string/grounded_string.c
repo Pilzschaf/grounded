@@ -2,9 +2,14 @@
 #include <grounded/memory/grounded_memory.h>
 
 #include <stdarg.h>
-#include <stdio.h>
 
 #include "../../unicode_mappings.h"
+
+#define STB_SPRINTF_IMPLEMENTATION
+#define STB_SPRINTF_NOUNALIGNED
+#include <grounded/string/stb_sprintf.h>
+#undef STB_SPRINTF_IMPLEMENTATION
+#undef STB_SPRINTF_NOUNALIGNED
 
 GROUNDED_FUNCTION String8 str8Prefix(String8 str, u64 size) {
     ASSERT(size <= str.size);
@@ -243,7 +248,7 @@ String8 str8FromFormatVaList(struct MemoryArena* arena, const char* format, va_l
     u64 bufferSize = 1024;
     ArenaMarker firstBufferMarker = arenaCreateMarker(arena);
     u8* buffer = ARENA_PUSH_ARRAY(arena, bufferSize, u8);
-    u64 actualSize = vsnprintf((char*)buffer, bufferSize, format, args);
+    u64 actualSize = stbsp_vsnprintf((char*)buffer, bufferSize, format, args);
     
     String8 result = {0};
     if (actualSize < bufferSize){
@@ -254,7 +259,7 @@ String8 str8FromFormatVaList(struct MemoryArena* arena, const char* format, va_l
         // If first try failed, reset and try again with correct size
         arenaResetToMarker(firstBufferMarker);
         u8* fixedBuffer = ARENA_PUSH_ARRAY(arena, actualSize + 1, u8);
-        u64 finalSize = vsnprintf((char*)fixedBuffer, actualSize + 1, format, args2);
+        u64 finalSize = stbsp_vsnprintf((char*)fixedBuffer, actualSize + 1, format, args2);
         result = str8FromBlock(fixedBuffer, finalSize);
     }
     

@@ -3,7 +3,6 @@
 #include <grounded/memory/grounded_stream.h>
 
 #include <windows.h>
-#include <stdio.h>
 
 GROUNDED_FUNCTION void* osAllocateMemory(u64 size) {
     void* memory = VirtualAlloc(0, size, MEM_COMMIT, PAGE_READWRITE);

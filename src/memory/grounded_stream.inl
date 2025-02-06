@@ -1,7 +1,5 @@
 #include <grounded/memory/grounded_stream.h>
-
-#include <stdio.h>
-#include <stdlib.h>
+#include <grounded/string/stb_sprintf.h>
 
 // Returns 0 and does not advance if reader is at whitespace
 GROUNDED_FUNCTION u64 textualReaderReadUntilWhitespace(TextualReader* reader, u8* buffer, u64 bufferSize) {
@@ -104,7 +102,7 @@ GROUNDED_FUNCTION u64 textualReaderReadHex(TextualReader* reader) {
 
 GROUNDED_FUNCTION void textualWriterWriteFloatWithIEEEHex(TextualWriter* writer, float f) {
     u8 buffer[256];
-    snprintf((char*)buffer, ARRAY_COUNT(buffer), "%f", f);
+    stbsp_snprintf((char*)buffer, ARRAY_COUNT(buffer), "%f", f);
     textualWriterWriteCstr(writer, (const char*)buffer);
     textualWriterWriteCstr(writer, " : ");
     union TypeConvert {
@@ -115,13 +113,13 @@ GROUNDED_FUNCTION void textualWriterWriteFloatWithIEEEHex(TextualWriter* writer,
     convert.f = f;
     u32 h = convert.h;
     //snprintf((char*)buffer, ARRAY_COUNT(buffer), "%08x", h);
-    snprintf((char*)buffer, ARRAY_COUNT(buffer), "%x", h);
+    stbsp_snprintf((char*)buffer, ARRAY_COUNT(buffer), "%x", h);
     textualWriterWriteCstr(writer, (const char*)buffer);
 }
 
 GROUNDED_FUNCTION void textualWriterWriteDoubleWithIEEEHex(TextualWriter* writer, double f) {
     u8 buffer[256];
-    snprintf((char*)buffer, ARRAY_COUNT(buffer), "%f", f);
+    stbsp_snprintf((char*)buffer, ARRAY_COUNT(buffer), "%f", f);
     textualWriterWriteCstr(writer, (const char*)buffer);
     textualWriterWriteCstr(writer, " : ");
     union TypeConvert {
@@ -131,19 +129,19 @@ GROUNDED_FUNCTION void textualWriterWriteDoubleWithIEEEHex(TextualWriter* writer
     union TypeConvert convert;
     convert.f = f;
     u64 h = convert.h;
-    snprintf((char*)buffer, ARRAY_COUNT(buffer), "%lx", h);
+    stbsp_snprintf((char*)buffer, ARRAY_COUNT(buffer), "%lx", h);
     textualWriterWriteCstr(writer, (const char*)buffer);
 }
 
 GROUNDED_FUNCTION void textualWriterWriteSignedInteger(TextualWriter* writer, s64 i) {
     u8 buffer[256];
-    snprintf((char*)buffer, ARRAY_COUNT(buffer), "%li", i);
+    stbsp_snprintf((char*)buffer, ARRAY_COUNT(buffer), "%li", i);
     textualWriterWriteCstr(writer, (const char*)buffer);
 }
 
 GROUNDED_FUNCTION void textualWriterWriteUnsignedInteger(TextualWriter* writer, u64 i) {
     u8 buffer[256];
-    snprintf((char*)buffer, ARRAY_COUNT(buffer), "%lu", i);
+    stbsp_snprintf((char*)buffer, ARRAY_COUNT(buffer), "%lu", i);
     textualWriterWriteCstr(writer, (const char*)buffer);
 }
 

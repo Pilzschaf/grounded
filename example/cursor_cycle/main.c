@@ -2,8 +2,6 @@
 #include <grounded/threading/grounded_threading.h>
 #include <grounded/memory/grounded_memory.h>
 
-#include <stdio.h>
-
 // Switch mouse cursor by pressing C
 int main() {
     { // Thread context initialization

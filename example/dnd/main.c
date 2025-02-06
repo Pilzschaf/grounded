@@ -2,8 +2,6 @@
 #include <grounded/threading/grounded_threading.h>
 #include <grounded/memory/grounded_memory.h>
 #include <grounded/math/grounded_math.h>
-
-#include <stdio.h>
 //#include <GL/gl.h>
 
 #define GL_COLOR_BUFFER_BIT     0x00004000

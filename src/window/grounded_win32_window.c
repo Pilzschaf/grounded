@@ -14,7 +14,6 @@
 #include <INITGUID.H>
 #endif
 
-#include <stdio.h>
 #include <grounded/threading/grounded_threading.h>
 #include <grounded/memory/grounded_memory.h>
 

@@ -3,8 +3,6 @@
 #include <grounded/logger/grounded_logger.h>
 #include <grounded/threading/grounded_threading.h>
 
-#include <stdio.h>
-
 void (*glClearColor)(float, float, float, float);
 void (*glClear)(int);
 #define GL_COLOR_BUFFER_BIT     0x00004000
