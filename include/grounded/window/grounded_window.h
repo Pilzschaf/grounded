@@ -217,8 +217,11 @@ GROUNDED_FUNCTION void groundedWindowSetTitle(GroundedWindow* window, String8 ti
 GROUNDED_FUNCTION void groundedWindowSetFullscreen(GroundedWindow* window, bool fullscreen);
 GROUNDED_FUNCTION void groundedWindowSetBorderless(GroundedWindow* window, bool borderless);
 GROUNDED_FUNCTION void groundedWindowSetHidden(GroundedWindow* window, bool hidden);
+GROUNDED_FUNCTION void groundedWindowMinimize(GroundedWindow* window);
+GROUNDED_FUNCTION void groundedWindowSetMaximized(GroundedWindow* window, bool maximized);
 
 GROUNDED_FUNCTION bool groundedWindowIsFullscreen(GroundedWindow* window);
+GROUNDED_FUNCTION bool groundedWindowIsMaximized(GroundedWindow* window);
 
 GROUNDED_FUNCTION void groundedWindowSetUserData(GroundedWindow* window, void* userData);
 GROUNDED_FUNCTION void* groundedWindowGetUserData(GroundedWindow* window);

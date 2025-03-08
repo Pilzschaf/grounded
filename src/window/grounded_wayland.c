@@ -69,7 +69,7 @@ typedef struct GroundedWaylandWindow {
     String8 applicationId;
     String8 title; // Guaranteed to be 0-terminated
     char titleBuffer[256];
-    bool borderless, inhibitIdle, fullscreen;
+    bool borderless, inhibitIdle, fullscreen, maximized;
     int shm; // Shared memory for framebuffers
     struct wl_buffer* waylandBuffers[2]; // Double buffering. Index 0 is the one currently drawn to
     void* framebufferPointers[2]; // Double buffering. Index 0 is the one currently drawn to
@@ -552,8 +552,8 @@ static void pointerHandleLeave(void *data, struct wl_pointer *wl_pointer, uint32
     //GROUNDED_LOG_INFOF("Pointer Leave\n");
     if(activeCursorWindow) {
         // Make sure mouse position is outside screen
-        activeCursorWindow->mouseState.x = -1;
-        activeCursorWindow->mouseState.y = -1;
+        //activeCursorWindow->mouseState.x = -1;
+        //activeCursorWindow->mouseState.y = -1;
         activeCursorWindow->mouseState.mouseInWindow = false;
 
         // Reset buttons to non-pressed state
@@ -601,7 +601,7 @@ static void pointerHandleMotion(void *data, struct wl_pointer *wl_pointer, uint3
         bool handled = false;
         if(activeCursorWindow->customTitlebarCallback) {
             GroundedWindowCustomTitlebarHit hit = activeCursorWindow->customTitlebarCallback((GroundedWindow*)activeCursorWindow, activeCursorWindow->mouseState.x, activeCursorWindow->mouseState.y);
-            if(hit == GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_BORDER) {
+            if(hit == GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_BORDER && !activeCursorWindow->maximized) {
                 float x = posX;
                 float y = posY;
                 float width = groundedWindowGetWidth((GroundedWindow*)activeCursorWindow);
@@ -656,16 +656,26 @@ static void pointerHandleButton(void *data, struct wl_pointer *wl_pointer, uint3
         buttonCode = GROUNDED_MOUSE_BUTTON_MIDDLE;
     }
     lastPointerSerial = serial;
+    static u64 timestamp = 0; 
     //GROUNDED_LOG_INFOF("Click serial: %u\n", lastPointerSerial);
-    if(pressed && activeCursorWindow && activeCursorWindow->customTitlebarCallback) {
+    if(button == BTN_LEFT && pressed && activeCursorWindow && activeCursorWindow->customTitlebarCallback) {
         GroundedWindowCustomTitlebarHit hit = activeCursorWindow->customTitlebarCallback((GroundedWindow*)activeCursorWindow, activeCursorWindow->mouseState.x, activeCursorWindow->mouseState.y);
+        u64 newTimestamp = groundedGetCounter();
+        double deltaInMs = (newTimestamp - timestamp)/1000000.0;
+        timestamp = newTimestamp;
         if(hit == GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_BAR) {
+            
             /*struct wl_region* region = wl_compositor_create_region(compositor);
             wl_region_add(region, 0, 0, 0, 0);
             wl_surface_set_input_region(activeWindow->surface, region);
             wl_surface_commit(activeWindow->surface);
             wl_region_destroy(region);*/
-            xdg_toplevel_move(activeCursorWindow->xdgToplevel, pointerSeat, serial);
+            if(deltaInMs < 300.0f) {
+                waylandWindowSetMaximized(activeCursorWindow, !activeCursorWindow->maximized);
+            } else {
+                xdg_toplevel_move(activeCursorWindow->xdgToplevel, pointerSeat, serial);
+            }
+            //xdg_toplevel_set_maximized
             // Do not process this event further
             return;
         } else if(hit == GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_BORDER) {
@@ -1147,9 +1157,11 @@ static void xdgToplevelHandleConfigure(void* data,  struct xdg_toplevel* topleve
 
     // States array tells us in which state the new window is
     u32* state;
+    window->maximized = false;
     wl_array_for_each(state, states) {
         switch(*state) {
             case XDG_TOPLEVEL_STATE_MAXIMIZED:{
+                window->maximized = true;
             } break;
             case XDG_TOPLEVEL_STATE_FULLSCREEN:{
                 //TODO: Actually it might be better to only set the window->fullscreen flag when we get the configure here?
@@ -1569,6 +1581,10 @@ static void waylandWindowSetHidden(GroundedWaylandWindow* window, bool hidden) {
     
 }
 
+static void waylandWindowMinimize(GroundedWaylandWindow* window) {
+    xdg_toplevel_set_minimized(window->xdgToplevel);
+}
+
 static void waylandWindowSetMaximized(GroundedWaylandWindow* window, bool maximized) {
     if(maximized) {
         xdg_toplevel_set_maximized(window->xdgToplevel);
@@ -1579,6 +1595,10 @@ static void waylandWindowSetMaximized(GroundedWaylandWindow* window, bool maximi
 
 static bool waylandWindowIsFullscreen(GroundedWaylandWindow* window) {
     return window->fullscreen;
+}
+
+static bool waylandWindowIsMaximized(GroundedWaylandWindow* window) {
+    return window->maximized;
 }
 
 static void waylandWindowSetUserData(GroundedWaylandWindow* window, void* userData) {

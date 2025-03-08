@@ -724,6 +724,32 @@ GROUNDED_FUNCTION void groundedWindowSetHidden(GroundedWindow* window, bool hidd
     }
 }
 
+GROUNDED_FUNCTION void groundedWindowMinimize(GroundedWindow* window) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            waylandWindowMinimize((GroundedWaylandWindow*)window);
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            xcbWindowMinimize((GroundedXcbWindow*)window);
+        } break;
+        default:break;
+    }
+}
+
+GROUNDED_FUNCTION void groundedWindowSetMaximized(GroundedWindow* window, bool maximized) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            waylandWindowSetMaximized((GroundedWaylandWindow*)window, maximized);
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            xcbWindowSetMaximized((GroundedXcbWindow*)window, maximized);
+        } break;
+        default:break;
+    }
+}
+
 GROUNDED_FUNCTION bool groundedWindowIsFullscreen(GroundedWindow* window) {
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
@@ -732,6 +758,20 @@ GROUNDED_FUNCTION bool groundedWindowIsFullscreen(GroundedWindow* window) {
         } break;
         case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
             return xcbWindowIsFullscreen((GroundedXcbWindow*)window);
+        } break;
+        default:break;
+    }
+    return false;
+}
+
+GROUNDED_FUNCTION bool groundedWindowIsMaximized(GroundedWindow* window) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            return waylandWindowIsMaximized((GroundedWaylandWindow*)window);
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            return xcbWindowIsMaximized((GroundedXcbWindow*)window);
         } break;
         default:break;
     }

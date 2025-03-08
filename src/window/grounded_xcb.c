@@ -728,6 +728,11 @@ static bool xcbWindowIsFullscreen(GroundedXcbWindow* window) {
     return result;
 }
 
+static bool xcbWindowIsMaximized(GroundedXcbWindow* window) {
+    ASSERT(false);
+    return false;
+}
+
 static void xcbWindowSetBorderless(GroundedXcbWindow* window, bool borderless) {
     // motif hints
     struct MotifHints{
@@ -769,6 +774,14 @@ static void xcbWindowSetHidden(GroundedXcbWindow* window, bool hidden) {
     // We should actually wait for an expose event to make sure the window is actually mapped.
     xcb_generic_error_t* error = xcb_request_check(xcbConnection, cookie);
     //xcb_flush(xcbConnection);
+}
+
+static void xcbWindowMinimize(GroundedXcbWindow* window) {
+    ASSERT(false);
+}
+
+static void xcbWindowSetMaximized(GroundedXcbWindow* window, bool maximized) {
+    ASSERT(false);
 }
 
 static void xcbWindowSetUserData(GroundedXcbWindow* window, void* userData) {
