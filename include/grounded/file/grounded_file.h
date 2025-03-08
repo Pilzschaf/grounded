@@ -28,12 +28,15 @@ GROUNDED_FUNCTION bool groundedDoesDirectoryExist(String8 directory);
 GROUNDED_FUNCTION bool groundedCreateDirectory(String8 directory);
 GROUNDED_FUNCTION String8 groundedGetAbsoluteDirectory(MemoryArena* arena, String8 directory);
 
+GROUNDED_FUNCTION String8 groundedGetLinkTarget(MemoryArena* arena, String8 filename);
+
 // Directory iteration
 typedef struct GroundedDirectoryIterator GroundedDirectoryIterator;
 enum GroundedDirectoryEntryType {
     GROUNDED_DIRECTORY_ENTRY_TYPE_NONE,
     GROUNDED_DIRECTORY_ENTRY_TYPE_FILE,
     GROUNDED_DIRECTORY_ENTRY_TYPE_DIRECTORY,
+    GROUNDED_DIRECTORY_ENTRY_TYPE_LINK,
     GROUNDED_DIRECTORY_ENTRY_TYPE_COUNT,
 };
 enum GroundedDirectoryEntryFlags {

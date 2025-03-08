@@ -251,6 +251,8 @@ GROUNDED_FUNCTION void* groundedWindowDragPayloadGetUserData(struct GroundedDrag
 GROUNDED_FUNCTION void groundedWindowSetClipboardText(String8 text);
 GROUNDED_FUNCTION String8 groundedWindowGetClipboardText(MemoryArena* arena);
 
+GROUNDED_FUNCTION void groundedWindowGetSystemColorTheme();
+
 //GROUNDED_FUNCTION String8 groundedGetDragAndDropDataAsMimeType(struct GroundedDragPayload* payload, String8 mimeType);
 //GROUNDED_FUNCTION MemoryArena* groundedGetPayloadMemoryArena(struct GroundedDragPayload* payload);
 //TODO: Additional helpers for quick retrieval of text, single file and multiple files

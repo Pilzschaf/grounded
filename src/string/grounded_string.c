@@ -52,6 +52,9 @@ GROUNDED_FUNCTION String8 str8Substring(String8 str, u64 first, u64 last) {
 
 GROUNDED_FUNCTION bool str8IsEqual(String8 a, String8 b) {
     if(a.size == b.size) {
+        if(a.size == 0) {
+            return true;
+        }
         return groundedCompareMemory(a.base, b.base, a.size);
     }
     return false;
@@ -515,6 +518,19 @@ GROUNDED_FUNCTION String8List str8Split(MemoryArena* arena, String8 str, u8* spl
         str8ListPush(arena, &result, str8FromRange(wordFirst, ptr));
     }
 
+    return result;
+}
+
+GROUNDED_FUNCTION String8* str8ListToArray(struct MemoryArena* arena, String8List* list) {
+    String8* result = ARENA_PUSH_ARRAY(arena, list->numNodes, String8);
+    String8Node* node = list->first;
+    for(u64 i = 0; i < list->numNodes; ++i) {
+        ASSUME(node) {
+            result[i] = node->string;
+            node = node->next;
+        }
+    }
+    
     return result;
 }
 

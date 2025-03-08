@@ -68,6 +68,7 @@ GROUNDED_FUNCTION void str8ListPushCopy(struct MemoryArena* arena, String8List* 
 GROUNDED_FUNCTION void str8ListPushCopyAndNullTerminate(struct MemoryArena* arena, String8List* list, String8 str);
 GROUNDED_FUNCTION String8 str8ListJoin(struct MemoryArena* arena, String8List* list, StringJoin* optionalJoin);
 GROUNDED_FUNCTION String8List str8Split(struct MemoryArena* arena, String8 str, u8* splitCharacters, u64 splitCharacterCount);
+GROUNDED_FUNCTION String8* str8ListToArray(struct MemoryArena* arena, String8List* list);
 GROUNDED_FUNCTION String8* str8SplitToArray(struct MemoryArena* arena, String8 str, u8* splitCharacters, u64 splitCharacterCount, u64* outCount);
 
 // Size in number of u16
@@ -185,10 +186,10 @@ GROUNDED_FUNCTION_INLINE StringAtom createAtom(String8 string) {
     return atom;
 }
 
-GROUNDED_FUNCTION_INLINE bool compareAtoms(StringAtom* a0, StringAtom* a1) {
-    if(a0->hash == a1->hash) {
+GROUNDED_FUNCTION_INLINE bool compareAtoms(StringAtom a0, StringAtom a1) {
+    if(a0.hash == a1.hash) {
         // Hash the same so check the string to make sure
-        return str8IsEqual(a0->string, a1->string);
+        return str8IsEqual(a0.string, a1.string);
     }
     return false;
 }
@@ -203,6 +204,77 @@ GROUNDED_FUNCTION_INLINE u64 str8ToU64(String8 str) {
         }
     }
     return result;
+}
+
+GROUNDED_FUNCTION_INLINE bool isSpace(int c) {
+    return (c == ' '  || c == '\t' || c == '\n' || 
+            c == '\v' || c == '\f' || c == '\r');
+}
+
+GROUNDED_FUNCTION_INLINE bool isDigit(int c) {
+    return (c >= '0' && c <= '9');
+}
+
+GROUNDED_FUNCTION_INLINE float str8ToFloat(String8 str) {
+    u8* p = &str.base[0];
+    int sign = 1;
+    float result = 0.0f;
+    float fraction = 0.1f;
+    int exponent_sign = 1;
+    int exponent_value = 0;
+    int has_fraction = 0;
+
+    // Skip leading whitespaces
+    while (isSpace((unsigned char)*p)) {
+        p++;
+    }
+
+    // Handle sign
+    if (*p == '-') {
+        sign = -1;
+        p++;
+    } else if (*p == '+') {
+        p++;
+    }
+
+    // Parse integer part
+    while (isDigit((unsigned char)*p)) {
+        result = result * 10.0f + (*p - '0');
+        p++;
+    }
+
+    // Parse fractional part
+    if (*p == '.') {
+        p++;
+        while (isDigit((unsigned char)*p)) {
+            result += (*p - '0') * fraction;
+            fraction *= 0.1f;
+            p++;
+            has_fraction = 1;
+        }
+    }
+
+    // Parse exponent part (scientific notation)
+    if (*p == 'e' || *p == 'E') {
+        p++;
+        if (*p == '-') {
+            exponent_sign = -1;
+            p++;
+        } else if (*p == '+') {
+            p++;
+        }
+        while (isDigit((unsigned char)*p)) {
+            exponent_value = exponent_value * 10 + (*p - '0');
+            p++;
+        }
+    }
+
+    // Apply exponent
+    if (exponent_value) {
+        result *= powf(10.0f, exponent_sign * exponent_value);
+    }
+
+    return sign * result;
 }
 
 GROUNDED_FUNCTION void groundedPrintString(String8 str);

@@ -28,13 +28,6 @@
 //#include <wayland-cursor.h>
 //#include <wayland-client.h>
 
-// Wayland icons
-// Wayland requires .desktop specification for icon support
-// .desktop can be installed in ~/.local/share/applications
-// icons can be installed in ~/.local/share/icons
-// Actually path is $XDG_DATA_DIRS/icons
-// Old variant was in ~/.icons
-
 // Because of wayland API design we need to store the current active drag offer. This should be done per datadevice which is per seat eg. per user
 struct WaylandDataOffer* dragOffer;
 
@@ -174,6 +167,8 @@ struct zwp_idle_inhibit_manager_v1* idleInhibitManager;
 struct zwp_pointer_constraints_v1* pointerConstraints;
 struct zwp_relative_pointer_manager_v1* relativePointerManager;
 struct wp_cursor_shape_manager_v1* cursorShapeManager;
+struct xdg_toplevel_icon_manager_v1* xdgIconManager;
+struct xdg_toplevel_icon_v1* xdgIcon;
 
 struct zxdg_exporter_v2* zxdgExporter;
 
@@ -239,6 +234,7 @@ STATIC_ASSERT(sizeof(waylandScreens) < KB(4)); // Make sure we require a sane am
 #include "wayland_protocols/relative-pointer-unstable-v1.h"
 #include "wayland_protocols/xdg-foreign-unstable-v2.h"
 #include "wayland_protocols/cursor-shape-v1.h"
+#include "wayland_protocols/xdg-toplevel-icon-v1.h"
 
 static void waylandWindowSetMaximized(GroundedWaylandWindow* window, bool maximized);
 GROUNDED_FUNCTION void waylandSetCursorType(enum GroundedMouseCursor cursorType);
@@ -1106,6 +1102,9 @@ static void registry_global(void* data, struct wl_registry* registry, uint32_t i
     } else if(strcmp(interface, "wp_cursor_shape_manager_v1") == 0) {
         cursorShapeManager = (struct wp_cursor_shape_manager_v1*)wl_registry_bind(registry, id, &wp_cursor_shape_manager_v1_interface, 1);
         ASSERT(cursorShapeManager);
+    } else if(strcmp(interface, "xdg_toplevel_icon_manager_v1") == 0) {
+        xdgIconManager = (struct xdg_toplevel_icon_manager_v1*)wl_registry_bind(registry, id, &xdg_toplevel_icon_manager_v1_interface, 1);
+        ASSERT(xdgIconManager);
     } else {
         GROUNDED_LOG_INFO(interface);
     }
@@ -1162,6 +1161,9 @@ static void xdgToplevelHandleConfigure(void* data,  struct xdg_toplevel* topleve
 
             } break;
         }
+    }
+    if(xdgIconManager && xdgIcon) {
+        xdg_toplevel_icon_manager_v1_set_icon(xdgIconManager, toplevel, xdgIcon);
     }
 
     // Here we get a new width and height
@@ -1366,6 +1368,14 @@ static void shutdownWayland() {
         keyRepeatTimer = -1;
     }
     //if(cursor) ... free
+    if(xdgIconManager) {
+        if(xdgIcon) {
+            xdg_toplevel_icon_v1_destroy(xdgIcon);
+            xdgIcon = 0;
+        }
+        xdg_toplevel_icon_manager_v1_destroy(xdgIconManager);
+        xdgIconManager = 0;
+    }
     if(cursorTheme) {
         wl_cursor_theme_destroy(cursorTheme);
         cursorTheme = 0;
@@ -1846,6 +1856,12 @@ static void waylandFetchMouseState(GroundedWaylandWindow* window, MouseState* mo
 }
 
 GROUNDED_FUNCTION void waylandSetIcon(u8* data, u32 width, u32 height) {
+    // Wayland icons
+    // Wayland requires .desktop specification for icon support
+    // .desktop can be installed in ~/.local/share/applications
+    // icons can be installed in ~/.local/share/icons
+    // Actually path is $XDG_DATA_DIRS/icons
+    // Old variant was in ~/.icons
     /*
      * This is probably the WORST part about the wayland API. Wayland expects that all applications are shipped with corresponding
      * .desktop files that describe what icon to use. As I want to allow applications to ship as a single executable file and still
@@ -1863,8 +1879,44 @@ GROUNDED_FUNCTION void waylandSetIcon(u8* data, u32 width, u32 height) {
      * We can mark it as being generated with a comment.
      * See also here for why icon support in wayland is definately not required. https://gitlab.freedesktop.org/wayland/wayland-protocols/-/issues/52
      */
-
     // TODO: Problem is that we have to save the image as png
+
+    if(xdgIconManager) {
+        if(xdgIcon) {
+            xdg_toplevel_icon_v1_destroy(xdgIcon);
+        }
+        xdgIcon = xdg_toplevel_icon_manager_v1_create_icon(xdgIconManager);
+        if(xdgIcon) {
+            u64 imageSize = width * height * 4;
+            int fd = createSharedMemoryFile(imageSize);
+            void* shmData = mmap(0, imageSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+            memcpy(shmData, data, imageSize);
+            int scale = 1;
+
+            // Swizzle into correct size
+            for (size_t i = 0; i < width * height; i++) {
+                u32 pixel = ((u32*)shmData)[i];
+        
+                // Extract individual color channels
+                u32 r = (pixel >> 0) & 0xFF;  // Red   (highest byte)
+                u32 g = (pixel >> 8) & 0xFF;  // Green
+                u32 b = (pixel >> 16) & 0xFF;  // Blue
+                u32 a = (pixel >> 24) & 0xFF;  // Alpha (lowest byte)
+        
+                // Reassemble in ARGB order
+                ((u32*)shmData)[i] = (a << 24) | (r << 16) | (g << 8) | b;
+            }
+
+            struct wl_buffer* iconBuffer = 0;
+            struct wl_shm_pool* pool = wl_shm_create_pool(waylandShm, fd, imageSize);
+            iconBuffer = wl_shm_pool_create_buffer(pool, 0, width, height, width*4, WL_SHM_FORMAT_ARGB8888);
+            xdg_toplevel_icon_v1_add_buffer(xdgIcon, iconBuffer, scale);
+
+            // Now that the new surface is commited we can do cleanup
+            close(fd);
+            //wl_shm_pool_destroy(pool);
+        }
+    }
 }
 
 static int set_cloexec_or_close(int fd) {

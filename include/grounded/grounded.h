@@ -151,6 +151,12 @@ STATIC_ASSERT(sizeof(void*) == 8);
 #ifndef ALIGN_DOWN_POW2
 #define ALIGN_DOWN_POW2(x, p) ((x)&~((p) - 1))
 #endif
+#ifndef ALIGN_POINTER_UP_POW2
+#define ALIGN_POINTER_UP_POW2(pointer, p) (PTR_FROM_INT(ALIGN_UP_POW2(INT_FROM_PTR(pointer), p)))
+#endif
+#ifndef ALIGN_POINTER_DOWN_POW2
+#define ALIGN_POINTER_DOWN_POW2(pointer, p) (PTR_FROM_INT(ALIGN_DOWN_POW2(INT_FROM_PTR(pointer), p)))
+#endif
 #ifndef IS_POW2
 #define IS_POW2(x) (((x) != 0) && !((x) & ((x) - 1)))
 #endif

@@ -155,6 +155,73 @@ static void initDbus() {
     }
 }
 
+GROUNDED_FUNCTION void groundedWindowGetSystemColorTheme() {
+    // Env COLORFGBG for terminal foreground and background colors
+    
+    MemoryArena* scratch = threadContextGetScratch(0);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
+    if(!dbusConnection) {
+        initDbus();
+    }
+    if(dbusConnection) {
+        const char* portalService = "org.freedesktop.portal.Desktop";
+        const char* portalObject = "/org/freedesktop/portal/desktop";
+        const char* portalInterface = "org.freedesktop.portal.Settings";
+        //const char* portalMethod = "OpenFile";
+
+        DBusMessage* message = dbus_message_new_method_call(portalService, portalObject, portalInterface, "ReadAll");
+        DBusMessage* reply = 0;
+        if(!message) {
+            GROUNDED_PUSH_ERROR("Could not create dbus message");
+        } else {
+            DBusMessageIter args, arrayIter;
+            dbus_message_iter_init_append(message, &args);
+            dbus_message_iter_open_container(&args, DBUS_TYPE_ARRAY, "s", &arrayIter);
+            const char* key = "org.freedesktop.appearance";
+            dbus_message_iter_append_basic(&arrayIter, DBUS_TYPE_STRING, &key);
+            dbus_message_iter_close_container(&args, &arrayIter);
+
+            reply = dbus_connection_send_with_reply_and_block(dbusConnection, message, DBUS_TIMEOUT_INFINITE, &dbusError);
+            dbus_message_unref(message);
+        }
+        if(reply) {
+            DBusMessageIter args, dictIter, entryIter, valueIter, innerEntryIter, innerValueIter;
+            if(dbus_message_iter_init(reply, &args) && dbus_message_iter_get_arg_type(&args) == DBUS_TYPE_ARRAY) {
+                dbus_message_iter_recurse(&args, &dictIter);
+                while(dbus_message_iter_get_arg_type(&dictIter) == DBUS_TYPE_DICT_ENTRY) {
+                    dbus_message_iter_recurse(&dictIter, &entryIter);
+                    char* key = 0;
+                    dbus_message_iter_get_basic(&entryIter, &key);
+                    dbus_message_iter_next(&entryIter);
+                    dbus_message_iter_recurse(&entryIter, &valueIter);
+                    while(dbus_message_iter_get_arg_type(&valueIter) == DBUS_TYPE_DICT_ENTRY) {
+                        dbus_message_iter_recurse(&valueIter, &innerEntryIter);
+                        char* key = 0;
+                        dbus_message_iter_get_basic(&innerEntryIter, &key);
+                        dbus_message_iter_next(&innerEntryIter);
+                        dbus_message_iter_recurse(&innerEntryIter, &innerValueIter);
+                        int type = dbus_message_iter_get_arg_type(&innerValueIter);
+                        char* value = 0;
+                        if(type == DBUS_TYPE_STRING) {
+                            dbus_message_iter_get_basic(&innerValueIter, &value);
+                        } else if(type == DBUS_TYPE_UINT32) {
+                            u32 value = 0;
+                            dbus_message_iter_get_basic(&innerValueIter, &value);
+                            int x = 0;
+                            // color-scheme: 0: no preference 1: dark 2: light
+                        } else if(type == DBUS_TYPE_STRUCT) {
+                            // RGB in SRGB format
+                        }
+                        dbus_message_iter_next(&valueIter);
+                    }
+                    dbus_message_iter_next(&dictIter);
+                }
+            }
+        }
+    }
+    arenaEndTemp(temp);
+}
+
 String8* dbusWaitForFileDialog(MemoryArena* arena, char* path, u32* outResultCount) {
 	DBusMessage *msg;
 	DBusMessageIter args, opts, dict, var, uris;

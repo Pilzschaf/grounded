@@ -99,6 +99,7 @@ GROUNDED_FUNCTION  u8* groundedReadFileImmutable(String8 filename, u64* size) {
         } else {
             GROUNDED_LOG_ERROR("Could not get filestats");
         }
+        close(fileHandle);
     }
 
     arenaEndTemp(temp);
@@ -583,6 +584,8 @@ GROUNDED_FUNCTION GroundedDirectoryEntry* groundedListFilesOfDirectory(MemoryAre
                 type = GROUNDED_DIRECTORY_ENTRY_TYPE_DIRECTORY;
             } else if(d->d_type == DT_REG) {
                 type = GROUNDED_DIRECTORY_ENTRY_TYPE_FILE;
+            } else if(d->d_type == DT_LNK) {
+                type = GROUNDED_DIRECTORY_ENTRY_TYPE_LINK;
             } else if(d->d_type == DT_UNKNOWN) {
                 // Explicitly stat the file to check type
                 struct stat stats = {0};
@@ -591,6 +594,8 @@ GROUNDED_FUNCTION GroundedDirectoryEntry* groundedListFilesOfDirectory(MemoryAre
                         type = GROUNDED_DIRECTORY_ENTRY_TYPE_FILE;
                     } else if(S_ISDIR(stats.st_mode)) {
                         type = GROUNDED_DIRECTORY_ENTRY_TYPE_DIRECTORY;
+                    } else if(S_ISLNK(stats.st_mode)) {
+                        type = GROUNDED_DIRECTORY_ENTRY_TYPE_LINK;
                     }
                 }
             }
@@ -636,6 +641,30 @@ GROUNDED_FUNCTION GroundedDirectoryEntry* groundedListFilesOfDirectory(MemoryAre
         dir = 0;
     }
 
+    arenaEndTemp(temp);
+    return result;
+}
+
+GROUNDED_FUNCTION String8 groundedGetLinkTarget(MemoryArena* arena, String8 filename) {
+    MemoryArena* scratch = threadContextGetScratch(arena);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
+    String8 result = EMPTY_STRING8;
+
+    struct stat stats = {0};
+    const char* cFilename = str8GetCstr(scratch, filename);
+    if(lstat(cFilename, &stats) == 0) {
+        bool hardLink = stats.st_nlink > 1;
+        u64 bufferSize = 256;
+        u8* buffer = ARENA_PUSH_ARRAY(arena, bufferSize, u8);
+        ssize_t length = readlink(cFilename, (char*)buffer, bufferSize);
+        if(length < bufferSize) {
+            result = str8FromBlock(buffer, length);
+        } else {
+            //TODO: Do again with new size
+        }
+        arenaPopTo(arena, buffer + length);
+    }
+    
     arenaEndTemp(temp);
     return result;
 }
