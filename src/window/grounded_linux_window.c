@@ -961,6 +961,7 @@ static const char** getCursorNameCandidates(enum GroundedMouseCursor cursorType,
     static const char* westResizeCursors[] = {"w-resize", "left_side"};
     static const char* northSouthResizeCursors[] = {"sb_v_double_arrow", "ns-resize"};
     static const char* eastWestResizeCursors[] = {"sb_h_double_arrow", "ew-resize"};
+    static const char* allDirResizeCursors[] = {"all-scroll", "fleur"}; //TODO: Is this correct?
 
     static const char* crosshairCursors[] = {"crosshair", "cross"};
     static const char* verticalTextCursors[] = {"vertical-text"};
@@ -1004,6 +1005,9 @@ static const char** getCursorNameCandidates(enum GroundedMouseCursor cursorType,
         } break;
         case GROUNDED_MOUSE_CURSOR_DOWNLEFT:{
             USE_CURSOR_CANDIDATE(southWestResizeCursors);
+        } break;
+        case GROUNDED_MOUSE_CURSOR_ALLDIR:{
+            USE_CURSOR_CANDIDATE(allDirResizeCursors);
         } break;
         case GROUNDED_MOUSE_CURSOR_POINTER:{
             USE_CURSOR_CANDIDATE(pointerCursors);

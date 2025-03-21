@@ -658,46 +658,52 @@ static void pointerHandleButton(void *data, struct wl_pointer *wl_pointer, uint3
     lastPointerSerial = serial;
     static u64 timestamp = 0; 
     //GROUNDED_LOG_INFOF("Click serial: %u\n", lastPointerSerial);
-    if(button == BTN_LEFT && pressed && activeCursorWindow && activeCursorWindow->customTitlebarCallback) {
+    if(pressed && activeCursorWindow && activeCursorWindow->customTitlebarCallback) {
         GroundedWindowCustomTitlebarHit hit = activeCursorWindow->customTitlebarCallback((GroundedWindow*)activeCursorWindow, activeCursorWindow->mouseState.x, activeCursorWindow->mouseState.y);
-        u64 newTimestamp = groundedGetCounter();
-        double deltaInMs = (newTimestamp - timestamp)/1000000.0;
-        timestamp = newTimestamp;
-        if(hit == GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_BAR) {
-            
-            /*struct wl_region* region = wl_compositor_create_region(compositor);
-            wl_region_add(region, 0, 0, 0, 0);
-            wl_surface_set_input_region(activeWindow->surface, region);
-            wl_surface_commit(activeWindow->surface);
-            wl_region_destroy(region);*/
-            if(deltaInMs < 300.0f) {
-                waylandWindowSetMaximized(activeCursorWindow, !activeCursorWindow->maximized);
-            } else {
-                xdg_toplevel_move(activeCursorWindow->xdgToplevel, pointerSeat, serial);
+        if(button == BTN_LEFT) {
+            u64 newTimestamp = groundedGetCounter();
+            double deltaInMs = (newTimestamp - timestamp)/1000000.0;
+            timestamp = newTimestamp;
+            if(hit == GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_BAR) {
+                
+                /*struct wl_region* region = wl_compositor_create_region(compositor);
+                wl_region_add(region, 0, 0, 0, 0);
+                wl_surface_set_input_region(activeWindow->surface, region);
+                wl_surface_commit(activeWindow->surface);
+                wl_region_destroy(region);*/
+                if(deltaInMs < 300.0f) {
+                    waylandWindowSetMaximized(activeCursorWindow, !activeCursorWindow->maximized);
+                } else {
+                    xdg_toplevel_move(activeCursorWindow->xdgToplevel, pointerSeat, serial);
+                }
+                //xdg_toplevel_set_maximized
+                // Do not process this event further
+                return;
+            } else if(hit == GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_BORDER) {
+                u32 edges = 0;
+                float x = activeCursorWindow->mouseState.x;
+                float y = activeCursorWindow->mouseState.y;
+                float width = groundedWindowGetWidth((GroundedWindow*)activeCursorWindow);
+                float height = groundedWindowGetHeight((GroundedWindow*)activeCursorWindow);
+                float offset = 20.0f;
+                if(x < offset) {
+                    edges |= XDG_TOPLEVEL_RESIZE_EDGE_LEFT;
+                } else if(x > width - offset) {
+                    edges |= XDG_TOPLEVEL_RESIZE_EDGE_RIGHT;
+                }
+                if(y < offset) {
+                    edges |= XDG_TOPLEVEL_RESIZE_EDGE_TOP;
+                } else if(y > height - offset) {
+                    edges |= XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM;
+                }
+                xdg_toplevel_resize(activeCursorWindow->xdgToplevel, pointerSeat, serial, edges);
+                // Do not process this event further
+                return;
             }
-            //xdg_toplevel_set_maximized
-            // Do not process this event further
-            return;
-        } else if(hit == GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_BORDER) {
-            u32 edges = 0;
+        } else if(button == BTN_RIGHT && hit == GROUNDED_WINDOW_CUSTOM_TITLEBAR_HIT_BAR) {
             float x = activeCursorWindow->mouseState.x;
             float y = activeCursorWindow->mouseState.y;
-            float width = groundedWindowGetWidth((GroundedWindow*)activeCursorWindow);
-            float height = groundedWindowGetHeight((GroundedWindow*)activeCursorWindow);
-            float offset = 20.0f;
-            if(x < offset) {
-                edges |= XDG_TOPLEVEL_RESIZE_EDGE_LEFT;
-            } else if(x > width - offset) {
-                edges |= XDG_TOPLEVEL_RESIZE_EDGE_RIGHT;
-            }
-            if(y < offset) {
-                edges |= XDG_TOPLEVEL_RESIZE_EDGE_TOP;
-            } else if(y > height - offset) {
-                edges |= XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM;
-            }
-            xdg_toplevel_resize(activeCursorWindow->xdgToplevel, pointerSeat, serial, edges);
-            // Do not process this event further
-            return;
+            xdg_toplevel_show_window_menu(activeCursorWindow->xdgToplevel, pointerSeat, serial, (s32)x, (s32)y);
         }
     }
     
@@ -1022,17 +1028,18 @@ static const struct zxdg_output_v1_listener xdgOutputListener = {
 
 static void registry_global(void* data, struct wl_registry* registry, uint32_t id, const char* interface, uint32_t version) {
     //GROUNDED_LOG_INFO(interface);
-    if (strcmp(interface, "wl_compositor") == 0) {
+    StringAtom interfaceAtom = createAtom(str8FromCstr(interface));
+    if (compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wl_compositor")))) {
         // Wayland compositor is required for creating surfaces
         compositor = (struct wl_compositor*)wl_registry_bind(registry, id, wl_compositor_interface, 4);
         ASSERT(compositor);
-    } else if(strcmp(interface, "xdg_wm_base") == 0) {
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("xdg_wm_base")))) {
         xdgWmBase = (struct xdg_wm_base*)wl_registry_bind(registry, id, &xdg_wm_base_interface, 3);
         ASSERT(xdgWmBase);
         if(xdgWmBase) {
             xdg_wm_base_add_listener(xdgWmBase, &xdgWmBaseListener, 0);
         }
-    } else if(strcmp(interface,"wl_seat") == 0) {
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wl_seat")))) {
         // Seats are input devices like keyboards mice etc. Actually a seat represents a single user
         u32 seatVersion = MIN(version, 4); // We prefer version 4 for keyboard key repeat info but can also handle older versions
         struct wl_seat* seat = (struct wl_seat*)wl_registry_bind(registry, id, wl_seat_interface, seatVersion);
@@ -1040,7 +1047,7 @@ static void registry_global(void* data, struct wl_registry* registry, uint32_t i
         if(seat) {
             wl_seat_add_listener(seat, &seatListener, 0);
         }
-    } else if(strcmp(interface, "wl_output") == 0) {
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wl_output")))) {
         // Output can be used to get information about connected monitors and the virtual screen setup
         // We get one wl_output for each connected screen
         if(!outputVersion) {
@@ -1065,11 +1072,11 @@ static void registry_global(void* data, struct wl_registry* registry, uint32_t i
                 }
             }
         }
-    } else if(strcmp(interface, "zxdg_decoration_manager_v1") == 0) {
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zxdg_decoration_manager_v1")))) {
         // Client and server side decoration negotiation
         decorationManager = (struct zxdg_decoration_manager_v1*)wl_registry_bind(registry, id, &zxdg_decoration_manager_v1_interface, 1);
         ASSERT(decorationManager);
-    } else if(strcmp(interface, "zxdg_output_manager_v1") == 0) {
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zxdg_output_manager_v1")))) {
         xdgOutputVersion = MIN(version, 3);
         xdgOutputManager = (struct zxdg_output_manager_v1*)wl_registry_bind(registry, id, &zxdg_output_manager_v1_interface, xdgOutputVersion);
         ASSERT(xdgOutputManager);
@@ -1083,17 +1090,17 @@ static void registry_global(void* data, struct wl_registry* registry, uint32_t i
                 }
             }
         }
-    } else if(strcmp(interface, "zwp_idle_inhibit_manager_v1") == 0) {
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwp_idle_inhibit_manager_v1")))) {
         // Ability to prevent system from going into sleep mode
         idleInhibitManager = (struct zwp_idle_inhibit_manager_v1*)wl_registry_bind(registry, id, &zwp_idle_inhibit_manager_v1_interface, 1);
         ASSERT(idleInhibitManager);
-    } else if(strcmp(interface, "zwp_pointer_constraints_v1") == 0) {
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwp_pointer_constraints_v1")))) {
         pointerConstraints = (struct zwp_pointer_constraints_v1*)wl_registry_bind(registry, id, &zwp_pointer_constraints_v1_interface, 1);
         ASSERT(pointerConstraints);
-    } else if(strcmp(interface, "zwp_relative_pointer_manager_v1") == 0) {
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwp_relative_pointer_manager_v1")))) {
         relativePointerManager = (struct zwp_relative_pointer_manager_v1*)wl_registry_bind(registry, id, &zwp_relative_pointer_manager_v1_interface, 1);
         ASSERT(relativePointerManager);
-    } else if(strcmp(interface, "wl_data_device_manager") == 0) {
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wl_data_device_manager")))) {
         // For drag and drop and clipboard support
         u32 compositorSupportedVersion = version;
         u32 requestedVersion = MIN(version, 3); // We support up to version 3
@@ -1102,20 +1109,28 @@ static void registry_global(void* data, struct wl_registry* registry, uint32_t i
         if(dataDeviceManager) {
             dataDeviceManagerVersion = requestedVersion;
         }
-    } else if(strcmp(interface, "zxdg_exporter_v2") == 0) {
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zxdg_exporter_v2")))) {
         zxdgExporter = (struct zxdg_exporter_v2*)wl_registry_bind(registry, id, &zxdg_exporter_v2_interface, version);
         ASSERT(zxdgExporter);
-    } else if(strcmp(interface, "wl_shm") == 0) {
-        // Shared memory. Needed for custom cursor themes and framebuffers - TODO: might have been replaced by drm (Drm is not particular useful for software rendering)
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wl_shm")))) {
+        // Shared memory. Needed for custom cursor themes and framebuffers
+        // TODO: might have been replaced by drm (Drm is not particular useful for software rendering)
         waylandShm = (struct wl_shm*)wl_registry_bind(registry, id, wl_shm_interface, 1);
         ASSERT(waylandShm);
-    } else if(strcmp(interface, "wp_cursor_shape_manager_v1") == 0) {
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wp_cursor_shape_manager_v1")))) {
         cursorShapeManager = (struct wp_cursor_shape_manager_v1*)wl_registry_bind(registry, id, &wp_cursor_shape_manager_v1_interface, 1);
         ASSERT(cursorShapeManager);
-    } else if(strcmp(interface, "xdg_toplevel_icon_manager_v1") == 0) {
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("xdg_toplevel_icon_manager_v1")))) {
         xdgIconManager = (struct xdg_toplevel_icon_manager_v1*)wl_registry_bind(registry, id, &xdg_toplevel_icon_manager_v1_interface, 1);
         ASSERT(xdgIconManager);
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("xdg_system_bell_v1")))) {
+        // Some kind of system bell. Usually a sound
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wl_drm")))) {
+        
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wp_tearing_control_manager_v1")))) {
+        // Used by EGL/Vulkan internally and we should not directly interact with it
     } else {
+        // Unknown interface
         GROUNDED_LOG_INFO(interface);
     }
 }
@@ -2109,6 +2124,9 @@ static u32 waylandTranslateCursorTypeToShape(u32 cursorType) {
         break;
         case GROUNDED_MOUSE_CURSOR_DOWNLEFT:
         result = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_SW_RESIZE;
+        break;
+        case GROUNDED_MOUSE_CURSOR_ALLDIR:
+        result = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_ALL_SCROLL;
         break;
         case GROUNDED_MOUSE_CURSOR_POINTER:
         result = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_POINTER;
