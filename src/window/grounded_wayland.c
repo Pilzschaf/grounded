@@ -25,6 +25,10 @@
 #define GROUNDED_WAYLAND_LOG_HANDLER(name) GROUNDED_LOG_VERBOSE("< " name)
 #endif
 
+#ifndef GROUNED_WAYLAND_PRINT_KEYSTATE
+#define GROUNED_WAYLAND_PRINT_KEYSTATE 0
+#endif
+
 //#include <wayland-cursor.h>
 //#include <wayland-client.h>
 
@@ -76,6 +80,7 @@ typedef struct GroundedWaylandWindow {
 	u32 framebufferWidth; // Those values need to exist because the window width and height can change asynchronously
 	u32 framebufferHeight;
     char* foreignHandle;
+    struct wl_callback* frameCallback;
 
     GroundedWindowDndCallback* dndCallback;
 
@@ -119,9 +124,9 @@ static void waylandResizeEglSurface(GroundedWaylandWindow* window);
 #include "types/grounded_wayland_cursor_functions.h"
 #undef X
 
-#if 1
 const struct wl_interface* wl_registry_interface;
 const struct wl_interface* wl_surface_interface;
+const struct wl_interface* wl_callback_interface;
 const struct wl_interface* wl_compositor_interface;
 const struct wl_interface* wl_seat_interface;
 const struct wl_interface* wl_output_interface;
@@ -134,15 +139,6 @@ const struct wl_interface* wl_region_interface;
 const struct wl_interface* wl_data_device_manager_interface;
 const struct wl_interface* wl_data_source_interface;
 const struct wl_interface* wl_data_device_interface;
-#else
-extern const struct wl_interface wl_registry_interface;
-extern const struct wl_interface wl_surface_interface;
-extern const struct wl_interface wl_compositor_interface;
-extern const struct wl_interface wl_seat_interface;
-extern const struct wl_interface wl_output_interface;
-extern const struct wl_interface wl_keyboard_interface;
-extern const struct wl_interface wl_pointer_interface;
-#endif
 
 struct wl_data_device_manager* dataDeviceManager;
 u32 dataDeviceManagerVersion;
@@ -284,7 +280,10 @@ static int createSharedMemoryFile(u64 size) {
 }
 
 static void keyboardHandleKeymap(void *data, struct wl_keyboard *keyboard, uint32_t format, int fd, uint32_t size) {
-    //GROUNDED_LOG_VERBOSE("Keyboard keymap");
+    #if GROUNED_WAYLAND_PRINT_KEYSTATE
+    GROUNDED_LOG_VERBOSE("Keyboard keymap");
+    #endif
+
     char* keymapData = 0;
     struct xkb_keymap* keymap = 0;
     ASSUME(format == WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1) {
@@ -319,7 +318,10 @@ static void keyboardHandleKeymap(void *data, struct wl_keyboard *keyboard, uint3
 }
 
 static void keyboardHandleEnter(void *data, struct wl_keyboard *keyboard, uint32_t serial, struct wl_surface *surface, struct wl_array *keys) {
-    //GROUNDED_LOG_VERBOSE("Keyboard gained focus");
+    #if GROUNED_WAYLAND_PRINT_KEYSTATE
+    GROUNDED_LOG_VERBOSE("Keyboard gained focus");
+    #endif
+    
     if(surface) {
         GroundedWaylandWindow* window = (GroundedWaylandWindow*)wl_surface_get_user_data(surface);
         ASSUME(window) {
@@ -329,7 +331,9 @@ static void keyboardHandleEnter(void *data, struct wl_keyboard *keyboard, uint32
 }
 
 static void keyboardHandleLeave(void *data, struct wl_keyboard *keyboard, uint32_t serial, struct wl_surface *surface) {
+    #if GROUNED_WAYLAND_PRINT_KEYSTATE
     GROUNDED_LOG_VERBOSE("Keyboard lost focus");
+    #endif
 
     activeKeyboardWindow = 0;
 
@@ -444,6 +448,10 @@ static u32 translateInverseWaylandKeycode(u32 keycode) {
 }
 
 static void keyboardHandleKey(void *data, struct wl_keyboard *keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state) {
+    #if GROUNED_WAYLAND_PRINT_KEYSTATE
+    GROUNDED_LOG_VERBOSE("Handle key");
+    #endif
+
     u8 keycode = translateWaylandKeycode(key);
     struct itimerspec timer = {0};
     u32 modifiers = 0;
@@ -490,6 +498,7 @@ static void keyboardHandleKey(void *data, struct wl_keyboard *keyboard, uint32_t
         waylandKeyState.keys[keycode] = false;
         eventQueue[eventQueueIndex++] = (GroundedEvent){
             .type = GROUNDED_EVENT_TYPE_KEY_UP,
+            .window = (GroundedWindow*)activeKeyboardWindow,
             .keyUp.keycode = keycode,
             .keyUp.modifiers = modifiers,
             .keyUp.codepoint = codepoint,
@@ -498,7 +507,9 @@ static void keyboardHandleKey(void *data, struct wl_keyboard *keyboard, uint32_t
 
     timerfd_settime(keyRepeatTimer, 0, &timer, 0);
 
-    //GROUNDED_LOG_INFOF("Key is %d state is %d\n", key, state);
+    #if GROUNED_WAYLAND_PRINT_KEYSTATE
+    GROUNDED_LOG_INFOF("Key is %d state is %d window %p\n", key, state, activeKeyboardWindow);
+    #endif
 }
 
 static void keyboardHandleModifiers(void *data, struct wl_keyboard *keyboard, uint32_t serial, uint32_t mods_depressed, uint32_t mods_latched, uint32_t mods_locked, uint32_t group) {
@@ -738,6 +749,12 @@ static void pointerHandleAxis(void *data, struct wl_pointer *wl_pointer, uint32_
         } else {
             activeCursorWindow->mouseState.horizontalScrollDelta = amount / -5000.f;
         }
+        eventQueue[eventQueueIndex++] = (GroundedEvent){
+            .type = GROUNDED_EVENT_TYPE_MOUSE_SCROLL,
+            .window = (GroundedWindow*)activeCursorWindow,
+            .mouseScroll.horizontal = !vertical,
+            .mouseScroll.amount = amount / -5000.f,
+        };
     }
 }
 
@@ -1034,7 +1051,8 @@ static void registry_global(void* data, struct wl_registry* registry, uint32_t i
         compositor = (struct wl_compositor*)wl_registry_bind(registry, id, wl_compositor_interface, 4);
         ASSERT(compositor);
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("xdg_wm_base")))) {
-        xdgWmBase = (struct xdg_wm_base*)wl_registry_bind(registry, id, &xdg_wm_base_interface, 3);
+        u32 xdgVersion = MIN(version, 6);
+        xdgWmBase = (struct xdg_wm_base*)wl_registry_bind(registry, id, &xdg_wm_base_interface, xdgVersion);
         ASSERT(xdgWmBase);
         if(xdgWmBase) {
             xdg_wm_base_add_listener(xdgWmBase, &xdgWmBaseListener, 0);
@@ -1156,6 +1174,26 @@ static const struct wl_registry_listener registryListener = {
     .global_remove = registry_global_remove
 };
 
+static const struct wl_callback_listener surfaceFrameListener ;
+
+static void handleSurfaceFrameDone(void* data, struct wl_callback* callback, u32 callbackData) {
+    GroundedWaylandWindow* window = (GroundedWaylandWindow*)data;
+
+    if(callback) {
+        wl_callback_destroy(callback);
+        if(window) {
+            ASSERT(window->frameCallback == callback);
+            window->frameCallback = wl_surface_frame(window->surface);
+            wl_callback_add_listener(window->frameCallback, &surfaceFrameListener, data);
+            //groundedPrintString(STR8_LITERAL("Frame\n"));
+        }
+    }
+}
+
+static const struct wl_callback_listener surfaceFrameListener = {
+    .done = handleSurfaceFrameDone,
+};
+
 //TODO: wl_surface.callback for frame draw callbacks https://wayland-book.com/surfaces-in-depth/frame-callbacks.html
 // struct wl_callback *cb = wl_surface_frame(state.wl_surface);
 // wl_callback_add_listener(cb, &wl_surface_frame_listener, &state);
@@ -1186,6 +1224,12 @@ static void xdgToplevelHandleConfigure(void* data,  struct xdg_toplevel* topleve
             } break;
             case XDG_TOPLEVEL_STATE_ACTIVATED:{
 
+            } break;
+            case XDG_TOPLEVEL_STATE_SUSPENDED:{
+                
+            } break;
+            default:{
+                ASSERT(false);
             } break;
         }
     }
@@ -1219,9 +1263,47 @@ static void xdgToplevelHandleClose(void* data, struct xdg_toplevel* toplevel) {
     };
 }
 
+static void xdgToplevelHandleConfigureBounds(void* data, struct xdg_toplevel* toplevel, s32 width, s32 height) {
+    GroundedWaylandWindow* window = (GroundedWaylandWindow*)data;
+    if(window) {
+        // Recommended size to constrain to
+        if(width > 0) {
+            window->maxWidth = width;
+        }
+        if(height > 0) {
+            window->maxHeight = height;
+        }
+    }
+}
+
+static void xdgToplevelHandleCapabilities(void* data, struct xdg_toplevel* toplevel, struct wl_array* capabilties) {
+    u32* capability = 0;
+    wl_array_for_each(capability, capabilties) {
+        switch(*capability) {
+            case XDG_TOPLEVEL_WM_CAPABILITIES_WINDOW_MENU:{
+
+            } break;
+            case XDG_TOPLEVEL_WM_CAPABILITIES_MAXIMIZE:{
+
+            } break;
+            case XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN:{
+
+            } break;
+            case XDG_TOPLEVEL_WM_CAPABILITIES_MINIMIZE:{
+
+            } break;
+            default:{
+                ASSERT(false);
+            } break;
+        }
+    }
+}
+
 static const struct xdg_toplevel_listener xdgToplevelListener = {
     xdgToplevelHandleConfigure,
-    xdgToplevelHandleClose
+    xdgToplevelHandleClose,
+    xdgToplevelHandleConfigureBounds,
+    xdgToplevelHandleCapabilities,
 };
 
 // The idea in wayland is that every frame is perfect. So the surface is only redrawn when all state changes have been applied
@@ -1300,6 +1382,7 @@ static bool initWayland() {
         #define LOAD_WAYLAND_INTERFACE(N) N = dlsym(waylandLibrary, #N); if(!N && !firstMissingInterfaceName) {firstMissingInterfaceName = #N ;}
         LOAD_WAYLAND_INTERFACE(wl_registry_interface);
         LOAD_WAYLAND_INTERFACE(wl_surface_interface);
+        LOAD_WAYLAND_INTERFACE(wl_callback_interface);
         LOAD_WAYLAND_INTERFACE(wl_compositor_interface);
         LOAD_WAYLAND_INTERFACE(wl_seat_interface);
         LOAD_WAYLAND_INTERFACE(wl_output_interface);
@@ -1670,6 +1753,9 @@ static GroundedWindow* waylandCreateWindow(MemoryArena* arena, struct GroundedWi
 
     window->dndCallback = parameters->dndCallback;
 
+    window->frameCallback = wl_surface_frame(window->surface);
+    wl_callback_add_listener(window->frameCallback, &surfaceFrameListener, window);
+
     wl_surface_commit(window->surface);
 
     wl_display_roundtrip(waylandDisplay);
@@ -1680,6 +1766,10 @@ static GroundedWindow* waylandCreateWindow(MemoryArena* arena, struct GroundedWi
 }
 
 static void waylandDestroyWindow(GroundedWaylandWindow* window) {
+    if(window->frameCallback) {
+        wl_callback_destroy(window->frameCallback);
+        window->frameCallback = 0;
+    }
     wl_surface_destroy(window->surface);
     wl_display_roundtrip(waylandDisplay);
 }
@@ -1851,13 +1941,14 @@ static GroundedEvent* waylandGetEvents(u32* eventCount, u32 maxWaitingTimeInMs) 
     }*/
 
     // Loop as we are otherwise waked up by egl rendering feedback calls
-    while(!eventQueueIndex) {
+    //while(!eventQueueIndex) {
+    {
         if(waylandPoll(maxWaitingTimeInMs)) {
             // This should be a blocking call
             wl_display_dispatch(waylandDisplay);
         } else {
             // Timeout
-            break;
+            //break;
         }
     }
 

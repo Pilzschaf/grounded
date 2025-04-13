@@ -12,6 +12,7 @@
 #define WL_SURFACE_DESTROY 0
 #define WL_SURFACE_ATTACH 1
 #define WL_SURFACE_DAMAGE 2
+#define WL_SURFACE_FRAME 3
 #define WL_SURFACE_SET_INPUT_REGION 5
 #define WL_SURFACE_COMMIT 6
 #define WL_SURFACE_SET_BUFFER_TRANSFORM 7 // Since version 2
@@ -121,6 +122,10 @@ struct wl_output_listener {
 	void (*description)(void *data, struct wl_output *wl_output, const char *description);
 };
 
+struct wl_callback_listener {
+	void (*done)(void *data, struct wl_callback *wl_callback, uint32_t callback_data);
+};
+
 enum wl_output_transform {
 	WL_OUTPUT_TRANSFORM_NORMAL = 0,
 	WL_OUTPUT_TRANSFORM_90 = 1,
@@ -216,6 +221,14 @@ static inline void wl_surface_destroy(struct wl_surface *wl_surface) {
 	wl_proxy_destroy((struct wl_proxy *) wl_surface);
 }
 
+static inline struct wl_callback* wl_surface_frame(struct wl_surface *wl_surface) {
+	struct wl_proxy *callback;
+
+	callback = wl_proxy_marshal_flags((struct wl_proxy *) wl_surface, WL_SURFACE_FRAME, wl_callback_interface, wl_proxy_get_version((struct wl_proxy *) wl_surface), 0, NULL);
+
+	return (struct wl_callback *) callback;
+}
+
 static inline void wl_surface_commit(struct wl_surface *wl_surface) {
 	wl_proxy_marshal((struct wl_proxy *) wl_surface, WL_SURFACE_COMMIT);
 }
@@ -256,6 +269,14 @@ static inline void wl_keyboard_destroy(struct wl_keyboard *wl_keyboard) {
 
 static inline int wl_pointer_add_listener(struct wl_pointer *wl_pointer, const struct wl_pointer_listener *listener, void *data) {
 	return wl_proxy_add_listener((struct wl_proxy *) wl_pointer, (void (**)(void)) listener, data);
+}
+
+static inline int wl_callback_add_listener(struct wl_callback *wl_callback, const struct wl_callback_listener *listener, void *data) {
+	return wl_proxy_add_listener((struct wl_proxy *) wl_callback, (void (**)(void)) listener, data);
+}
+
+static inline void wl_callback_destroy(struct wl_callback *wl_callback) {
+	wl_proxy_destroy((struct wl_proxy *) wl_callback);
 }
 
 #if 0

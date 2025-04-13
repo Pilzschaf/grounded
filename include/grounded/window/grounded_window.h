@@ -33,6 +33,7 @@ typedef enum GroundedEventType {
 	GROUNDED_EVENT_TYPE_BUTTON_UP,
 	GROUNDED_EVENT_TYPE_DISPLAY,
 	GROUNDED_EVENT_TYPE_MOUSE_MOVE,
+	GROUNDED_EVENT_TYPE_MOUSE_SCROLL,
     GROUNDED_EVENT_TYPE_COUNT,
 } GroundedEventType;
 typedef struct GroundedEvent {
@@ -77,6 +78,10 @@ typedef struct GroundedEvent {
 			s32 mousePositionX;
 			s32 mousePositionY;
 		} mouseMove;
+		struct {
+			bool horizontal;
+			float amount;
+		} mouseScroll;
     };
 } GroundedEvent;
 
