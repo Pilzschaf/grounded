@@ -145,7 +145,7 @@ GROUNDED_HANDLE_ERROR_FUNCTION(groundedDefaultUnhandledErrorHandler) {
     MemoryArena* scratch = threadContextGetScratch(0);
     ArenaTempMemory temp = arenaBeginTemp(scratch);
     String8 message = str8FromFormat(scratch, "Unhandled error: %.*s", error.text.size, error.text.base);
-    threadContextGetLogFunction()(str8GetCstr(scratch, message), GROUNDED_LOG_LEVEL_ERROR, str8GetCstr(scratch, error.filename), error.line);
+    threadContextGetLogFunction()(str8GetCstr(scratch, message), GROUNDED_LOG_LEVEL_ERROR, error.filename, error.line);
     arenaEndTemp(temp);
 }
 
