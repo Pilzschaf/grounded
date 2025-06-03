@@ -25,7 +25,7 @@
 //#include <xcb/shm.h>
 //#include <xcb/xcb_image.h>
 //#include <xcb/xproto.h>
-#include <X11/keysymdef.h>
+//#include <X11/keysymdef.h>
 
 #include "types/grounded_xcb_types.h"
 
