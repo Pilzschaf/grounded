@@ -13,7 +13,6 @@
 #endif
 
 // Just some defines for x cursors
-#include <X11/cursorfont.h>
 //#include <xcb/xcb_renderutil.h>
 //#include <xcb/xcb_icccm.h>
 //#include <X11/Xcursor/Xcursor.h>
