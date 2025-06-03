@@ -4,7 +4,8 @@
 #include "../grounded.h"
 
 #include <string.h> // Required for strlen
-#include <math.h>
+#include <math.h> // Required for powf
+#include <wchar.h> // Required for wcslen
 
 GROUNDED_FUNCTION_INLINE bool asciiCharIsBoundary(u8 character) {
     bool isBoundary = character == ' ' || character == '\t' || character == '/' || character == '\n';
