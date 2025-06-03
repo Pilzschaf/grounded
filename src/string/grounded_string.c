@@ -814,6 +814,14 @@ GROUNDED_FUNCTION String32 str32FromStr16(struct MemoryArena* arena, String16 st
 }
 
 #ifdef _WIN32
+#include <windows.h>
+GROUNDED_FUNCTION void groundedPrintString(String8 str) {
+    DWORD bytesWritten = 0;
+    HANDLE stdoutHandle = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (stdoutHandle != INVALID_HANDLE_VALUE) {
+        WriteFile(stdoutHandle, str.base, (DWORD)str.size, &bytesWritten, 0);
+    }
+}
 #else
 #include <unistd.h>
 GROUNDED_FUNCTION void groundedPrintString(String8 str) {
