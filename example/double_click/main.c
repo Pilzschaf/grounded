@@ -49,7 +49,7 @@ int main() {
 
                 double deltaDown = (counter - lastButtonDownCounter) / 1000000.0;
                 double deltaUp = (counter - lastButtonUpCounter) / 1000000.0;
-                GROUNDED_LOG_INFOF("Button down\n");
+                GROUNDED_LOG_INFO("Button down\n");
                 //GROUNDED_LOG_INFOF("\t\tdeltaDown: %f\n", deltaDown);
                 //GROUNDED_LOG_INFOF("\t\tdeltaUp: %f\n", deltaUp);
                 lastButtonDownCounter = counter;
@@ -59,11 +59,11 @@ int main() {
 
                 double deltaDown = (counter - lastButtonDownCounter) / 1000000.0;
                 double deltaUp = (counter - lastButtonUpCounter) / 1000000.0;
-                GROUNDED_LOG_INFOF("Button up\n");
+                GROUNDED_LOG_INFO("Button up\n");
                 GROUNDED_LOG_INFOF("\t\tdeltaDown: %f\n", deltaDown);
                 GROUNDED_LOG_INFOF("\t\tdeltaUp: %f\n", deltaUp);
                 if(deltaUp < 250) {
-                    GROUNDED_LOG_INFOF("Double click\n");
+                    GROUNDED_LOG_INFO("Double click\n");
                 }
 
                 lastButtonUpCounter = counter;

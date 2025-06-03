@@ -9,7 +9,7 @@ void (*glClear)(int);
 
 GROUNDED_WINDOW_DND_DROP_CALLBACK(uriListCallback) {
     //TODO: Fix data retrieval in xcb
-    GROUNDED_LOG_INFOF("Dropped an text/uri-list\n");
+    GROUNDED_LOG_INFO("Dropped an text/uri-list\n");
     GROUNDED_LOG_INFOF("Data: %.*s\n", (int)data.size, (const char*)data.base);
 }
 
