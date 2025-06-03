@@ -140,51 +140,6 @@ static WPARAM inverseTranslateWin32Keycode(u32 keycode) {
     return result;
 }
 
-static WPARAM inverseTranslateWin32Keycode(u32 keycode) {
-    WPARAM result = 0;
-    if (keycode >= 0x30 && keycode <= 0x39) return (u8)keycode; // Numbers
-    if (keycode >= 0x41 && keycode <= 0x5A) return (u8)keycode; // Characters
-    if (keycode >= 0x70 && keycode <= 0x7F) return (u8)keycode; // F keys
-    switch (keycode) {
-    case(GROUNDED_KEY_BACKSPACE):
-        result = 0x08;
-        break;
-    case(GROUNDED_KEY_TAB):
-        result = 0x09;
-        break;
-    case (GROUNDED_KEY_LSHIFT):
-        //TODO: Differentiation between LSHIFT and RSHIFT is only done by low level keyboard handler.
-        // See https://stackoverflow.com/questions/1811206/on-win32-how-to-detect-whether-a-left-shift-or-right-alt-is-pressed-using-perl
-        result = 0x10;
-        break;
-    case(GROUNDED_KEY_RETURN):
-        result = 0x0D;
-        break;
-    case(GROUNDED_KEY_ESCAPE):
-        result = 0x1B;
-        break;
-    case(GROUNDED_KEY_SPACE):
-        result = 0x20;
-        break;
-    case(GROUNDED_KEY_LEFT):
-        result = 0x25;
-        break;
-    case(GROUNDED_KEY_UP):
-        result = 0x26;
-        break;
-    case(GROUNDED_KEY_RIGHT):
-        result = 0x27;
-        break;
-    case(GROUNDED_KEY_DOWN):
-        result = 0x28;
-        break;
-    default:
-        printf("Unknown keycode: %i\n", (int)keycode);
-        break;
-    }
-    return result;
-}
-
 GroundedWin32Window* currentlyCreatingWindow;
 
 static GroundedWin32Window* getGroundedWindow(HWND hWnd) {

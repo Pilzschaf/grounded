@@ -421,16 +421,16 @@ GROUNDED_FUNCTION u64 groundedGetCreationTimestamp(String8 filename) {
     HANDLE file = CreateFileA(str8GetCstr(scratch, filename), GENERIC_READ, FILE_SHARE_READ, 0, 0, 0, 0);
 	arenaEndTemp(temp);
 	if (file == INVALID_HANDLE_VALUE) {
-		GROUNDED_LOG_ERRORF("Filetime of file that does not exist queried\n");
+		GROUNDED_LOG_ERROR("Filetime of file that does not exist queried\n");
 		return 0;
 	}
 	FILETIME creationTime;
 	if (!GetFileTime(file, &creationTime, 0, 0)) {
-		GROUNDED_LOG_ERRORF("Error getting file creation timestamp\n");
+		GROUNDED_LOG_ERROR("Error getting file creation timestamp\n");
 		return 0;
 	}
 	if (!CloseHandle(file)) {
-		GROUNDED_LOG_ERRORF("Error closing file handle after time query\n");
+		GROUNDED_LOG_ERROR("Error closing file handle after time query\n");
 	}
 	// Simple cast is not allowed as it can result in alignment issues. See https://docs.microsoft.com/de-de/windows/win32/api/minwinbase/ns-minwinbase-filetime
 	ULARGE_INTEGER result;
