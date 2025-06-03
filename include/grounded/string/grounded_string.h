@@ -4,6 +4,7 @@
 #include "../grounded.h"
 
 #include <string.h> // Required for strlen
+#include <math.h>
 
 GROUNDED_FUNCTION_INLINE bool asciiCharIsBoundary(u8 character) {
     bool isBoundary = character == ' ' || character == '\t' || character == '/' || character == '\n';
@@ -222,7 +223,6 @@ GROUNDED_FUNCTION_INLINE float str8ToFloat(String8 str) {
     float fraction = 0.1f;
     int exponent_sign = 1;
     int exponent_value = 0;
-    int has_fraction = 0;
 
     // Skip leading whitespaces
     while (isSpace((unsigned char)*p)) {
@@ -250,7 +250,6 @@ GROUNDED_FUNCTION_INLINE float str8ToFloat(String8 str) {
             result += (*p - '0') * fraction;
             fraction *= 0.1f;
             p++;
-            has_fraction = 1;
         }
     }
 
