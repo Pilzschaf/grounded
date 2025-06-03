@@ -134,7 +134,7 @@ static WPARAM inverseTranslateWin32Keycode(u32 keycode) {
         result = 0x28;
         break;
     default:
-        printf("Unknown keycode: %i\n", (int)keycode);
+        GROUNDED_LOG_WARNINGF("Unknown keycode: %i\n", (int)keycode);
         break;
     }
     return result;

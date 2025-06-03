@@ -452,7 +452,7 @@ GROUNDED_FUNCTION u64 groundedGetModificationTimestamp(String8 filename) {
 	if (success) {
 		lastWriteTime = data.ftLastWriteTime;
 	} else {
-		GROUNDED_LOG_INFOF("Filetime of file that does not exist queried\n");
+		GROUNDED_LOG_INFO("Filetime of file that does not exist queried\n");
 		return 0;
 	}
 	ULARGE_INTEGER result;
