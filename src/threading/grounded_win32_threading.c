@@ -2,6 +2,7 @@
 #include <grounded/memory/grounded_memory.h>
 
 #include <windows.h>
+#include <stdarg.h>
 
 /////////////////
 // Thread context
@@ -57,6 +58,24 @@ GROUNDED_FUNCTION void threadContextClear() {
     void* tlsMemory = TlsGetValue(threadContextIndex);
     GroundedThreadContext* threadContext = (GroundedThreadContext*) tlsMemory;
     *threadContext = (GroundedThreadContext){0};
+}
+
+// Predeclare str8FromFormatVaList from grounded_string so we do not have to include stdarg.h in our headers
+String8 str8FromFormatVaList(struct MemoryArena* arena, const char* format, va_list args);
+
+//////////
+// Logging
+GROUNDED_FUNCTION void logFunctionf(GroundedLogLevel level, String8 filename, u64 line, const char* fmt, ...) {
+    MemoryArena* scratch = threadContextGetScratch(0);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
+    
+    va_list args;
+    va_start(args, fmt);
+    String8 str = str8FromFormatVaList(scratch, fmt, args);
+    threadContextGetLogFunction()((const char*)str.base, level, filename, line);
+    va_end(args);
+
+    arenaEndTemp(temp);
 }
 
 ////////
