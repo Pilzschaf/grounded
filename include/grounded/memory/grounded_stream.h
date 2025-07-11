@@ -124,7 +124,7 @@ typedef struct SimpleReader {
 
 GROUNDED_FUNCTION_INLINE SimpleReader createSimpleReader(BufferedStreamReader reader) {
     SimpleReader result = {
-        result.r = reader,
+        .r = reader,
     };
     return result;
 }

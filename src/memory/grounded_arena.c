@@ -160,7 +160,7 @@ GROUNDED_FUNCTION void debugDeallocateLog(MemoryArena* arena, u8* newHead) {
             break;
         } else if(newHead > entry->base && newHead <= entry->base + entry->size) {
             // We set a head that is inside this allocation block. This effectively shrinks the size of this allocation
-            if(entry->size != newHead - entry->base) {
+            if((s64)entry->size != newHead - entry->base) {
                 entry->size = newHead - entry->base;
                 GROUNDED_LOG_INFOF("Resize allocation: at %.*s:%lu\tto %lu bytes\n", (int)entry->filename.size, entry->filename.base, entry->line, entry->size);
             }

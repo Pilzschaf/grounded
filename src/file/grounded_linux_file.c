@@ -657,7 +657,7 @@ GROUNDED_FUNCTION String8 groundedGetLinkTarget(MemoryArena* arena, String8 file
         u64 bufferSize = 256;
         u8* buffer = ARENA_PUSH_ARRAY(arena, bufferSize, u8);
         ssize_t length = readlink(cFilename, (char*)buffer, bufferSize);
-        if(length < bufferSize) {
+        if(length < (s64)bufferSize) {
             result = str8FromBlock(buffer, length);
         } else {
             //TODO: Do again with new size
@@ -806,7 +806,7 @@ GROUNDED_FUNCTION String8 groundedGetBinaryDirectory(MemoryArena* arena) {
         written = readlink("/proc/self/exe", buffer, bufferSize);
 
         // readlink trunkates so if written is equal to buffersize we assume that the output has been truncated
-        if(written == bufferSize || (written == -1 && errno == ENAMETOOLONG)) {
+        if(written == (s32)bufferSize || (written == -1 && errno == ENAMETOOLONG)) {
             ARENA_PUSH_ARRAY_NO_CLEAR(arena, sizeIncrease, char);
             bufferSize += sizeIncrease;
             continue;
@@ -819,7 +819,7 @@ GROUNDED_FUNCTION String8 groundedGetBinaryDirectory(MemoryArena* arena) {
     ASSERT(false);
 
     if(written < 0) written = 0;
-    ASSERT(bufferSize >= written);
+    ASSERT((s32)bufferSize >= written);
     arenaPopTo(arena, (u8*)buffer + written);
     String8 result = str8FromRange((u8*)buffer, (u8*)buffer + written);
     return result;

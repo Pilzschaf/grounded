@@ -2024,7 +2024,7 @@ static void flipImage(u32 width, u32 height, u8* data) {
 
     uint8_t *tempRow = ARENA_PUSH_ARRAY(scratch, rowSize, u8);
 
-    for (int row = 0; row < height / 2; row++) {
+    for (int row = 0; row < (int)(height / 2); row++) {
         uint8_t *rowStart = data + row * rowSize;
         uint8_t *oppositeRow = data + (height - row - 1) * rowSize;
 

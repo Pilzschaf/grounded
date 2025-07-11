@@ -175,8 +175,8 @@ bool waylandCursorLibraryPresent;
 GroundedMouseCursor waylandCurrentCursorType = GROUNDED_MOUSE_CURSOR_DEFAULT;
 GroundedMouseCursor waylandCursorTypeOverwrite = GROUNDED_MOUSE_CURSOR_COUNT;
 int keyRepeatTimer = -1;
-u32 keyRepeatDelay = 500;
-u32 keyRepeatRate = 25;
+s32 keyRepeatDelay = 500;
+s32 keyRepeatRate = 25;
 u32 keyRepeatKey;
 GroundedWaylandWindow* activeCursorWindow; // The window (if any) the mouse cursor is currently hovering
 GroundedWaylandWindow* activeKeyboardWindow; // The window (if any) the keyboard is currently active in
@@ -1238,7 +1238,7 @@ static void xdgToplevelHandleConfigure(void* data,  struct xdg_toplevel* topleve
     }
 
     // Here we get a new width and height
-    if(width && height && (width != window->width || height != window->height)) {
+    if(width > 0 && height > 0 && ((u32)width != window->width || (u32)height != window->height)) {
         eventQueue[eventQueueIndex++] = (GroundedEvent){
             .type = GROUNDED_EVENT_TYPE_RESIZE,
             .window = (GroundedWindow*)window,
@@ -1820,7 +1820,7 @@ String8 groundedWaylandGetNameOfKeycode(MemoryArena* arena, u32 keycode) {
     u32 bufferSize = 256;
     char* buffer = ARENA_PUSH_ARRAY_NO_CLEAR(arena, bufferSize, char);
     ASSUME(buffer) {
-        s32 length = MIN(bufferSize, xkb_keysym_get_name(keysym, buffer, bufferSize));
+        s32 length = MIN((s32)bufferSize, xkb_keysym_get_name(keysym, buffer, bufferSize));
         if(length < 0) {
             length = 0;
         }

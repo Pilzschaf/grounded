@@ -262,7 +262,7 @@ String8* dbusWaitForFileDialog(MemoryArena* arena, char* path, u32* outResultCou
                                             //printf("File:%s\n", filename);
                                             //resolveFileURI();
                                         }
-                                        ASSERT(resultCount == uriCount);
+                                        ASSERT((s32)resultCount == uriCount);
                                     }
                                 }
                             }

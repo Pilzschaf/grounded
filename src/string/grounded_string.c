@@ -73,8 +73,8 @@ GROUNDED_FUNCTION int str8Compare(String8 a, String8 b) {
 }
 
 GROUNDED_FUNCTION int str8CompareCaseInsensitive(String8 a, String8 b) {
-    s64 offsetA = 0;
-    s64 offsetB = 0;
+    u64 offsetA = 0;
+    u64 offsetB = 0;
 
     while(offsetA < a.size && offsetB < b.size) {
         StringDecode decodeA = strDecodeUtf8(a.base + offsetA, a.size - offsetA);
@@ -224,14 +224,14 @@ GROUNDED_FUNCTION bool str8IsUppercase(String8 str) {
 
 GROUNDED_FUNCTION s64 str8DeltaToNextWordBoundary(String8 str, u64 cursor, s64 inc) {
     s64 result = 0;
-    for(s64 byteOffset = (s64)cursor + inc; byteOffset >= 0 && byteOffset <= str.size; byteOffset += inc) {
-        if(byteOffset == 0 || byteOffset == str.size) {
+    for(s64 byteOffset = (s64)cursor + inc; byteOffset >= 0 && (u64)byteOffset <= str.size; byteOffset += inc) {
+        if(byteOffset == 0 || (u64)byteOffset == str.size) {
             result += byteOffset - (s64)cursor;
             break;
         }
         s64 off = inc > 0 ? -1 : 0;
-        ASSERT(byteOffset+off < str.size);
-        ASSERT(byteOffset+inc+off < str.size);
+        ASSERT(byteOffset+off < (s64)str.size);
+        ASSERT(byteOffset+inc+off < (s64)str.size);
         ASSERT(byteOffset+off >= 0);
         ASSERT(byteOffset+inc+off >= 0);
         if(!asciiCharIsBoundary(str.base[byteOffset+off]) && asciiCharIsBoundary(str.base[byteOffset+inc+off])) {

@@ -36,10 +36,10 @@ typedef unsigned int uint;
 #endif
 
 #ifndef INT_FROM_PTR
-#define INT_FROM_PTR(p) (unsigned long long)(((char*)p) - (char*)0)
+#define INT_FROM_PTR(p) ((uintptr_t)(p))
 #endif
 #ifndef PTR_FROM_INT
-#define PTR_FROM_INT(n) (void*)((char*)0 + (n))
+#define PTR_FROM_INT(n) ((void*)(uintptr_t)(n))
 #endif
 
 #ifndef STRINGIFY_
