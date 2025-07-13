@@ -230,7 +230,7 @@ GROUNDED_FUNCTION void* debugAllocateOverflowDetect(MemoryArena* arena, u64 size
     arena->commitPos = newSize;
     arena->pos = size;
 
-    if(!clear) { memset(newBlock, 27, newSize); }
+    if(!clear) { groundedSetMemory(newBlock, 27, newSize); }
 
     return arena->memory;
 }
@@ -301,7 +301,7 @@ GROUNDED_FUNCTION void* debugAllocateUndeflowDetect(MemoryArena* arena, u64 size
     arena->commitPos = usableSize;
     arena->pos = size;
 
-    if(!clear) { memset(result, 27, usableSize); }
+    if(!clear) { groundedSetMemory(result, 27, usableSize); }
 
     return arena->memory;
 }

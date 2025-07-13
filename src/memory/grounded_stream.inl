@@ -7,7 +7,7 @@ GROUNDED_FUNCTION u64 textualReaderReadUntilWhitespace(TextualReader* reader, u8
         if(reader->r.cursor >= reader->r.end) {
             reader->r.refill(&reader->r);
         }
-        if(isspace(reader->r.cursor[0])) {
+        if(isSpace(reader->r.cursor[0])) {
             return i;
         }
         // This is not a good idea as there is no way to get the EOF error on a successive read
@@ -34,7 +34,7 @@ GROUNDED_FUNCTION float textualReaderReadFloatWithOptionalIEEEHex(TextualReader*
             // We are at whitespace so skip this character
             reader->r.cursor++;
         } else {
-            result = strtof((const char*)buffer, 0);
+            result = str8ToFloat(str8FromCstr((const char*)buffer));
             break;
         }
     }
@@ -79,7 +79,7 @@ GROUNDED_FUNCTION u64 textualReaderReadUnsignedInteger(TextualReader* reader) {
             // We are at whitespace so skip this character
             reader->r.cursor++;
         } else {
-            u64 result = strtoul((const char*)buffer, 0, 10);
+            u64 result = str8ToU64(str8FromCstr((const char*)buffer), 10);
             return result;
         }
     }
@@ -94,7 +94,7 @@ GROUNDED_FUNCTION u64 textualReaderReadHex(TextualReader* reader) {
             // We are at whitespace so skip this character
             reader->r.cursor++;
         } else {
-            u64 result = strtoul((const char*)buffer, 0, 16);
+            u64 result = str8ToU64(str8FromCstr((const char*)buffer), 16);
             return result;
         }
     }

@@ -12,6 +12,18 @@ GROUNDED_FUNCTION_INLINE bool asciiCharIsBoundary(u8 character) {
     return isBoundary;
 }
 
+GROUNDED_FUNCTION_INLINE u64 lengthOfCString(const char* cstr) {
+    #ifdef GROUNDED_NO_STDLIB
+    u64 result = 0;
+    while(cstr[result]) {
+        result++;
+    }
+    return  result;
+    #else
+    return strlen(cstr);
+    #endif
+}
+
 GROUNDED_FUNCTION_INLINE String8 str8FromBlock(u8* str, u64 size) {
     String8 result = {str, size};
     return result;
@@ -25,7 +37,7 @@ GROUNDED_FUNCTION_INLINE String8 str8FromRange(u8* first, u8* opl) {
 
 GROUNDED_FUNCTION_INLINE String8 str8FromCstr(const char* cstr) {
     if(!cstr) return EMPTY_STRING8;
-    return str8FromBlock((u8*)cstr, strlen(cstr));
+    return str8FromBlock((u8*)cstr, lengthOfCString(cstr));
 }
 
 GROUNDED_FUNCTION_INLINE bool str8IsEmpty(String8 str) {
@@ -197,7 +209,7 @@ GROUNDED_FUNCTION_INLINE bool compareAtoms(StringAtom a0, StringAtom a1) {
 }
 
 //TODO: String conversion functions like strToU64 etc.
-GROUNDED_FUNCTION_INLINE u64 str8ToU64(String8 str) {
+/*GROUNDED_FUNCTION_INLINE u64 str8ToU64(String8 str) {
     u64 result = 0;
     for (u64 i = 0; i < str.size; i++) {
         u8 c = str.base[i];
@@ -206,7 +218,7 @@ GROUNDED_FUNCTION_INLINE u64 str8ToU64(String8 str) {
         }
     }
     return result;
-}
+}*/
 
 GROUNDED_FUNCTION_INLINE bool isSpace(int c) {
     return (c == ' '  || c == '\t' || c == '\n' || 
@@ -215,6 +227,24 @@ GROUNDED_FUNCTION_INLINE bool isSpace(int c) {
 
 GROUNDED_FUNCTION_INLINE bool isDigit(int c) {
     return (c >= '0' && c <= '9');
+}
+
+GROUNDED_FUNCTION_INLINE float pow10f(int exp) {
+    float base = 10.0f;
+    float result = 1.0f;
+
+    if (exp < 0) {
+        exp = -exp;
+        base = 0.1f;
+    }
+
+    while (exp) {
+        if (exp & 1) result *= base;
+        base *= base;
+        exp >>= 1;
+    }
+
+    return result;
 }
 
 GROUNDED_FUNCTION_INLINE float str8ToFloat(String8 str) {
@@ -271,10 +301,48 @@ GROUNDED_FUNCTION_INLINE float str8ToFloat(String8 str) {
 
     // Apply exponent
     if (exponent_value) {
-        result *= powf(10.0f, exponent_sign * exponent_value);
+        result *= pow10f(exponent_sign * exponent_value);
     }
 
     return sign * result;
+}
+
+GROUNDED_FUNCTION_INLINE u64 str8ToU64(String8 str, u32 base) {
+    u8* p = str.base;
+    u64 result = 0;
+
+    if (base < 2 || base > 36) {
+        return 0; // invalid base
+    }
+
+    // Skip leading whitespace
+    while (isSpace((unsigned char)*p)) {
+        p++;
+    }
+
+    while (*p) {
+        u8 c = *p;
+        u32 digit = 255;
+
+        if (c >= '0' && c <= '9') {
+            digit = c - '0';
+        } else if (c >= 'a' && c <= 'z') {
+            digit = c - 'a' + 10;
+        } else if (c >= 'A' && c <= 'Z') {
+            digit = c - 'A' + 10;
+        } else {
+            break;
+        }
+
+        if (digit >= base) {
+            break;
+        }
+
+        result = result * base + digit;
+        p++;
+    }
+
+    return result;
 }
 
 GROUNDED_FUNCTION void groundedPrintString(String8 str);

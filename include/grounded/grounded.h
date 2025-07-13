@@ -56,7 +56,15 @@ typedef unsigned int uint;
 #endif
 
 #ifndef ASSERT
+#ifdef GROUNDED_NO_STDLIB
+#ifdef NDEBUG
+#define ASSERT(c) (void)(0)
+#else
+#define ASSERT(c) ((c) ? (void)0 : __builtin_trap())
+#endif
+#else
 #define ASSERT(c) assert(c)
+#endif
 #endif
 #ifndef STATIC_ASSERT
 #define STATIC_ASSERT(c) enum { GLUE(assert_fail_, __LINE__) = 1/(int)(!!(c))}

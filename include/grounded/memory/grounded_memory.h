@@ -2,7 +2,6 @@
 #define GROUNDED_MEMORY_H
 
 #include "../grounded.h"
-#include "grounded_arena.h"
 
 #include <string.h> // Required for memset, memcmp, memcpy
 
@@ -22,20 +21,59 @@
 // Clears memory at ptr with the specified size to 0
 GROUNDED_FUNCTION_INLINE void groundedClearMemory(void* ptr, u64 size) {
     ASSERT(ptr);
+    #ifdef GROUNDED_NO_STDLIB
+    u8* b = (u8*)ptr;
+    while(size--) {
+        *b++ = 0;
+    }
+    #else
     memset(ptr, 0, size);
+    #endif
+}
+
+// Sets size bytes from ptr onwards to value
+GROUNDED_FUNCTION_INLINE void groundedSetMemory(void* ptr, u8 value, u64 size) {
+    ASSERT(ptr);
+    #ifdef GROUNDED_NO_STDLIB
+    u8* b = (u8*)ptr;
+    while (size--) {
+        *b++ = value;
+    }
+    #else
+    memset(ptr, value, size);
+    #endif
 }
 
 // Returns false if they don't match
 GROUNDED_FUNCTION_INLINE bool groundedCompareMemory(void* a, void* b, u64 size) {
     // Spec does not allow passing null pointers to memcmp
     ASSERT(a && b);
+    #ifdef GROUNDED_NO_STDLIB
+    u8* ptra = (u8*)a;
+    u8* ptrb = (u8*)b;
+    while(size--) {
+        if(*ptra++ != *ptrb++) {
+            return false;
+        }
+    }
+    return true;
+    #else
     return memcmp(a, b, size) == 0;
+    #endif
 }
 
 GROUNDED_FUNCTION_INLINE void groundedCopyMemory(void* dest, void* src, u64 size) {
     ASSERT(src);
     ASSERT(dest);
+    #ifdef GROUNDED_NO_STDLIB
+    u8* srcPtr = (u8*)src;
+    u8* dstPtr = (u8*)dest;
+    while(size--) {
+        *dstPtr++ = *srcPtr++;
+    }
+    #else
     memcpy(dest, src, size);
+    #endif
 }
 
 GROUNDED_FUNCTION_INLINE bool groundedMemoryIsZero(void* memory, u64 size) {
@@ -47,6 +85,8 @@ GROUNDED_FUNCTION_INLINE bool groundedMemoryIsZero(void* memory, u64 size) {
     }
     return true;
 }
+
+#include "grounded_arena.h"
 
 ///////////////
 // Memory stuff
@@ -73,9 +113,9 @@ GROUNDED_FUNCTION MemorySubsystem* osGetMemorySubsystem();
 GROUNDED_FUNCTION MemorySubsystem* getMallocMemorySubsystem();
 
 // If Overflow or Underflow protection is enabled fixed size behaves like a growing arena
-GROUNDED_FUNCTION MemoryArena createFixedSizeArena(MemorySubsystem* memorySubsystem, u64 size);
-GROUNDED_FUNCTION MemoryArena createGrowingArena(MemorySubsystem* memorySubsystem, u64 minBlockSize);
-GROUNDED_FUNCTION MemoryArena createContigousVirtualMemoryArena(u64 maxVirtualMemorySize);
+GROUNDED_FUNCTION struct MemoryArena createFixedSizeArena(MemorySubsystem* memorySubsystem, u64 size);
+GROUNDED_FUNCTION struct MemoryArena createGrowingArena(MemorySubsystem* memorySubsystem, u64 minBlockSize);
+GROUNDED_FUNCTION struct MemoryArena createContigousVirtualMemoryArena(u64 maxVirtualMemorySize);
 
 // Circular Buffer aka. Ring buffer
 typedef struct {

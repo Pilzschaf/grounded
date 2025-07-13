@@ -3,6 +3,7 @@
 
 #include "../grounded.h"
 #include "../string/grounded_string.h"
+#include "grounded_memory.h"
 
 // Enables all simple arena debug mechanisms project wide
 #ifdef GROUNDED_ARENA_DEBUG
@@ -133,9 +134,6 @@ struct MemoryArena {
 // Default arena creation functions (More might be implemented by other modules or yourself)
 GROUNDED_FUNCTION MemoryArena createFixedSizeArenaInBlock(u8* blockStart, u64 size);
 
-// For memset
-#include <string.h>
-
 GROUNDED_FUNCTION_INLINE void* _arenaPushSizeImpl(MemoryArena* arena, u64 size, u64 alignment, bool clear) {
     void* result = 0;
     u64 alignedPos = ALIGN_UP_POW2(arena->pos, alignment);
@@ -160,7 +158,7 @@ GROUNDED_FUNCTION_INLINE void* _arenaPushSizeImpl(MemoryArena* arena, u64 size, 
     arena->pos = alignedPos + size;
 
     // This branch should get optimized out if clear is a compile time constant
-    if(clear) { memset(result, 0, size); }
+    if(clear) { groundedClearMemory(result, size); }
 
     return result;
 }

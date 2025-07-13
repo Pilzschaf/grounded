@@ -7,7 +7,11 @@
 
 /////////////////
 // Thread context
+#ifdef GROUNDED_SINGLETHREADED
+static GroundedThreadContext threadContext;
+#else
 static __thread GroundedThreadContext threadContext;
+#endif // GROUNDED_SINGLETHREADED
 
 GROUNDED_FUNCTION void threadContextInit(MemoryArena arena0, MemoryArena arena1, GroundedLogFunction* logFunction) {
     threadContext.scratchArenas[0] = arena0;
@@ -132,6 +136,8 @@ struct LinuxThread {
     ArenaMarker marker;
 };
 
+#ifndef GROUNDED_SINGLETHREADED
+
 static void signalTermination(void* arg) {
     struct LinuxThread* thread = (struct LinuxThread*) arg;
     pthread_mutex_lock(&thread->terminateMutex);
@@ -254,3 +260,5 @@ GROUNDED_FUNCTION bool groundedThreadShouldStop(GroundedThread* opaqueThread) {
     groundedReadAcquireFence();
     return thread->stopRequested;
 }
+
+#endif // GROUNDED_SINGLETHREADED
