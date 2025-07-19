@@ -100,7 +100,15 @@ GROUNDED_FUNCTION_INLINE BufferedStreamWriter createMemoryStreamWriter(u8* buffe
     return result;
 }
 
-
+GROUNDED_FUNCTION_INLINE void memoryStreamWriterClose(BufferedStreamWriter* w) {
+    ASSUME(w) {
+        w->submit(w, w->start);
+        if(w->close) {
+            w->close(w);
+        }
+        w->submit = submitScratch;
+    }
+}
 
 
 
@@ -295,6 +303,10 @@ GROUNDED_FUNCTION_INLINE void simpleWriterFlush(SimpleWriter* writer) {
     writer->w.submit(&writer->w, writer->w.start);
 }
 
+GROUNDED_FUNCTION_INLINE void simpleWriterClose(SimpleWriter* writer) {
+    memoryStreamWriterClose(&writer->w);
+}
+
 
 typedef struct TextualWriter {
     SimpleWriter w;
@@ -322,6 +334,10 @@ GROUNDED_FUNCTION void textualWriterWriteUnsignedInteger(TextualWriter* writer, 
 
 GROUNDED_FUNCTION_INLINE void textualWriterFlush(TextualWriter* writer) {
     simpleWriterFlush(&writer->w);
+}
+
+GROUNDED_FUNCTION_INLINE void textualWriterClose(TextualWriter* writer) {
+    simpleWriterClose(&writer->w);
 }
 
 #endif // GROUNDED_STREAM_H

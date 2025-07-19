@@ -13,10 +13,6 @@
 #include <unistd.h>
 #include <sys/timerfd.h> // For timerfd_settime
 
-#ifdef GROUNDED_OPENGL_SUPPORT
-//#include <EGL/egl.h>
-#endif
-
 #if 1
 #define GROUNDED_WAYLAND_LOG_CALL(name)
 #define GROUNDED_WAYLAND_LOG_HANDLER(name)
@@ -2697,6 +2693,12 @@ static void updateWaylandDragPosition(GroundedWaylandWindow* window, struct Wayl
         }
         waylandOffer->lastAcceptedMimeIndex = newMimeIndex;
     }
+    eventQueue[eventQueueIndex++] = (GroundedEvent){
+        .type = GROUNDED_EVENT_TYPE_MOUSE_MOVE,
+        .window = (GroundedWindow*)activeCursorWindow,
+        .mouseMove.mousePositionX = activeCursorWindow->mouseState.x,
+        .mouseMove.mousePositionY = activeCursorWindow->mouseState.y,
+    };
 }
 
 static void dataDeviceListenerEnter(void* data, struct wl_data_device* dataDevice, u32 serial, struct wl_surface* surface, wl_fixed_t x, wl_fixed_t y, struct wl_data_offer* offer) {
@@ -2828,6 +2830,14 @@ static void dataDeviceListenerDrop(void* data, struct wl_data_device* dataDevice
         wl_data_offer_finish(waylandOffer->offer);
     }
     wl_data_offer_destroy(waylandOffer->offer);
+
+    eventQueue[eventQueueIndex++] = (GroundedEvent){
+        .type = GROUNDED_EVENT_TYPE_MOUSE_MOVE,
+        .window = (GroundedWindow*)activeCursorWindow,
+        .mouseMove.mousePositionX = waylandOffer->x,
+        .mouseMove.mousePositionY = waylandOffer->y,
+    };
+
     arenaRelease(&waylandOffer->arena);
     dragOffer = 0;
 }
@@ -2958,6 +2968,12 @@ static void dataSourceHandleDndFinished(void *data, struct wl_data_source* dataS
         dragDataSource = 0;
     }
     wl_data_source_destroy(dataSource);
+
+    eventQueue[eventQueueIndex++] = (GroundedEvent){
+        .type = GROUNDED_EVENT_TYPE_DND_FINISH,
+        //.window = (GroundedWindow*)waylandDataSource->window,
+    };
+
     arenaRelease(waylandDataSource->arena);
 }
 
