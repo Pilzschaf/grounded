@@ -61,12 +61,12 @@ GROUNDED_FUNCTION_INLINE BufferedStreamReader createMemoryStreamReader(u8* buffe
     return result;
 }
 
-
 /////////////////////////
 // Buffered Stream Writer
 
 typedef struct BufferedStreamWriter {
-    u8* start; // Current position
+    u8* start; // Buffer start
+    u8* head; // Current position
     u8* end; // opl
     void* implementationPointer; // Only for use by the implementation
     enum GroundedStreamErrorCode error;
@@ -78,10 +78,10 @@ typedef struct BufferedStreamWriter {
 
 GROUNDED_FUNCTION_INLINE enum GroundedStreamErrorCode submitScratch(BufferedStreamWriter* w, u8* opl) {
     // TODO: Scratch is thread-local to circumvent thread cache thrashing
-    static u8 scratch[256] = {0};
+    static u8 scratch[256] = {0}; 
     //static u8 scratch[256];
     //_Thread_local int test;
-    w->start = scratch;
+    w->head = scratch;
     w->end = scratch + sizeof(scratch);
     if(w->error == GROUNDED_STREAM_SUCCESS) {
         w->error = GROUNDED_STREAM_PAST_EOF;
@@ -91,7 +91,7 @@ GROUNDED_FUNCTION_INLINE enum GroundedStreamErrorCode submitScratch(BufferedStre
 
 GROUNDED_FUNCTION_INLINE BufferedStreamWriter createMemoryStreamWriter(u8* buffer, u64 size) {
     BufferedStreamWriter result = {
-        .start = buffer,
+        .head = buffer,
         .end = buffer + size,
         .implementationPointer = buffer,
         .error = GROUNDED_STREAM_SUCCESS,
@@ -102,7 +102,7 @@ GROUNDED_FUNCTION_INLINE BufferedStreamWriter createMemoryStreamWriter(u8* buffe
 
 GROUNDED_FUNCTION_INLINE void memoryStreamWriterClose(BufferedStreamWriter* w) {
     ASSUME(w) {
-        w->submit(w, w->start);
+        w->submit(w, w->head);
         if(w->close) {
             w->close(w);
         }
@@ -154,7 +154,7 @@ GROUNDED_FUNCTION_INLINE void simpleReaderRead(SimpleReader* reader, const void*
 }
 
 // This is a bit harder as we do not know how large the buffer should be and cannot expect subsequent allocation to be directly after each other.
-// Best option is probably to ping pong back and forth between both arenas, always dubling buffer size until large enough
+// Best option is probably to ping pong back and forth between both arenas, always doubling buffer size until large enough
 GROUNDED_FUNCTION_INLINE u8* simpleReaderReadUntilDelimeter(SimpleReader* reader, MemoryArena* arena, u32 delimeterCount, const char* delimeters, u64* dataSize) {
     // This code has never been tested and probably contains bugs
     ASSERT(false);
@@ -262,37 +262,37 @@ GROUNDED_FUNCTION_INLINE SimpleWriter createSimpleWriter(BufferedStreamWriter w)
 
 GROUNDED_FUNCTION_INLINE void simpleWriterWrite(SimpleWriter* writer, const void* data, u64 size) {
     u8* src = (u8*)data;
-    s64 sizeLeft = writer->w.end - writer->w.start;
+    s64 sizeLeft = writer->w.end - writer->w.head;
     while(sizeLeft < (s64)size) {
-        groundedCopyMemory(writer->w.start, src, sizeLeft);
+        groundedCopyMemory(writer->w.head, src, sizeLeft);
         writer->bytesWritten += sizeLeft;
         writer->w.submit(&writer->w, writer->w.end);
         size -= sizeLeft;
         src = src + sizeLeft;
-        sizeLeft = writer->w.end - writer->w.start;
+        sizeLeft = writer->w.end - writer->w.head;
     }
-    groundedCopyMemory(writer->w.start, src, size);
-    writer->w.start += size;
+    groundedCopyMemory(writer->w.head, src, size);
+    writer->w.head += size;
     writer->bytesWritten += size;
 }
 
 GROUNDED_FUNCTION_INLINE void simpleWriterWriteAligned(SimpleWriter* writer, const void* data, u64 size, u64 alignment) {
     ASSERT(IS_POW2(alignment));
     u8* src = (u8*)data;
-    u8* alignedStartPos = (u8*)PTR_FROM_INT(ALIGN_UP_POW2(INT_FROM_PTR(writer->w.start), alignment));
+    u8* alignedStartPos = (u8*)PTR_FROM_INT(ALIGN_UP_POW2(INT_FROM_PTR(writer->w.head), alignment));
     s64 sizeLeft = writer->w.end - alignedStartPos;
     while(sizeLeft < (s64)size) {
         groundedCopyMemory(alignedStartPos, src, sizeLeft);
-        writer->bytesWritten += sizeLeft + (alignedStartPos - writer->w.start);
+        writer->bytesWritten += sizeLeft + (alignedStartPos - writer->w.head);
         writer->w.submit(&writer->w, writer->w.end);
         size -= sizeLeft;
         src = src + sizeLeft;
-        alignedStartPos = writer->w.start;
-        sizeLeft = writer->w.end - writer->w.start;
+        alignedStartPos = writer->w.head;
+        sizeLeft = writer->w.end - writer->w.head;
     }
     groundedCopyMemory(alignedStartPos, src, size);
-    writer->w.start = alignedStartPos + size;
-    writer->bytesWritten += size + (alignedStartPos - writer->w.start);
+    writer->w.head = alignedStartPos + size;
+    writer->bytesWritten += size + (alignedStartPos - writer->w.head);
 }
 
 GROUNDED_FUNCTION_INLINE u64 simpleWriterGetOffset(SimpleWriter* writer) {
@@ -300,7 +300,7 @@ GROUNDED_FUNCTION_INLINE u64 simpleWriterGetOffset(SimpleWriter* writer) {
 }
 
 GROUNDED_FUNCTION_INLINE void simpleWriterFlush(SimpleWriter* writer) {
-    writer->w.submit(&writer->w, writer->w.start);
+    writer->w.submit(&writer->w, writer->w.head);
 }
 
 GROUNDED_FUNCTION_INLINE void simpleWriterClose(SimpleWriter* writer) {

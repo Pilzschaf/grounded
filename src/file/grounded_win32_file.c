@@ -291,10 +291,7 @@ GROUNDED_FUNCTION bool groundedWriteFile(String8 filename, const void* data, u64
 
 
 struct GroundedFile {
-    MemoryArena* arena;
     HANDLE handle;
-    u8* buffer;
-    u64 bufferSize;
 };
 GROUNDED_FUNCTION GroundedFile* groundedOpenFile(MemoryArena* arena, String8 filename, enum FileMode fileMode) {
     MemoryArena* scratch = threadContextGetScratch(arena);
@@ -313,9 +310,6 @@ GROUNDED_FUNCTION GroundedFile* groundedOpenFile(MemoryArena* arena, String8 fil
     struct GroundedFile* result = ARENA_PUSH_STRUCT(arena, struct GroundedFile);
     wchar_t* utf16Filename = (UTF8ToUTF16(scratch, str8GetCstr(scratch, filename)));
     result->handle = CreateFileW(utf16Filename, access, FILE_SHARE_READ, 0, creation, FILE_ATTRIBUTE_NORMAL, 0);
-    result->arena = arena;
-    result->bufferSize = 4096;
-    result->buffer = ARENA_PUSH_ARRAY(arena, result->bufferSize, u8);
 
     arenaEndTemp(temp);
     return result;
@@ -342,9 +336,9 @@ static enum GroundedStreamErrorCode fileRefill(BufferedStreamReader* r) {
         r->error = GROUNDED_STREAM_IO_ERROR;
         return r->error;
     } else {
-        r->start = f->buffer;
+        r->head = f->buffer;
         r->end = f->buffer + bytesRead;
-        r->cursor = r->start;
+        r->cursor = r->head;
         return GROUNDED_STREAM_SUCCESS;
     }
 }
@@ -354,11 +348,23 @@ static void groundedFileStreamReaderClose(BufferedStreamReader* reader) {
     groundedCloseFile(file);
 }
 
-GROUNDED_FUNCTION BufferedStreamReader groundedFileGetStreamReaderFromFile(GroundedFile* file) {
+GROUNDED_FUNCTION BufferedStreamReader groundedFileGetStreamReaderFromFile(MemoryArena* arena, GroundedFile* file, u64 bufferSize) {
+    // Default buffer size of 4KB
+    if(!bufferSize) {
+        bufferSize = KB(4);
+    }
+
+    //TODO: Buffer deallocation missing
+    u8* buffer = ARENA_PUSH_ARRAY(arena, bufferSize, u8);
+    if(!buffer) {
+        bufferSize = 0;
+        GROUNDED_LOG_ERROR("Could not allocate buffer for file");
+    }
+
     BufferedStreamReader result = {
-        .start = file->buffer,
-        .cursor = file->buffer,
-        .end = file->buffer + file->bufferSize,
+        .head = buffer,
+        .cursor = buffer,
+        .end = buffer + bufferSize,
         .implementationPointer = file,
         .error = GROUNDED_STREAM_SUCCESS,
         .refill = fileRefill,
@@ -368,24 +374,37 @@ GROUNDED_FUNCTION BufferedStreamReader groundedFileGetStreamReaderFromFile(Groun
     return result;
 }
 
-GROUNDED_FUNCTION BufferedStreamReader groundedFileGetStreamReaderFromFilename(MemoryArena* arena, String8 filename) {
+GROUNDED_FUNCTION BufferedStreamReader groundedFileGetStreamReaderFromFilename(MemoryArena* arena, String8 filename, u64 bufferSize) {
     GroundedFile* file = groundedOpenFile(arena, filename, FILE_MODE_READ);
-    BufferedStreamReader result = groundedFileGetStreamReaderFromFile(file);
+    BufferedStreamReader result = groundedFileGetStreamReaderFromFile(arena, file, bufferSize);
     return result;
 }
 
 static enum GroundedStreamErrorCode fileSubmit(BufferedStreamWriter* w, u8* opl) {
     struct GroundedFile* f = (struct GroundedFile*)w->implementationPointer;
-    u64 size = opl - f->buffer;
+    u64 size = opl - w->start;
 	//TODO: Handle sizes larger than DWORD
-    WriteFile(f->handle, f->buffer, (DWORD)size, 0, 0);
+    WriteFile(f->handle, w->start, (DWORD)size, 0, 0);
     return NO_ERROR;
 }
 
-GROUNDED_FUNCTION BufferedStreamWriter groundedFileGetStreamWriterFromFile(GroundedFile* file) {
+GROUNDED_FUNCTION BufferedStreamWriter groundedFileGetStreamWriterFromFile(MemoryArena* arena, GroundedFile* file, u64 bufferSize) {
+    // Default buffer size of 4KB
+    if(!bufferSize) {
+        bufferSize = KB(4);
+    }
+
+    //TODO: Buffer deallocation missing
+    u8* buffer = ARENA_PUSH_ARRAY(arena, bufferSize, u8);
+    if(!buffer) {
+        bufferSize = 0;
+        GROUNDED_LOG_ERROR("Could not allocate buffer for file");
+    }
+
     BufferedStreamWriter result = {
-        .start = file->buffer,
-        .end = file->buffer + file->bufferSize,
+        .start = buffer,
+        .head = buffer,
+        .end = buffer + bufferSize,
         .implementationPointer = file,
         .error = NO_ERROR,
         .submit = fileSubmit,
@@ -393,9 +412,9 @@ GROUNDED_FUNCTION BufferedStreamWriter groundedFileGetStreamWriterFromFile(Groun
     return result;
 }
 
-GROUNDED_FUNCTION BufferedStreamWriter groundedFileGetStreamWriterFromFilename(MemoryArena* arena, String8 filename) {
+GROUNDED_FUNCTION BufferedStreamWriter groundedFileGetStreamWriterFromFilename(MemoryArena* arena, String8 filename, u64 bufferSize) {
     GroundedFile* file = groundedOpenFile(arena, filename, FILE_MODE_WRITE);
-    BufferedStreamWriter result = groundedFileGetStreamWriterFromFile(file);
+    BufferedStreamWriter result = groundedFileGetStreamWriterFromFile(arena, file, bufferSize);
     return result;
 }
 

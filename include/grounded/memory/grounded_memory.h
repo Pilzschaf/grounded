@@ -137,6 +137,15 @@ typedef struct  {
     u8* readHead;
 } GroundedCircularBufferReadWriter;
 
+GROUNDED_FUNCTION_INLINE GroundedCircularBufferReadWriter groundedCreateCircularBufferReadWriter(u64 minimumSize) {
+    GroundedCircularBufferReadWriter result = {
+        .buffer = groundedCreateCircularBuffer(minimumSize),
+    };
+    result.readHead = result.buffer.buffer;
+    result.writeHead = result.buffer.buffer;
+    return result;
+}
+
 GROUNDED_FUNCTION_INLINE u64 spaceLeftToWrite(GroundedCircularBufferReadWriter* circularBuffer) {
     u64 result = 0;
     if(circularBuffer->writeHead < circularBuffer->readHead) {
@@ -149,6 +158,27 @@ GROUNDED_FUNCTION_INLINE u64 spaceLeftToWrite(GroundedCircularBufferReadWriter* 
     return result;
 }
 
+GROUNDED_FUNCTION_INLINE void fixupWriteHead(GroundedCircularBufferReadWriter* circularBuffer) {
+    u64 offset = circularBuffer->writeHead - circularBuffer->buffer.buffer;
+    if(offset >= circularBuffer->buffer.size) {
+        offset -= circularBuffer->buffer.size;
+        circularBuffer->writeHead = circularBuffer->buffer.buffer + offset;
+    }
+}
+
+GROUNDED_FUNCTION_INLINE void fixupReadHead(GroundedCircularBufferReadWriter* circularBuffer) {
+    u64 offset = circularBuffer->readHead - circularBuffer->buffer.buffer;
+    if(offset >= circularBuffer->buffer.size) {
+        offset -= circularBuffer->buffer.size;
+        circularBuffer->readHead = circularBuffer->buffer.buffer + offset;
+    }
+}
+
+GROUNDED_FUNCTION_INLINE void fixupHeads(GroundedCircularBufferReadWriter* circularBuffer) {
+    fixupWriteHead(circularBuffer);
+    fixupReadHead(circularBuffer);
+}
+
 // Returns 0 if write was not possible. Otherwise it returns the location where the data has been placed in the circular buffer
 GROUNDED_FUNCTION_INLINE u8* writeToCircularBuffer(GroundedCircularBufferReadWriter* circularBuffer, u8* data, u64 size) {
     u8* result = 0;
@@ -159,12 +189,9 @@ GROUNDED_FUNCTION_INLINE u8* writeToCircularBuffer(GroundedCircularBufferReadWri
         //TODO: Alignment
         result = circularBuffer->writeHead;
         memcpy(result, data, size);
+
         circularBuffer->writeHead += size;
-        u64 offset = circularBuffer->writeHead - circularBuffer->buffer.buffer;
-        if(offset >= circularBuffer->buffer.size) {
-            offset -= circularBuffer->buffer.size;
-            circularBuffer->writeHead = circularBuffer->buffer.buffer + offset;
-        }
+        fixupWriteHead(circularBuffer);
     }
     return result;
 }
@@ -186,12 +213,9 @@ GROUNDED_FUNCTION_INLINE u8* readFromCircularBuffer(GroundedCircularBufferReadWr
     ASSERT(size < circularBuffer->buffer.size);
     if(spaceLeftToRead(circularBuffer) >= size) {
         result = circularBuffer->readHead;
+        
         circularBuffer->readHead += size;
-        u64 offset = circularBuffer->readHead - circularBuffer->buffer.buffer;
-        if(offset >= circularBuffer->buffer.size) {
-            offset -= circularBuffer->buffer.size;
-            circularBuffer->readHead = circularBuffer->buffer.buffer + offset;
-        }
+        fixupReadHead(circularBuffer);
     }
     return result;
 }
