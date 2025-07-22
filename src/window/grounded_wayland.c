@@ -77,6 +77,7 @@ typedef struct GroundedWaylandWindow {
 	u32 framebufferHeight;
     char* foreignHandle;
     struct wl_callback* frameCallback;
+    struct wp_content_type_v1* contentType;
 
     GroundedWindowDndCallback* dndCallback;
 
@@ -161,6 +162,7 @@ struct zwp_relative_pointer_manager_v1* relativePointerManager;
 struct wp_cursor_shape_manager_v1* cursorShapeManager;
 struct xdg_toplevel_icon_manager_v1* xdgIconManager;
 struct xdg_toplevel_icon_v1* xdgIcon;
+struct wp_content_type_manager_v1* typeManager;
 
 struct zxdg_exporter_v2* zxdgExporter;
 
@@ -227,6 +229,7 @@ STATIC_ASSERT(sizeof(waylandScreens) < KB(4)); // Make sure we require a sane am
 #include "wayland_protocols/xdg-foreign-unstable-v2.h"
 #include "wayland_protocols/cursor-shape-v1.h"
 #include "wayland_protocols/xdg-toplevel-icon-v1.h"
+#include "wayland_protocols/content-type-v1.h"
 
 static void waylandWindowSetMaximized(GroundedWaylandWindow* window, bool maximized);
 GROUNDED_FUNCTION void waylandSetCursorType(enum GroundedMouseCursor cursorType);
@@ -1086,10 +1089,16 @@ static void registry_global(void* data, struct wl_registry* registry, uint32_t i
                 }
             }
         }
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwp_pointer_gestures_v1")))) {
+        //TODO: Sounds very interesting for notebook touchpad gestures.
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wl_subcompositor")))) {
+        // Allows to render to subsurfaces in the main surface. Not very useful when doing rendering on GPU yourself
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zxdg_decoration_manager_v1")))) {
         // Client and server side decoration negotiation
         decorationManager = (struct zxdg_decoration_manager_v1*)wl_registry_bind(registry, id, &zxdg_decoration_manager_v1_interface, 1);
         ASSERT(decorationManager);
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("org_kde_kwin_server_decoration_manager")))) {
+        // Alternative option for a decoratioin manager. I think zxdg_decoration_manager_v1 is more broadly supported
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zxdg_output_manager_v1")))) {
         xdgOutputVersion = MIN(version, 3);
         xdgOutputManager = (struct zxdg_output_manager_v1*)wl_registry_bind(registry, id, &zxdg_output_manager_v1_interface, xdgOutputVersion);
@@ -1126,6 +1135,8 @@ static void registry_global(void* data, struct wl_registry* registry, uint32_t i
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zxdg_exporter_v2")))) {
         zxdgExporter = (struct zxdg_exporter_v2*)wl_registry_bind(registry, id, &zxdg_exporter_v2_interface, version);
         ASSERT(zxdgExporter);
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zxdg_importer_v2")))) {
+        // Other side to zxdg exporter. Not useful as we do not assume to get any surface handles from other processes
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wl_shm")))) {
         // Shared memory. Needed for custom cursor themes and framebuffers
         // TODO: might have been replaced by drm (Drm is not particular useful for software rendering)
@@ -1134,15 +1145,111 @@ static void registry_global(void* data, struct wl_registry* registry, uint32_t i
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wp_cursor_shape_manager_v1")))) {
         cursorShapeManager = (struct wp_cursor_shape_manager_v1*)wl_registry_bind(registry, id, &wp_cursor_shape_manager_v1_interface, 1);
         ASSERT(cursorShapeManager);
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wp_viewporter")))) {
+        // Allows to scale/crop surface
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wp_alpha_modifier_v1")))) {
+        // Allows to set a multiplier to alpha values. Does not seem particularily interesting
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("xdg_toplevel_icon_manager_v1")))) {
         xdgIconManager = (struct xdg_toplevel_icon_manager_v1*)wl_registry_bind(registry, id, &xdg_toplevel_icon_manager_v1_interface, 1);
         ASSERT(xdgIconManager);
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("xdg_wm_dialog_v1")))) {
+        // Allows to set mark toplevels as dialog windows of other toplevels (modal dialogs)
+        //TODO: This could be quite useful
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("xdg_system_bell_v1")))) {
         // Some kind of system bell. Usually a sound
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("xdg_activation_v1")))) {
+        // Allows to transfer focus to other toplevels
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("xdg_toplevel_drag_manager_v1")))) {
+        //TODO: Suddenly wayland has a protocol specific for dragging windows in and out of applications.
+        // This protocol is not supported on tiling window managers but on non tilers this might be very useful
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("xdg_toplevel_tag_manager_v1")))) {
+        // Allows the application to tag windows so that the compositor can recognize them across restarts of the application
+        //TODO: Can be interestig
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wp_content_type_manager_v1")))) {
+        // Allows to give the compositor a hint what kind of application this is (photo/video/game)
+        typeManager = (struct wp_content_type_manager_v1*)wl_registry_bind(registry, id, &wp_content_type_manager_v1_interface, 1);
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwp_keyboard_shortcuts_inhibit_manager_v1")))) {
+        // Allows to disable compositor shortcuts.
+        //TODO: Very interesting for games to not be affected by annoying compositor shortcuts
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwp_text_input_manager_v1")))) {
+        // For wayland controlled input boxes.
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwp_text_input_manager_v2")))) {
+        // For wayland controlled input boxes.
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwp_text_input_manager_v3")))) {
+        // For wayland controlled input boxes.
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("frog_color_management_factory_v1")))) {
+        // HDR stuff
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wp_color_manager_v1")))) {
+        // HDR stuff
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wp_color_representation_manager_v1")))) {
+        // HDR stuff
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wp_single_pixel_buffer_manager_v1")))) {
+        // Helper that allows to create single pixel buffers.
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wl_drm")))) {
-        
+        // Direct Rendering Manager. Deprecated in favor of zwp_llinux_dmabuf_v1
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wp_drm_lease_device_v1")))) {
+        // Direct Rendering Manager.
+        //TODO: This might be interesting as we really bypass everything here
+        //TODO: Matching Vulkan extension: VK_EXT_acquire_wl_display
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwp_linux_dmabuf_v1")))) {
+        // https://www.kernel.org/doc/html/next/userspace-api/dma-buf-alloc-exchange.html
+        // Mesa should already handle all of this for us
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wp_linux_drm_syncobj_manager_v1")))) {
+        // Mesa should already handle all of this for us
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wp_fractional_scale_manager_v1")))) {
+        // Allows the compositor to hint us at which scale we should render (for example 1.5). 
+        // Should be done by incresing wl_buffer dimensions and using wl_viewporter
+        //TODO: Might be interesting
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwp_tablet_manager_v2")))) {
+        // Tablet stuff. We ignore this for now. Should not be interesting unless for drawing applications
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wp_tearing_control_manager_v1")))) {
         // Used by EGL/Vulkan internally and we should not directly interact with it
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wp_presentation")))) {
+        // More exact timestamps of frame display. Could be used for some statistics
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wp_fifo_manager_v1")))) {
+        // As I understand it allows more specific VSync wait to wayland surfaces. Probably not relevant when using GPU rendering
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwlr_layer_shell_v1")))) {
+        // Allows surface to be assigned specific layers like background or overlay. Protocol seems rather complicated.
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwlr_data_control_manager_v1")))) {
+        // Allows to be some kind of clipboard manager. Applications should probably just stick to normal data device management
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("ext_data_control_manager_v1")))) {
+        // Same as zwlr_data_control_manager_v1
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wp_security_context_manager_v1")))) {
+        // For sandboxing applications. Not interesting
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("kde_output_order_v1")))) {
+        // Internal. Do not use
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("org_kde_plasma_shell")))) {
+        // Internal. Do not use
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("org_kde_kwin_dpms_manager")))) {
+        // Internal. Do not use
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("kde_output_management_v2")))) {
+        // Internal. Do not use
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("kde_output_device_v2")))) {
+        // Internal. Do not use
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("kde_screen_edge_manager_v1")))) {
+        // Internal. Do not use
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("kde_external_brightness_v1")))) {
+        // Internal. Do not use
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("org_kde_plasma_virtual_desktop_management")))) {
+        // Internal. Do not use
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("org_kde_kwin_server_decoration_palette_manager")))) {
+        // Allows to set server side decoration palette on KDE. File based interface
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("org_kde_kwin_idle_timeout")))) {
+        // Deprecated version of ext_idle_notifier_v1
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("org_kde_kwin_idle")))) {
+        // Deprecated version of ext_idle_notifier_v1
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("ext_idle_notifier_v1")))) {
+        // Allows to trigger event after user has been idle for a certain time
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("org_kde_kwin_blur_manager")))) {
+        // KDE only
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("org_kde_kwin_contrast_manager")))) {
+        // KDE only
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("org_kde_kwin_slide_manager")))) {
+        // KDE only
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("org_kde_kwin_appmenu_manager")))) {
+        // KDE only. Allows to match to DBUS com.canonical.dbusmenu
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("org_kde_kwin_shadow_manager")))) {
+        // KDE only. Allows to set shadows to a surface
     } else {
         // Unknown interface
         GROUNDED_LOG_INFO(interface);
@@ -1517,6 +1624,10 @@ static void shutdownWayland() {
     if(xdgOutputManager) {
         zxdg_output_manager_v1_destroy(xdgOutputManager);
     }
+    if(typeManager) {
+        wp_content_type_manager_v1_destroy(typeManager);
+        typeManager = 0;
+    }
 
     if(dragOffer) {
         GROUNDED_LOG_INFOF("Leftover drag offer: %p, %p\n", dragOffer, dragOffer->offer);
@@ -1656,9 +1767,6 @@ static void waylandWindowSetHidden(GroundedWaylandWindow* window, bool hidden) {
         } else {
             waylandWindowSetBorderless(window, window->borderless);
         }
-        //struct zxdg_toplevel_decoration_v1* decoration = zxdg_decoration_manager_v1_get_toplevel_decoration(decorationManager, window->xdgToplevel);
-        //zxdg_toplevel_decoration_v1_add_listener(decoration, &decorationListener, window);
-        //zxdg_toplevel_decoration_v1_set_mode(decoration, ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
 
         if(window->inhibitIdle) {
             waylandSetInhibitIdle(window, true);
@@ -1737,6 +1845,32 @@ static GroundedWindow* waylandCreateWindow(MemoryArena* arena, struct GroundedWi
 
     // Creates all necessary xdg objects if we should be visible
     waylandWindowSetHidden(window, parameters->hidden);
+
+    if(typeManager) {
+        window->contentType = wp_content_type_manager_v1_get_surface_content_type(typeManager, window->surface);
+        ASSUME(window->contentType) {
+            enum wp_content_type_v1_type contentType = WP_CONTENT_TYPE_V1_TYPE_NONE;
+            switch(parameters->applicationType) {
+                case GROUNDED_WINDOW_APPLICATION_TYPE_GAME:
+                    contentType = WP_CONTENT_TYPE_V1_TYPE_GAME;
+                    break;
+                case GROUNDED_WINDOW_APPLICATION_TYPE_VIDEO:
+                    contentType = WP_CONTENT_TYPE_V1_TYPE_VIDEO;
+                    break;
+                case GROUNDED_WINDOW_APPLICATION_TYPE_PHOTO:
+                    contentType = WP_CONTENT_TYPE_V1_TYPE_PHOTO;
+                    break;
+                case GROUNDED_WINDOW_APPLICATION_TYPE_APPLICATION:
+                    contentType = WP_CONTENT_TYPE_V1_TYPE_NONE;
+                    break;
+                case GROUNDED_WINDOW_APPLICATION_TYPE_UNSPECIFIED:
+                default:
+                    contentType = WP_CONTENT_TYPE_V1_TYPE_NONE;
+                    break;
+            }
+            wp_content_type_v1_set_content_type(window->contentType, contentType);
+        }
+    }
 
     if(parameters->userData) {
         waylandWindowSetUserData(window, parameters->userData);

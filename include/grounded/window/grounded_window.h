@@ -189,9 +189,19 @@ typedef GROUNDED_WINDOW_DND_DATA_CALLBACK(GroundedWindowDndDataCallback);
 #define GROUNDED_WINDOW_DND_DRAG_FINISH_CALLBACK(name) void name(MemoryArena* arena, void* userData, GroundedDragFinishType finishType)
 typedef GROUNDED_WINDOW_DND_DRAG_FINISH_CALLBACK(GroundedWindowDndDragFinishCallback);
 
+typedef enum GroundedWindowApplicationType {
+	GROUNDED_WINDOW_APPLICATION_TYPE_UNSPECIFIED,
+	GROUNDED_WINDOW_APPLICATION_TYPE_APPLICATION,
+	GROUNDED_WINDOW_APPLICATION_TYPE_GAME,
+	GROUNDED_WINDOW_APPLICATION_TYPE_VIDEO,
+	GROUNDED_WINDOW_APPLICATION_TYPE_PHOTO,
+	GROUNDED_WINDOW_APPLICATION_TYPE_COUNT,
+} GroundedWindowApplicationType;
+
 struct GroundedWindowCreateParameters {
 	String8 title;
 	String8 applicationId; // Should be the name of your application in lowercase. In contrast to the title this is not expected to change
+	GroundedWindowApplicationType applicationType;
 	u32 width; // 0 for a platform-specific default size
 	u32 height; // 0 for a platform-specific default size
 	u32 minWidth;
