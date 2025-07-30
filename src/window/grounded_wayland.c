@@ -163,6 +163,7 @@ struct wp_cursor_shape_manager_v1* cursorShapeManager;
 struct xdg_toplevel_icon_manager_v1* xdgIconManager;
 struct xdg_toplevel_icon_v1* xdgIcon;
 struct wp_content_type_manager_v1* typeManager;
+struct xdg_toplevel_drag_manager_v1* toplevelDragManager;
 
 struct zxdg_exporter_v2* zxdgExporter;
 
@@ -173,7 +174,8 @@ bool waylandCursorLibraryPresent;
 GroundedMouseCursor waylandCurrentCursorType = GROUNDED_MOUSE_CURSOR_DEFAULT;
 GroundedMouseCursor waylandCursorTypeOverwrite = GROUNDED_MOUSE_CURSOR_COUNT;
 int keyRepeatTimer = -1;
-s32 keyRepeatDelay = 500;
+s32 keyRepeatDelay = 500
+;
 s32 keyRepeatRate = 25;
 u32 keyRepeatKey;
 GroundedWaylandWindow* activeCursorWindow; // The window (if any) the mouse cursor is currently hovering
@@ -230,6 +232,7 @@ STATIC_ASSERT(sizeof(waylandScreens) < KB(4)); // Make sure we require a sane am
 #include "wayland_protocols/cursor-shape-v1.h"
 #include "wayland_protocols/xdg-toplevel-icon-v1.h"
 #include "wayland_protocols/content-type-v1.h"
+#include "wayland_protocols/xdg-toplevel-drag-v1.h"
 
 static void waylandWindowSetMaximized(GroundedWaylandWindow* window, bool maximized);
 GROUNDED_FUNCTION void waylandSetCursorType(enum GroundedMouseCursor cursorType);
@@ -1162,6 +1165,7 @@ static void registry_global(void* data, struct wl_registry* registry, uint32_t i
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("xdg_toplevel_drag_manager_v1")))) {
         //TODO: Suddenly wayland has a protocol specific for dragging windows in and out of applications.
         // This protocol is not supported on tiling window managers but on non tilers this might be very useful
+        toplevelDragManager = (struct xdg_toplevel_drag_manager_v1*)wl_registry_bind(registry, id, &xdg_toplevel_drag_manager_v1_interface, 1);
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("xdg_toplevel_tag_manager_v1")))) {
         // Allows the application to tag windows so that the compositor can recognize them across restarts of the application
         //TODO: Can be interestig
@@ -1588,6 +1592,10 @@ static void shutdownWayland() {
         }
         xdg_toplevel_icon_manager_v1_destroy(xdgIconManager);
         xdgIconManager = 0;
+    }
+    if(toplevelDragManager) {
+        xdg_toplevel_drag_manager_v1_destroy(toplevelDragManager);
+        toplevelDragManager = 0;
     }
     if(cursorTheme) {
         wl_cursor_theme_destroy(cursorTheme);
@@ -3014,6 +3022,7 @@ struct WaylandDataSource {
     void* userData;
     struct wl_data_source* dataSource;
     enum wl_data_device_manager_dnd_action last_dnd_action;
+    struct xdg_toplevel_drag_v1* toplevelDrag;
 };
 
 static void dataSourceHandleTarget(void* data, struct wl_data_source* source, const char* mimeType) {
@@ -3069,6 +3078,10 @@ static void dataSourceHandleCancelled(void *data, struct wl_data_source * dataSo
     if(waylandDataSource->dragFinishCallback) {
         waylandDataSource->dragFinishCallback(waylandDataSource->arena, waylandDataSource->userData, GROUNDED_DRAG_FINISH_TYPE_CANCEL);
     }
+    if(waylandDataSource->toplevelDrag) {
+        xdg_toplevel_drag_v1_destroy(waylandDataSource->toplevelDrag);
+        waylandDataSource->toplevelDrag = 0;
+    }
     
     removeCursorOverwrite();
     if(dragDataSource->dataSource == dataSource) {
@@ -3081,6 +3094,15 @@ static void dataSourceHandleCancelled(void *data, struct wl_data_source * dataSo
 // Since version 3: Basically no useful information for us so we do nothing
 static void dataSourceHandleDndDropPerformed(void *data, struct wl_data_source *wl_data_source) {
     GROUNDED_WAYLAND_LOG_HANDLER("dataSource.dropPerformed");
+
+    struct WaylandDataSource* waylandDataSource = (struct WaylandDataSource*) data;
+    ASSUME(waylandDataSource) {
+        if(waylandDataSource->toplevelDrag) {
+            GroundedWaylandWindow* payloadWindow = (GroundedWaylandWindow*) xdg_toplevel_drag_v1_get_user_data(waylandDataSource->toplevelDrag);
+            xdg_toplevel_drag_v1_destroy(waylandDataSource->toplevelDrag);
+            waylandDataSource->toplevelDrag = 0;
+        }
+    }
 }
 
 // Since version 3: We are now allowed to free all resources as drop was successful
@@ -3168,6 +3190,13 @@ GROUNDED_FUNCTION void groundedWaylandDragPayloadSetImage(GroundedWindowDragPayl
     }
 }
 
+GROUNDED_FUNCTION void groundedWaylandDragPayloadSetWindow(GroundedWindowDragPayloadDescription* desc, GroundedWindow* window, s32 offsetX, s32 offsetY) {
+    ASSERT(!desc->payloadWindow);
+    desc->payloadWindow = window;
+    desc->payloadWindowOffsetX = offsetX;
+    desc->payloadWindowOffsetY = offsetY;
+}
+
 GROUNDED_FUNCTION void groundedWaylandBeginDragAndDrop(GroundedWindowDragPayloadDescription* desc, void* userData) {
     // Serial is the last pointer serial. Should probably be pointer button serial
     MemoryArena* scratch = threadContextGetScratch(0);
@@ -3204,6 +3233,15 @@ GROUNDED_FUNCTION void groundedWaylandBeginDragAndDrop(GroundedWindowDragPayload
     }
 
     setCursorOverwrite(GROUNDED_MOUSE_CURSOR_GRABBING);
+
+    if(desc->payloadWindow && toplevelDragManager) {
+        dragDataSource->toplevelDrag = xdg_toplevel_drag_manager_v1_get_xdg_toplevel_drag(toplevelDragManager, dataSource);
+        s32 offsetX = desc->payloadWindowOffsetX;
+        s32 offsetY = desc->payloadWindowOffsetY;
+        GroundedWaylandWindow* payloadWindow = (GroundedWaylandWindow*)desc->payloadWindow;
+        xdg_toplevel_drag_v1_set_user_data(dragDataSource->toplevelDrag, payloadWindow);
+        xdg_toplevel_drag_v1_attach(dragDataSource->toplevelDrag, payloadWindow->xdgToplevel, offsetX, offsetY);   
+    }
 
     GROUNDED_LOG_INFOF("Drag serial: %u\n", lastPointerSerial);
     dragDataSource->dataSource = dataSource;

@@ -20,7 +20,9 @@ struct GroundedWindowDragPayloadDescription {
     String8* mimeTypes;
     GroundedWindowDndDataCallback* dataCallback;
     GroundedWindowDndDragFinishCallback* dragFinishCallback;
-
+    GroundedWindow* payloadWindow;
+    s32 payloadWindowOffsetX;
+    s32 payloadWindowOffsetY;
 };
 
 #ifdef GROUNDED_OPENGL_SUPPORT
@@ -1146,6 +1148,19 @@ GROUNDED_FUNCTION void groundedWindowDragPayloadSetImage(GroundedWindowDragPaylo
         } break;
         case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
             groundedXcbDragPayloadSetImage(desc, data, width, height);
+        } break;
+        default:break;
+    }
+}
+
+GROUNDED_FUNCTION void groundedWindowDragPayloadSetWindow(GroundedWindowDragPayloadDescription* desc, GroundedWindow* window, s32 offsetX, s32 offsetY) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            groundedWaylandDragPayloadSetWindow(desc, window, offsetX, offsetY);
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            //groundedXcbDragPayloadSetWindow(desc, window, offsetX, offsetY);
         } break;
         default:break;
     }

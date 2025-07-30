@@ -10,4 +10,5 @@
 #include "wayland_protocols/tablet-v2.c"
 #include "wayland_protocols/xdg-toplevel-icon-v1.c"
 #include "wayland_protocols/content-type-v1.c"
+#include "wayland_protocols/xdg-toplevel-drag-v1.c"
 #endif
