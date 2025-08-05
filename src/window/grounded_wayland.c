@@ -58,6 +58,7 @@ typedef struct GroundedWaylandWindow {
     struct wl_surface* surface;
     struct xdg_surface* xdgSurface;
     struct xdg_toplevel* xdgToplevel;
+    struct zxdg_toplevel_decoration_v1* decoration;
     struct zwp_idle_inhibitor_v1* idleInhibitor;
     struct zwp_confined_pointer_v1* confinedPointer;
     u32 width, minWidth, maxWidth;
@@ -425,6 +426,8 @@ static void waylandInitKeycodeTranslationTable() {
     waylandKeycodeTranslationTable[KEY_SLASH] = GROUNDED_KEY_SLASH;
     waylandKeycodeTranslationTable[KEY_LEFTCTRL] = GROUNDED_KEY_LCTRL;
     waylandKeycodeTranslationTable[KEY_RIGHTCTRL] = GROUNDED_KEY_RCTRL;
+    waylandKeycodeTranslationTable[KEY_LEFTMETA] = GROUNDED_KEY_LMETA;
+    waylandKeycodeTranslationTable[KEY_RIGHTMETA] = GROUNDED_KEY_RMETA;
 }
 
 static u8 translateWaylandKeycode(u32 key) {
@@ -1216,8 +1219,42 @@ static void registry_global(void* data, struct wl_registry* registry, uint32_t i
         // Allows surface to be assigned specific layers like background or overlay. Protocol seems rather complicated.
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwlr_data_control_manager_v1")))) {
         // Allows to be some kind of clipboard manager. Applications should probably just stick to normal data device management
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwlr_gamma_control_manager_v1")))) {
+
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwlr_output_manager_v1")))) {
+
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwlr_output_power_manager_v1")))) {
+
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwp_input_method_manager_v2")))) {
+
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("ext_foreign_toplevel_list_v1")))) {
+
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwlr_foreign_toplevel_manager_v1")))) {
+
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwp_primary_selection_device_manager_v1")))) {
+
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwlr_virtual_pointer_manager_v1")))) {
+
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwp_virtual_keyboard_manager_v1")))) {
+
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zxdg_importer_v1")))) {
+
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zxdg_exporter_v1")))) {
+
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwlr_screencopy_manager_v1")))) {
+
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwlr_export_dmabuf_manager_v1")))) {
+
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("ext_session_lock_manager_v1")))) {
+
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("ext_output_image_capture_source_manager_v1")))) {
+
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("ext_image_copy_capture_manager_v1")))) {
+
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("ext_data_control_manager_v1")))) {
         // Same as zwlr_data_control_manager_v1
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("ext_transient_seat_manager_v1")))) {
+
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wp_security_context_manager_v1")))) {
         // For sandboxing applications. Not interesting
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("kde_output_order_v1")))) {
@@ -1333,6 +1370,18 @@ static void xdgToplevelHandleConfigure(void* data,  struct xdg_toplevel* topleve
 
             } break;
             case XDG_TOPLEVEL_STATE_SUSPENDED:{
+                
+            } break;
+            case XDG_TOPLEVEL_STATE_TILED_LEFT:{
+
+            } break;
+            case XDG_TOPLEVEL_STATE_TILED_RIGHT:{
+                
+            } break;
+            case XDG_TOPLEVEL_STATE_TILED_TOP:{
+                
+            } break;
+            case XDG_TOPLEVEL_STATE_TILED_BOTTOM:{
                 
             } break;
             default:{
@@ -1705,11 +1754,11 @@ static void waylandWindowSetBorderless(GroundedWaylandWindow* window, bool borde
     if(decorationManager) {
         ASSERT(window->xdgToplevel);
         if(window->xdgToplevel) {
-            struct zxdg_toplevel_decoration_v1* decoration = zxdg_decoration_manager_v1_get_toplevel_decoration(decorationManager, window->xdgToplevel);
+            window->decoration = zxdg_decoration_manager_v1_get_toplevel_decoration(decorationManager, window->xdgToplevel);
             if(borderless) {
-                zxdg_toplevel_decoration_v1_set_mode(decoration, ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE);
+                zxdg_toplevel_decoration_v1_set_mode(window->decoration, ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE);
             } else {
-                zxdg_toplevel_decoration_v1_set_mode(decoration, ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
+                zxdg_toplevel_decoration_v1_set_mode(window->decoration, ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
             }
         }
     }
@@ -1908,7 +1957,20 @@ static void waylandDestroyWindow(GroundedWaylandWindow* window) {
         wl_callback_destroy(window->frameCallback);
         window->frameCallback = 0;
     }
+    if(window->decoration) {
+        zxdg_toplevel_decoration_v1_destroy(window->decoration);
+        window->decoration = 0;
+    }
+    if(window->xdgToplevel) {
+        xdg_toplevel_destroy(window->xdgToplevel);
+        window->xdgToplevel = 0;
+    }
+    if(window->xdgSurface) {
+        xdg_surface_destroy(window->xdgSurface);
+        window->xdgSurface = 0;
+    }
     wl_surface_destroy(window->surface);
+    window->surface = 0;
     wl_display_roundtrip(waylandDisplay);
 }
 

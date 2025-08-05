@@ -363,6 +363,8 @@ GROUNDED_FUNCTION void groundedWindowFetchMouseState(GroundedWindow* window, Mou
 #define GROUNDED_KEY_END		19
 #define GROUNDED_KEY_INSERT		20
 #define GROUNDED_KEY_DELETE		21
+#define GROUNDED_KEY_LMETA		22
+#define GROUNDED_KEY_RMETA		23
 
 // ASCII special characters
 #define GROUNDED_KEY_PLUS		43 // 0x2B
