@@ -954,12 +954,3 @@ struct wl_array {
 	/** Array data */
 	void *data;
 };
-
-struct wl_message {
-	/** Message name */
-	const char *name;
-	/** Message signature */
-	const char *signature;
-	/** Object argument interfaces */
-	const struct wl_interface **types;
-};

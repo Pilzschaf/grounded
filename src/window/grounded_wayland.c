@@ -13,6 +13,9 @@
 #include <unistd.h>
 #include <sys/timerfd.h> // For timerfd_settime
 
+
+#include "wayland_protocols/wayland-util.h"
+
 #if 1
 #define GROUNDED_WAYLAND_LOG_CALL(name)
 #define GROUNDED_WAYLAND_LOG_HANDLER(name)
@@ -31,14 +34,14 @@
 // Because of wayland API design we need to store the current active drag offer. This should be done per datadevice which is per seat eg. per user
 struct WaylandDataOffer* dragOffer;
 
-struct wl_interface {
+/*struct wl_interface {
 	const char *name;
 	int version;
 	int method_count;
 	const struct wl_message *methods;
 	int event_count;
 	const struct wl_message *events;
-};
+};*/
 
 struct wl_compositor;
 struct wl_registry_listener;
@@ -175,8 +178,7 @@ bool waylandCursorLibraryPresent;
 GroundedMouseCursor waylandCurrentCursorType = GROUNDED_MOUSE_CURSOR_DEFAULT;
 GroundedMouseCursor waylandCursorTypeOverwrite = GROUNDED_MOUSE_CURSOR_COUNT;
 int keyRepeatTimer = -1;
-s32 keyRepeatDelay = 500
-;
+s32 keyRepeatDelay = 500;
 s32 keyRepeatRate = 25;
 u32 keyRepeatKey;
 GroundedWaylandWindow* activeCursorWindow; // The window (if any) the mouse cursor is currently hovering
