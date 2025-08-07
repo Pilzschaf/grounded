@@ -1113,6 +1113,22 @@ GROUNDED_FUNCTION void groundedWindowDragPayloadSetDragFinishCallback(GroundedWi
     desc->dragFinishCallback = callback;
 }
 
+GROUNDED_FUNCTION bool groundedWindowSupportsWindowAsDragPayload() {
+    bool result = false;
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            result = groundedWaylandSuportsWindowAsDragPayload();
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            result = false;
+        } break;
+        default:{
+            result = false;
+        } break;
+    }
+    return result;
+}
+
 GROUNDED_FUNCTION GroundedWindowDragPayloadDescription* groundedWindowPrepareDragPayload(GroundedWindow* window) {
     GroundedWindowDragPayloadDescription* result = ARENA_BOOTSTRAP_PUSH_STRUCT(createGrowingArena(osGetMemorySubsystem(), KB(4)), GroundedWindowDragPayloadDescription, arena);
     return result;
@@ -1155,6 +1171,7 @@ GROUNDED_FUNCTION void groundedWindowDragPayloadSetImage(GroundedWindowDragPaylo
 
 GROUNDED_FUNCTION void groundedWindowDragPayloadSetWindow(GroundedWindowDragPayloadDescription* desc, GroundedWindow* window, s32 offsetX, s32 offsetY) {
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+    ASSERT(groundedWaylandSuportsWindowAsDragPayload());
     switch(linuxWindowBackend) {
         case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
             groundedWaylandDragPayloadSetWindow(desc, window, offsetX, offsetY);

@@ -4,8 +4,7 @@
 #include <grounded/memory/grounded_memory.h>
 
 #include <dlfcn.h>
-// Required for key mapping
-#include <linux/input.h>
+#include <linux/input.h> // Required for key mapping
 #include <time.h>
 #include <errno.h>
 #include <fcntl.h> // For shared memory files
@@ -33,15 +32,6 @@
 
 // Because of wayland API design we need to store the current active drag offer. This should be done per datadevice which is per seat eg. per user
 struct WaylandDataOffer* dragOffer;
-
-/*struct wl_interface {
-	const char *name;
-	int version;
-	int method_count;
-	const struct wl_message *methods;
-	int event_count;
-	const struct wl_message *events;
-};*/
 
 struct wl_compositor;
 struct wl_registry_listener;
@@ -1051,7 +1041,6 @@ static const struct zxdg_output_v1_listener xdgOutputListener = {
 };
 
 static void registry_global(void* data, struct wl_registry* registry, uint32_t id, const char* interface, uint32_t version) {
-    //GROUNDED_LOG_INFO(interface);
     StringAtom interfaceAtom = createAtom(str8FromCstr(interface));
     if (compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wl_compositor")))) {
         // Wayland compositor is required for creating surfaces
@@ -1222,41 +1211,42 @@ static void registry_global(void* data, struct wl_registry* registry, uint32_t i
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwlr_data_control_manager_v1")))) {
         // Allows to be some kind of clipboard manager. Applications should probably just stick to normal data device management
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwlr_gamma_control_manager_v1")))) {
-
+        // Allows to set gamma curve of output. But requires privilege
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwlr_output_manager_v1")))) {
-
+        // Allows to query info about outputs (monitors) and potentially even set it.
+        //TODO: How does this differ from zxdg_output_manager_v1
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwlr_output_power_manager_v1")))) {
-
+        // Allows to disable outputs. Not interesting for normal windows
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwp_input_method_manager_v2")))) {
-
+        // Text input like on-screen keyboards
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("ext_foreign_toplevel_list_v1")))) {
-
+        // Allows to query other toplevels. NOt interesting for normal windows
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwlr_foreign_toplevel_manager_v1")))) {
-
+        // For implementing taskbars and docks. Not interesting for normal windows
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwp_primary_selection_device_manager_v1")))) {
-
+        // Primary selection like in X server. Allows clipboard just with selection
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwlr_virtual_pointer_manager_v1")))) {
-
+        // Allows to create a custom pointer device. Might be useful for testing purposes (automatic mouse control)
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwp_virtual_keyboard_manager_v1")))) {
-
+        // Allows to create a custom keyboard device. Might be useful for testing purposes (automatic key presses)
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zxdg_importer_v1")))) {
-
+        // v1 of zxdg_importer_v2
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zxdg_exporter_v1")))) {
-
+        // v1 of zxdg_exporter_v2
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwlr_screencopy_manager_v1")))) {
-
+        // Allows to request compositor to do a screenshot from an output
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwlr_export_dmabuf_manager_v1")))) {
-
+        // More efficient surface capturing
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("ext_session_lock_manager_v1")))) {
-
+        // Allows to lock current session. Probably restricted to privileged clients
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("ext_output_image_capture_source_manager_v1")))) {
-
+        // For screen capturing
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("ext_image_copy_capture_manager_v1")))) {
-
+        // For screen capturing
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("ext_data_control_manager_v1")))) {
         // Same as zwlr_data_control_manager_v1
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("ext_transient_seat_manager_v1")))) {
-
+        // For the virtual input protocols like virtual pointer and virtual keyboard
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wp_security_context_manager_v1")))) {
         // For sandboxing applications. Not interesting
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("kde_output_order_v1")))) {
@@ -3177,9 +3167,12 @@ static void dataSourceHandleDndFinished(void *data, struct wl_data_source* dataS
     if(waylandDataSource->dragFinishCallback) {
         // We default to move action
         GroundedDragFinishType finishType = GROUNDED_DRAG_FINISH_TYPE_MOVE;
-        ASSERT(waylandDataSource->last_dnd_action != WL_DATA_DEVICE_MANAGER_DND_ACTION_NONE);
+        //TODO: We actually get called even if target gave WL_DATA_DEVICE_MANAGER_DND_ACTION_NONE.
+        //ASSERT(waylandDataSource->last_dnd_action != WL_DATA_DEVICE_MANAGER_DND_ACTION_NONE);
         if(waylandDataSource->last_dnd_action == WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY) {
             finishType = GROUNDED_DRAG_FINISH_TYPE_COPY;
+        } else if(waylandDataSource->last_dnd_action == WL_DATA_DEVICE_MANAGER_DND_ACTION_NONE) {
+            finishType = GROUNDED_DRAG_FINISH_TYPE_CANCEL;
         }
         waylandDataSource->dragFinishCallback(waylandDataSource->arena, waylandDataSource->userData, finishType);
     }
@@ -3228,6 +3221,10 @@ static struct wl_data_source_listener dataSourceListener = {
     dataSourceHandleDndFinished,
     dataSourceHandleAction,
 };
+
+static bool groundedWaylandSuportsWindowAsDragPayload() {
+    return toplevelDragManager != 0;
+}
 
 GROUNDED_FUNCTION void groundedWaylandDragPayloadSetImage(GroundedWindowDragPayloadDescription* desc, u8* data, u32 width, u32 height) {
     // It is not allowed to set the image twice

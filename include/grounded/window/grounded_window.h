@@ -256,6 +256,7 @@ GROUNDED_FUNCTION void groundedSetCustomCursor(u8* data, u32 width, u32 height);
 
 GROUNDED_FUNCTION void groundedWindowConstrainPointer(GroundedWindow* window, bool constrain);
 
+GROUNDED_FUNCTION bool groundedWindowSupportsWindowAsDragPayload();
 GROUNDED_FUNCTION GroundedWindowDragPayloadDescription* groundedWindowPrepareDragPayload(GroundedWindow* window);
 GROUNDED_FUNCTION MemoryArena* groundedWindowDragPayloadGetArena(GroundedWindowDragPayloadDescription* desc);
 GROUNDED_FUNCTION void groundedWindowDragPayloadSetImage(GroundedWindowDragPayloadDescription* desc, u8* data, u32 width, u32 height);
