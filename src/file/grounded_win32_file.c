@@ -288,11 +288,6 @@ GROUNDED_FUNCTION bool groundedWriteFile(String8 filename, const void* data, u64
 	return true;
 }
 
-
-
-struct GroundedFile {
-    HANDLE handle;
-};
 GROUNDED_FUNCTION GroundedFile groundedOpenFile(String8 filename, enum FileMode fileMode) {
     struct GroundedFile result = {0};
     MemoryArena* scratch = threadContextGetScratch(0);
