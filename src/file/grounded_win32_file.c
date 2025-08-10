@@ -294,7 +294,7 @@ struct GroundedFile {
     HANDLE handle;
 };
 GROUNDED_FUNCTION GroundedFile* groundedOpenFile(String8 filename, enum FileMode fileMode) {
-    MemoryArena* scratch = threadContextGetScratch(arena);
+    MemoryArena* scratch = threadContextGetScratch(0);
     ArenaTempMemory temp = arenaBeginTemp(scratch);
 
     DWORD access = GENERIC_WRITE;
@@ -318,8 +318,8 @@ GROUNDED_FUNCTION GroundedFile* groundedOpenFile(String8 filename, enum FileMode
 static enum GroundedStreamErrorCode fileRefill(BufferedStreamReader* r) {
     struct GroundedFile* f = (struct GroundedFile*)r->implementationPointer;
     DWORD bytesRead = 0;
-    s32 bytesToRead = (s32)CLAMP(0, f->bufferSize, INT32_MAX);
-    if (!ReadFile(f->handle, f->buffer, bytesToRead, &bytesRead, 0)) {
+    s32 bytesToRead = (s32)CLAMP(0, r->end - r->start, INT32_MAX);
+    if (!ReadFile(f->handle, (void*)r->start, bytesToRead, &bytesRead, 0)) {
         refillZeros(r);
         r->refill = refillZeros;
         r->error = GROUNDED_STREAM_IO_ERROR;
@@ -375,7 +375,7 @@ GROUNDED_FUNCTION BufferedStreamReader groundedFileGetStreamReaderFromFile(Memor
 }
 
 GROUNDED_FUNCTION BufferedStreamReader groundedFileGetStreamReaderFromFilename(MemoryArena* arena, String8 filename, u64 bufferSize) {
-    GroundedFile file = groundedOpenFile(arena, filename, FILE_MODE_READ);
+    GroundedFile file = groundedOpenFile(filename, FILE_MODE_READ);
     GroundedFile* filePointer = ARENA_PUSH_COPY(arena, GroundedFile, &file);
     BufferedStreamReader result = groundedFileGetStreamReaderFromFile(arena, filePointer, bufferSize);
     return result;
@@ -414,8 +414,9 @@ GROUNDED_FUNCTION BufferedStreamWriter groundedFileGetStreamWriterFromFile(Memor
 }
 
 GROUNDED_FUNCTION BufferedStreamWriter groundedFileGetStreamWriterFromFilename(MemoryArena* arena, String8 filename, u64 bufferSize) {
-    GroundedFile* file = groundedOpenFile(arena, filename, FILE_MODE_WRITE);
-    BufferedStreamWriter result = groundedFileGetStreamWriterFromFile(arena, file, bufferSize);
+    GroundedFile file = groundedOpenFile(filename, FILE_MODE_WRITE);
+    GroundedFile* filePointer = ARENA_PUSH_COPY(arena, GroundedFile, &file);
+    BufferedStreamWriter result = groundedFileGetStreamWriterFromFile(arena, filePointer, bufferSize);
     return result;
 }
 
