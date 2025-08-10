@@ -294,6 +294,7 @@ struct GroundedFile {
     HANDLE handle;
 };
 GROUNDED_FUNCTION GroundedFile* groundedOpenFile(String8 filename, enum FileMode fileMode) {
+    struct GroundedFile result = {0};
     MemoryArena* scratch = threadContextGetScratch(0);
     ArenaTempMemory temp = arenaBeginTemp(scratch);
 
@@ -307,9 +308,8 @@ GROUNDED_FUNCTION GroundedFile* groundedOpenFile(String8 filename, enum FileMode
         access |= GENERIC_READ;
     }
 
-    struct GroundedFile* result = ARENA_PUSH_STRUCT(arena, struct GroundedFile);
     wchar_t* utf16Filename = (UTF8ToUTF16(scratch, str8GetCstr(scratch, filename)));
-    result->handle = CreateFileW(utf16Filename, access, FILE_SHARE_READ, 0, creation, FILE_ATTRIBUTE_NORMAL, 0);
+    result.handle = CreateFileW(utf16Filename, access, FILE_SHARE_READ, 0, creation, FILE_ATTRIBUTE_NORMAL, 0);
 
     arenaEndTemp(temp);
     return result;
