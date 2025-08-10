@@ -293,7 +293,7 @@ GROUNDED_FUNCTION bool groundedWriteFile(String8 filename, const void* data, u64
 struct GroundedFile {
     HANDLE handle;
 };
-GROUNDED_FUNCTION GroundedFile* groundedOpenFile(MemoryArena* arena, String8 filename, enum FileMode fileMode) {
+GROUNDED_FUNCTION GroundedFile* groundedOpenFile(String8 filename, enum FileMode fileMode) {
     MemoryArena* scratch = threadContextGetScratch(arena);
     ArenaTempMemory temp = arenaBeginTemp(scratch);
 
@@ -336,9 +336,9 @@ static enum GroundedStreamErrorCode fileRefill(BufferedStreamReader* r) {
         r->error = GROUNDED_STREAM_IO_ERROR;
         return r->error;
     } else {
-        r->head = f->buffer;
-        r->end = f->buffer + bytesRead;
-        r->cursor = r->head;
+        r->start = r->start;
+        r->end = r->start + bytesRead;
+        r->cursor = r->start;
         return GROUNDED_STREAM_SUCCESS;
     }
 }
@@ -362,7 +362,7 @@ GROUNDED_FUNCTION BufferedStreamReader groundedFileGetStreamReaderFromFile(Memor
     }
 
     BufferedStreamReader result = {
-        .head = buffer,
+        .start = buffer,
         .cursor = buffer,
         .end = buffer + bufferSize,
         .implementationPointer = file,
@@ -375,8 +375,9 @@ GROUNDED_FUNCTION BufferedStreamReader groundedFileGetStreamReaderFromFile(Memor
 }
 
 GROUNDED_FUNCTION BufferedStreamReader groundedFileGetStreamReaderFromFilename(MemoryArena* arena, String8 filename, u64 bufferSize) {
-    GroundedFile* file = groundedOpenFile(arena, filename, FILE_MODE_READ);
-    BufferedStreamReader result = groundedFileGetStreamReaderFromFile(arena, file, bufferSize);
+    GroundedFile file = groundedOpenFile(arena, filename, FILE_MODE_READ);
+    GroundedFile* filePointer = ARENA_PUSH_COPY(arena, GroundedFile, &file);
+    BufferedStreamReader result = groundedFileGetStreamReaderFromFile(arena, filePointer, bufferSize);
     return result;
 }
 
