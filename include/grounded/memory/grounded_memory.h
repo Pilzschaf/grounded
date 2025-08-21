@@ -62,7 +62,7 @@ GROUNDED_FUNCTION_INLINE bool groundedCompareMemory(void* a, void* b, u64 size) 
     #endif
 }
 
-GROUNDED_FUNCTION_INLINE void groundedCopyMemory(void* dest, void* src, u64 size) {
+GROUNDED_FUNCTION_INLINE void groundedCopyMemory(void* dest, const void* src, u64 size) {
     ASSERT(src);
     ASSERT(dest);
     #ifdef GROUNDED_NO_STDLIB
