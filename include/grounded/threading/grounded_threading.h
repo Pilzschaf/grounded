@@ -5,8 +5,6 @@
 #include "../memory/grounded_arena.h"
 #include "../logger/grounded_logger.h"
 
-#include <emmintrin.h> // For _mm_mfence
-
 //TODO: Custom data in thread context. Maybe by using a user* data pointer
 // or by using somehting similar to a BOOTSTRAP_PUH_STRUCT. As the user data could be directly
 // stored in the scratch arena.
@@ -104,6 +102,9 @@ GROUNDED_FUNCTION_INLINE void groundedConditionVariableWait(GroundedConditionVar
 // volatile disables register caching and rereads every time - When memory barriers are used volatile has no additional effect. 
 // volatile DOES NOT imply ANY memory ordering constraints and is of fairly limited use in multithreaded code
 
+#if defined(__i386__) || defined(__x86_64__) || defined(_M_IX86) || defined(_M_X64)
+#include <emmintrin.h> // For _mm_mfence
+
 // Full fence ensures no reads and writes can pass this fence
 // This type of fence is quite costly and should only be used whilte testing.
 // Nearly always there are cheaper options available
@@ -125,6 +126,37 @@ GROUNDED_FUNCTION_INLINE void groundedReadAcquireFence() {
 GROUNDED_FUNCTION_INLINE void groundedPause() {
     _mm_pause();
 }
+
+#elif defined(__aarch64__) || defined(__arm__)
+#include <arm_acle.h>
+
+// Full fence ensures no reads and writes can pass this fence
+// This type of fence is quite costly and should only be used whilte testing.
+// Nearly always there are cheaper options available
+GROUNDED_FUNCTION_INLINE void groundedFullFence() {
+    __dmb(0xF);
+}
+
+// Write Release - when writing a shared value. Makes sure all reads and writes before it happen before it.
+GROUNDED_FUNCTION_INLINE void groundedWriteReleaseFence() {
+    __dmb(0xE);
+}
+
+// Read Acquire - when reading a shared value. Says that all reads and writes after it must be executed after it
+GROUNDED_FUNCTION_INLINE void groundedReadAcquireFence() {
+    __dmb(0xB);
+}
+
+// Pause tries to use special CPU instructions for more efficient busy looping. Should be used in hot busy loops.
+GROUNDED_FUNCTION_INLINE void groundedPause() {
+#if defined(__aarch64__)
+    __yield();  // intrinsic for 'yield' instruction
+#else
+    __nop();    // fallback to NOP
+#endif
+}
+
+#endif
 
 // Yield can yield execution to another thread
 GROUNDED_FUNCTION_INLINE void groundedYield();
