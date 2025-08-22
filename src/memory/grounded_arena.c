@@ -136,7 +136,7 @@ GROUNDED_FUNCTION void* debugAllocateLog(MemoryArena* arena, u64 size, u64 align
     entry->next = sentinel->next;
     sentinel->next = entry;
 
-    GROUNDED_LOG_INFOF("Allocate: at %.*s:%lu\t %lu bytes\n", (int)filename.size, filename.base, line, size);
+    GROUNDED_LOG_INFOF("Allocate: at %S:%llu\t %llu bytes\n", filename, line, size);
 
     return base;
 }

@@ -49,7 +49,7 @@ String8 str8FromFormatVaList(struct MemoryArena* arena, const char* format, va_l
 //////////
 // Logging
 GROUNDED_FUNCTION void logFunctionf(GroundedLogLevel level, String8 filename, u64 line, const char* fmt, ...) {
-    MemoryArena* scratch = threadContextGetScratch(0);
+    MemoryArena* scratch = threadContextGetScratch(threadContextGetScratch(0));
     ArenaTempMemory temp = arenaBeginTemp(scratch);
     
     va_list args;
