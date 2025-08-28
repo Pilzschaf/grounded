@@ -728,7 +728,7 @@ static bool xcbWindowIsFullscreen(GroundedXcbWindow* window) {
 }
 
 static bool xcbWindowIsMaximized(GroundedXcbWindow* window) {
-    ASSERT(false);
+    //ASSERT(false);
     return false;
 }
 
