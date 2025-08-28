@@ -6,6 +6,7 @@
 #ifndef GROUNDED_MATH_PREFIX
 #define GROUNDED_MATH_PREFIX(name) name
 #endif
+//TODO: Grounded math function prefix
 //TODO: Vector creation with a single value in all dimensions
 
 #ifndef VEC2
@@ -163,6 +164,10 @@ typedef union GROUNDED_MATH_PREFIX(mat4) {
     GROUNDED_MATH_PREFIX(vec4) rows[4];
 } GROUNDED_MATH_PREFIX(mat4);
 STATIC_ASSERT(sizeof(GROUNDED_MATH_PREFIX(mat4)) == sizeof(float)*16);
+
+typedef struct GROUNDED_MATH_PREFIX(frustum) {
+    vec4 frustumPlanes[6];
+} GROUNDED_MATH_PREFIX(frustum);
 
 #include <math.h> // For sqrtf, sinf, cosf, tanf
 
@@ -855,6 +860,19 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreatePerspectiveProjecti
     return result;
 }
 
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreatePerspectiveProjectionGl(float fov, float aspectRatio, float nearPlane, float farPlane) {
+    float tanHalfFov = tanf(fov / 2.0f);
+    GROUNDED_MATH_PREFIX(mat4) result = {0};
+
+    result.m[0][0] = 1.0f / (aspectRatio * tanHalfFov);
+    result.m[1][1] = 1.0f / tanHalfFov; // the - is a negative y scale and makes y go up instead of down
+    result.m[2][2] = -farPlane / (farPlane - nearPlane);
+    result.m[2][3] = -(2.0f * farPlane * nearPlane) / (farPlane - nearPlane);
+    result.m[3][2] = -1.0f;
+
+    return result;
+}
+
 GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreatePerspectiveProjectionInverseZ(float fov, float aspectRatio, float nearPlane) {
     float tanHalfFov = tanf(fov / 2.0f);
     GROUNDED_MATH_PREFIX(mat4) result = {0};
@@ -863,6 +881,28 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreatePerspectiveProjecti
     result.m[1][1] = -1.0f / tanHalfFov; // the - is a negative y scale and makes y go up instead of down
     result.m[2][3] = nearPlane;
     result.m[3][2] = 1.0f;
+
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreatePerspectiveProjectionFromCoordinates(float left, float right, float bottom, float top, float zNear, float zFar) {
+    GROUNDED_MATH_PREFIX(mat4) result = {0};
+
+    /*result.m11 = 2.0f * zNear / (right - left);
+    result.m22 = 2.0f * zNear / (top - bottom);
+    result.m31 = (right + left) / (right - left);
+    result.m32 = (top + bottom) / (top - bottom);
+    result.m33 = (zFar + zNear) / (zFar - zNear);
+    result.m34 = 1.0f;
+    result.m43 = -2.0f * zFar * zNear / (zFar - zNear);*/
+
+    result.m11 = 2.0f * zNear / (right - left);
+    result.m22 = 2.0f * zNear / (top - bottom);
+    result.m31 = (right + left) / (right - left);
+    result.m32 = (top + bottom) / (top - bottom);
+    result.m33 = -(zFar + zNear) / (zFar - zNear);
+    result.m43 = -1.0f;
+    result.m34 = -2.0f * zFar * zNear / (zFar - zNear);
 
     return result;
 }
@@ -879,9 +919,19 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreateOrthographicProject
 }
 
 GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matCreateOrthographicProjectionFromCoordinates(float left, float right, float top, float bottom) {
+    /*
+    // OpenGL
     GROUNDED_MATH_PREFIX(mat4) result = {{
         2/(right - left), 0.0f, 0.0f, - (right + left) / (right - left),
         0.0f, 2/(top-bottom), 0.0f, -(top + bottom) / (top - bottom),
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+    }};*/
+
+    // Vulkan
+    GROUNDED_MATH_PREFIX(mat4) result = {{
+        2/(right - left), 0.0f, 0.0f, - (right + left) / (right - left),
+        0.0f, -2/(top-bottom), 0.0f, (top + bottom) / (top - bottom),
         0.0f, 0.0f, 1.0f, 0.0f,
         0.0f, 0.0f, 0.0f, 1.0f,
     }};
@@ -1151,15 +1201,52 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(mat4) matInverse(GROUNDED_MATH_PRE
     return result;
 }
 
+// Applies the inverse matrix transform to a vec3. Not working correctly
+/*GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec3) matMultiplyVec3Inverse(GROUNDED_MATH_PREFIX(mat4) m, GROUNDED_MATH_PREFIX(vec3) v) {
+    vec3 center = matMultiplyVec3(m, VEC3(0.0f, 0.0f, 0.0f));
+    vec3 axisX = matMultiplyVec3(m, VEC3(1.0f, 0.0f, 0.0f));
+    vec3 axisY = matMultiplyVec3(m, VEC3(0.0f, 1.0f, 0.0f));
+    vec3 axisZ = matMultiplyVec3(m, VEC3(0.0f, 0.0f, 1.0f));
+    axisX = (v3Subtract(axisX, center));
+    axisY = (v3Subtract(axisY, center));
+    axisZ = (v3Subtract(axisZ, center));
+    axisX = v3Normalize(axisX);
+    axisY = v3Normalize(axisY);
+    axisZ = v3Normalize(axisZ);
+
+    vec3 p = v3Subtract(v, center);
+    vec3 result = VEC3(v3Dot(axisX, p), v3Dot(axisY, p), v3Dot(axisZ, p));
+    return result;
+}*/
+
+//////////
+// Frustum
+
+/*GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(frustum) frustomFromViewProj(GROUNDED_MATH_PREFIX(mat4) viewProj) {
+    GROUNDED_MATH_PREFIX(frustum) result = {{
+        //TODO: Maybe should be columns instead of rows
+        v4Add(viewProj.rows[3], viewProj.rows[0]),
+        v4Subtract(viewProj.rows[3], viewProj.rows[0]),
+        v4Add(viewProj.rows[3], viewProj.rows[1]),
+        v4Subtract(viewProj.rows[3], viewProj.rows[1]),
+        v4Subtract(viewProj.rows[3], viewProj.rows[2]),
+        viewProj.rows[2], // maybe also v4Add(viewProj.rows[3], viewProj.rows[2]),
+    }};
+}*/
+
+/*GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec3) unprojectWithFrustum(GROUNDED_MATH_PREFIX(mat4) model, GROUNDED_MATH_PREFIX(frustum) projectionFrustum, GROUNDED_MATH_PREFIX(vec3) v) {
+    vec3 point = {
+        .x = (v.x + projectionFrustum.frustumPlanes[0]) * -v.z * projectionFrustum.frustumPlanes[1],
+        .y = (v.y + projectionFrustum.frustumPlanes[2]) * -v.z * projectionFrustum.frustumPlanes[1],
+    };
+    vec3 center = matMultiplyVec3(model, VEC3(0.0f, 0.0f, 0.0f));
+    vec3 axisX = matMultiplyVec3(model, VEC3(1.0f, 0.0f, 0.0f));
+    vec3 axisY = matMultiplyVec3(model, VEC3(0.0f, 1.0f, 0.0f));
+    vec3 axisZ = matMultiplyVec3(model, VEC3(0.0f, 0.0f, 1.0f));
+}*/
 
 ////////////////
 // Other helpers
-
-GROUNDED_FUNCTION_INLINE bool v2InRect(GROUNDED_MATH_PREFIX(vec2) min, GROUNDED_MATH_PREFIX(vec2) max, GROUNDED_MATH_PREFIX(vec2) point) {
-    bool result = (min.x <= point.x && point.x < max.x && min.y <= point.y && point.y < max.y);
-    return result;
-}
-
 GROUNDED_FUNCTION_INLINE float degToRad(float angleInDeg) {
     float result = angleInDeg * 0.01745329f;
     return result;
@@ -1167,6 +1254,41 @@ GROUNDED_FUNCTION_INLINE float degToRad(float angleInDeg) {
 
 GROUNDED_FUNCTION_INLINE float radToDeg(float angleInRad) {
     float result = angleInRad * 57.29578f;
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE bool v2InRect(GROUNDED_MATH_PREFIX(vec2) min, GROUNDED_MATH_PREFIX(vec2) max, GROUNDED_MATH_PREFIX(vec2) point) {
+    bool result = (min.x <= point.x && point.x < max.x && min.y <= point.y && point.y < max.y);
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec2) v2QuadraticBezierPoint(GROUNDED_MATH_PREFIX(vec2) p0, GROUNDED_MATH_PREFIX(vec2) p1, GROUNDED_MATH_PREFIX(vec2) p2, float t) {
+    float u = 1.0 - t;
+    GROUNDED_MATH_PREFIX(vec2) result = {
+        .x = u * u * p0.x + 2.0 * u * t * p1.x + t * t * p2.x,
+        .y = u * u * p0.y + 2.0 * u * t * p1.y + t * t * p2.y,
+    };
+    return result;
+}
+
+// ARGB layout
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec4) u32ToColor(u32 color) {
+    GROUNDED_MATH_PREFIX(vec4) result = {
+        .r =  ((color >> 16) & 0xFF) / 255.0f,
+        .g =  ((color >> 8) & 0xFF) / 255.0f,
+        .b =  ((color >> 0) & 0xFF) / 255.0f,
+        .a =  ((color >> 24) & 0xFF) / 255.0f,
+    };
+    return result;
+}
+
+// ARGB layout
+GROUNDED_FUNCTION_INLINE u32 colorToU32(GROUNDED_MATH_PREFIX(vec4) color) {
+    u32 r = (u32)(CLAMP(0.0f, color.r, 1.0f) * 255.0f);
+    u32 g = (u32)(CLAMP(0.0f, color.g, 1.0f) * 255.0f);
+    u32 b = (u32)(CLAMP(0.0f, color.b, 1.0f) * 255.0f);
+    u32 a = (u32)(CLAMP(0.0f, color.a, 1.0f) * 255.0f);
+    u32 result = (a << 24) | (r << 16) | (g << 8) | b;
     return result;
 }
 
