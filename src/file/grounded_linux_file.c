@@ -173,6 +173,19 @@ GROUNDED_FUNCTION  bool groundedCreateDirectory(String8 directory) {
     return result;
 }
 
+GROUNDED_FUNCTION bool groundedEnsureDirectoryExists(String8 directory) {
+    MemoryArena* scratch = threadContextGetScratch(0);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
+
+    bool result = mkdir(str8GetCstr(scratch, directory), 0755) == 0;
+    if(!result && errno != EEXIST) {
+        GROUNDED_LOG_ERROR("Error creating directory");
+    }
+
+    arenaEndTemp(temp);
+    return result;
+}
+
 GROUNDED_FUNCTION String8 groundedGetAbsoluteDirectory(MemoryArena* arena, String8 directory) {
     char* buffer = ARENA_PUSH_ARRAY_NO_CLEAR(arena, PATH_MAX, char);
 
@@ -353,8 +366,8 @@ static void _handleWatchDirectory(struct GroundedLinuxDirectoryWatch* linuxWatch
     MemoryArena* scratch = threadContextGetScratch(arena);
     ArenaTempMemory temp = arenaBeginTemp(scratch);
 
-    GroundedDirectoryIterator* iterator = createDirectoryIterator(scratch, directory);
-    GroundedDirectoryEntry entry = getNextDirectoryEntry(iterator);
+    GroundedDirectoryIterator* iterator = groundedCreateDirectoryIterator(scratch, directory);
+    GroundedDirectoryEntry entry = groundedGetNextDirectoryEntry(iterator);
     int handle = inotify_add_watch(linuxWatch->inotifyHandle, str8GetCstr(scratch, directory), IN_CLOSE_WRITE | IN_CREATE | IN_DELETE);
     
     // Add watch
@@ -374,7 +387,7 @@ static void _handleWatchDirectory(struct GroundedLinuxDirectoryWatch* linuxWatch
             String8 nextDirectoryString = str8ListJoin(scratch, &list, 0);
             _handleWatchDirectory(linuxWatch, arena, nextDirectoryString);
         }
-        entry = getNextDirectoryEntry(iterator);
+        entry = groundedGetNextDirectoryEntry(iterator);
     }
 
     arenaEndTemp(temp);
@@ -476,7 +489,7 @@ GROUNDED_FUNCTION void groundedHandleWatchDirectoryEvents(GroundedDirectoryWatch
 struct GroundedDirectoryIterator {
     DIR* dir;
 };
-GROUNDED_FUNCTION GroundedDirectoryIterator* createDirectoryIterator(MemoryArena* arena, String8 directory) {
+GROUNDED_FUNCTION GroundedDirectoryIterator* groundedCreateDirectoryIterator(MemoryArena* arena, String8 directory) {
     struct GroundedDirectoryIterator* result = ARENA_PUSH_STRUCT(arena, struct GroundedDirectoryIterator);
     ArenaTempMemory temp = arenaBeginTemp(arena);
     result->dir = opendir(str8GetCstr(arena, directory));
@@ -484,7 +497,7 @@ GROUNDED_FUNCTION GroundedDirectoryIterator* createDirectoryIterator(MemoryArena
     return result;
 }
 
-GROUNDED_FUNCTION GroundedDirectoryEntry getNextDirectoryEntry(GroundedDirectoryIterator* iterator) {
+GROUNDED_FUNCTION GroundedDirectoryEntry groundedGetNextDirectoryEntry(GroundedDirectoryIterator* iterator) {
     ASSERT(iterator);
     GroundedDirectoryEntry result = {0};
     if(iterator->dir == 0) {
@@ -531,7 +544,7 @@ GROUNDED_FUNCTION GroundedDirectoryEntry getNextDirectoryEntry(GroundedDirectory
     return result;
 }
 
-GROUNDED_FUNCTION void destroyDirectoryIterator(GroundedDirectoryIterator* iterator) {
+GROUNDED_FUNCTION void groundedDestroyDirectoryIterator(GroundedDirectoryIterator* iterator) {
     ASSERT(iterator);
     closedir(iterator->dir);
 }

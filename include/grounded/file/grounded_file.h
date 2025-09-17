@@ -35,6 +35,7 @@ GROUNDED_FUNCTION void groundedCloseFile(GroundedFile* file);
 GROUNDED_FUNCTION bool groundedDoesFileExist(String8 filename);
 GROUNDED_FUNCTION bool groundedDoesDirectoryExist(String8 directory);
 GROUNDED_FUNCTION bool groundedCreateDirectory(String8 directory);
+GROUNDED_FUNCTION bool groundedEnsureDirectoryExists(String8 directory);
 GROUNDED_FUNCTION String8 groundedGetAbsoluteDirectory(MemoryArena* arena, String8 directory);
 
 GROUNDED_FUNCTION String8 groundedGetLinkTarget(MemoryArena* arena, String8 filename);
@@ -57,9 +58,9 @@ typedef struct GroundedDirectoryEntry {
     enum GroundedDirectoryEntryType type;
     enum GroundedDirectoryEntryFlags flags;
 } GroundedDirectoryEntry;
-GROUNDED_FUNCTION GroundedDirectoryIterator* createDirectoryIterator(MemoryArena* arena, String8 directory);
-GROUNDED_FUNCTION struct GroundedDirectoryEntry getNextDirectoryEntry(GroundedDirectoryIterator* iterator);
-GROUNDED_FUNCTION void destroyDirectoryIterator(GroundedDirectoryIterator* iterator);
+GROUNDED_FUNCTION GroundedDirectoryIterator* groundedCreateDirectoryIterator(MemoryArena* arena, String8 directory);
+GROUNDED_FUNCTION struct GroundedDirectoryEntry groundedGetNextDirectoryEntry(GroundedDirectoryIterator* iterator);
+GROUNDED_FUNCTION void groundedDestroyDirectoryIterator(GroundedDirectoryIterator* iterator);
 typedef struct GroundedListFilesParameters {
     bool allowDot;
     bool allowDoubleDot;

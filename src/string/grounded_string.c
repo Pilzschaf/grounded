@@ -50,6 +50,11 @@ GROUNDED_FUNCTION String8 str8Substring(String8 str, u64 first, u64 last) {
     return result;
 }
 
+GROUNDED_FUNCTION String8 str8Join(struct MemoryArena* arena, String8 first, String8 second) {
+    String8 result = str8FromFormat(arena, "%S%S", first, second);
+    return result;
+}
+
 GROUNDED_FUNCTION bool str8IsEqual(String8 a, String8 b) {
     if(a.size == b.size) {
         if(a.size == 0) {

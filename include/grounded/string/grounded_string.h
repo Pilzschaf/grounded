@@ -49,6 +49,7 @@ GROUNDED_FUNCTION String8 str8Chop(String8 str, u64 amount);
 GROUNDED_FUNCTION String8 str8PostFix(String8 str, u64 size);
 GROUNDED_FUNCTION String8 str8Skip(String8 str, u64 amount);
 GROUNDED_FUNCTION String8 str8Substring(String8 str, u64 first, u64 last);
+GROUNDED_FUNCTION String8 str8Join(struct MemoryArena* arena, String8 first, String8 second);
 GROUNDED_FUNCTION bool str8IsEqual(String8 a, String8 b);
 GROUNDED_FUNCTION int str8Compare(String8 a, String8 b);
 GROUNDED_FUNCTION int str8CompareCaseInsensitive(String8 a, String8 b);
