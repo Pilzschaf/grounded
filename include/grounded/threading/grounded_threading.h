@@ -52,7 +52,7 @@ GROUNDED_FUNCTION GroundedThread* groundedStartThread(MemoryArena* arena, Ground
 // Only safe to call once the thread has finished executing
 GROUNDED_FUNCTION void groundedDestroyThread(GroundedThread* thread);
 
-GROUNDED_FUNCTION bool groundedThreadWaitForFinish(GroundedThread* thread, u32 timeout); // Timeout in ms
+GROUNDED_FUNCTION bool groundedThreadWaitForFinish(GroundedThread* thread, u32 timeoutInMs);
 GROUNDED_FUNCTION bool groundedThreadIsRunning(GroundedThread* thread);
 GROUNDED_FUNCTION void groundedThreadRequestStop(GroundedThread* thread);
 GROUNDED_FUNCTION bool groundedThreadShouldStop(GroundedThread* thread);

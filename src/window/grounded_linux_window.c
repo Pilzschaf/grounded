@@ -674,6 +674,19 @@ GROUNDED_FUNCTION u32 groundedWindowGetHeight(GroundedWindow* window) {
     return 0;
 }
 
+GROUNDED_FUNCTION void groundedWindowSetSize(GroundedWindow* window, u32 width, u32 height) {
+    ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
+    switch(linuxWindowBackend) {
+        case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
+            //waylandSetWindowSize((GroundedWaylandWindow*)window, width, height);
+        } break;
+        case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
+            //xcbSetWindowSize((GroundedXcbWindow*)window, width, height);
+        } break;
+        default:break;
+    }
+}
+
 GROUNDED_FUNCTION void groundedWindowSetTitle(GroundedWindow* window, String8 title) {
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {

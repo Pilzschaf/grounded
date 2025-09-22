@@ -68,30 +68,29 @@ typedef struct GroundedListFilesParameters {
 } GroundedListFilesParameters;
 GROUNDED_FUNCTION GroundedDirectoryEntry* groundedListFilesOfDirectory(MemoryArena* arena, String8 directory, u64* resultCount, GroundedListFilesParameters* parameters);
 
-#define WATCH_FILE_CREATE_CALLBACK(name) void name(String8 filename, String8 directory)
-typedef WATCH_FILE_CREATE_CALLBACK(WatchFileCreateCallback);
 
-#define WATCH_FILE_MODIFY_CALLBACK(name) void name(String8 filename, String8 directory)
-typedef WATCH_FILE_MODIFY_CALLBACK(WatchFileModifyCallback);
+enum GroundedDirectoryWatchEventType {
+    GROUNDED_DIRECTORY_WATCH_EVENT_TYPE_CREATE,
+    GROUNDED_DIRECTORY_WATCH_EVENT_TYPE_MODIFY,
+    GROUNDED_DIRECTORY_WATCH_EVENT_TYPE_DELETE,
+};
 
-#define WATCH_FILE_DELETE_CALLBACK(name) void name(String8 filename, String8 directory)
-typedef WATCH_FILE_DELETE_CALLBACK(WatchFileDeleteCallback);
+typedef struct GroundedDirectoryWatch GroundedDirectoryWatch;
+typedef struct GroundedDirectoryWatchEvent {
+    String8 filename;
+    String8 directory;
+    enum GroundedDirectoryWatchEventType type;
+} GroundedDirectoryWatchEvent;
 
-typedef struct GroundedDirectoryWatch {
-    void* implementationPointer;
+#define WATCH_FILE_CALLBACK(name) void name(GroundedDirectoryWatchEvent event)
+typedef WATCH_FILE_CALLBACK(WatchFileCallback);
 
-    WatchFileCreateCallback* onFileCreate;
-	WatchFileModifyCallback* onFileModify;
-	WatchFileDeleteCallback* onFileDelete;
-    //TODO: Events for directories
-	//TODO: Callback of application if new directory should be watched(via bool return or similar)
-} GroundedDirectoryWatch;
-
-//TODO: Watch subdirectory currently does not allow to watch subdirectories that are newly created after the watch has been created
-GROUNDED_FUNCTION void groundedWatchDirectory(GroundedDirectoryWatch* directoryWatch, MemoryArena* arena, String8 directory, bool watchSubdirectories);
-// Does not block
-GROUNDED_FUNCTION void groundedHandleWatchDirectoryEvents(GroundedDirectoryWatch* directoryWatch);
-GROUNDED_FUNCTION void groundedDestroyDirectoryWatch(GroundedDirectoryWatch* directoryWatch);
+GROUNDED_FUNCTION GroundedDirectoryWatch* groundedDirectoryWatchCreate(MemoryArena* arena, String8 directory, bool watchSubdirectories);
+GROUNDED_FUNCTION GroundedDirectoryWatchEvent* groundedDirectoryWatchPollEvents(GroundedDirectoryWatch* watch, MemoryArena* arena, u64* eventCount);
+GROUNDED_FUNCTION GroundedDirectoryWatchEvent* groundedDirectoryWatchWaitForEvents(GroundedDirectoryWatch* watch, MemoryArena* arena, u64* eventCount, u32 timeoutInMs);
+GROUNDED_FUNCTION void groundedDirectoryWatchPollEventsCallback(GroundedDirectoryWatch* watch, WatchFileCallback callback);
+GROUNDED_FUNCTION void groundedDirectoryWatchWaitForEventsCallback(GroundedDirectoryWatch* watch, WatchFileCallback callback, u32 timeoutInMs);
+GROUNDED_FUNCTION void groundedDirectoryWatchDestroy(GroundedDirectoryWatch* directoryWatch);
 
 
 // Timestamp in seconds

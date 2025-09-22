@@ -356,24 +356,36 @@ struct WatchEntry {
     struct WatchEntry* nextWatch;
 };
 
-struct GroundedLinuxDirectoryWatch {
+struct GroundedDirectoryWatch {
+    MemoryArena arena; // Only initialized if we recurse into submodules
     int inotifyHandle;
+    bool recurseSubdirectories;
     struct WatchEntry sentinel;
+    struct WatchEntry* firstFree;
 };
 
+static void addWatch(struct GroundedDirectoryWatch* linuxWatch, String8 directory, struct WatchEntry* watchEntry) {
+    MemoryArena* scratch = threadContextGetScratch(&linuxWatch->arena);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
 
-static void _handleWatchDirectory(struct GroundedLinuxDirectoryWatch* linuxWatch, MemoryArena* arena, String8 directory) {
-    MemoryArena* scratch = threadContextGetScratch(arena);
+    u32 eventMask = IN_CLOSE_WRITE | IN_CREATE | IN_DELETE | IN_DELETE_SELF | IN_MODIFY | IN_MOVE_SELF | IN_MOVE;
+    int handle = inotify_add_watch(linuxWatch->inotifyHandle, str8GetCstr(scratch, directory), eventMask);
+    watchEntry->watchHandle = handle;
+    watchEntry->directory = directory;
+
+    arenaEndTemp(temp);
+}
+
+static void _handleRecursiveWatchDirectory(struct GroundedDirectoryWatch* linuxWatch, String8 directory) {
+    MemoryArena* scratch = threadContextGetScratch(&linuxWatch->arena);
     ArenaTempMemory temp = arenaBeginTemp(scratch);
 
     GroundedDirectoryIterator* iterator = groundedCreateDirectoryIterator(scratch, directory);
     GroundedDirectoryEntry entry = groundedGetNextDirectoryEntry(iterator);
-    int handle = inotify_add_watch(linuxWatch->inotifyHandle, str8GetCstr(scratch, directory), IN_CLOSE_WRITE | IN_CREATE | IN_DELETE);
     
     // Add watch
-    struct WatchEntry* watchEntry = ARENA_PUSH_STRUCT_NO_CLEAR(arena, struct WatchEntry);
-    watchEntry->watchHandle = handle;
-    watchEntry->directory = directory;
+    struct WatchEntry* watchEntry = ARENA_PUSH_STRUCT_NO_CLEAR(&linuxWatch->arena, struct WatchEntry);
+    addWatch(linuxWatch, directory, watchEntry);
     watchEntry->nextWatch = linuxWatch->sentinel.nextWatch;
     linuxWatch->sentinel.nextWatch = watchEntry;
 
@@ -385,7 +397,7 @@ static void _handleWatchDirectory(struct GroundedLinuxDirectoryWatch* linuxWatch
             str8ListPush(scratch, &list, STR8_LITERAL("/"));
             str8ListPush(scratch, &list, entry.name);
             String8 nextDirectoryString = str8ListJoin(scratch, &list, 0);
-            _handleWatchDirectory(linuxWatch, arena, nextDirectoryString);
+            _handleRecursiveWatchDirectory(linuxWatch, nextDirectoryString);
         }
         entry = groundedGetNextDirectoryEntry(iterator);
     }
@@ -393,96 +405,119 @@ static void _handleWatchDirectory(struct GroundedLinuxDirectoryWatch* linuxWatch
     arenaEndTemp(temp);
 }
 
+GROUNDED_FUNCTION GroundedDirectoryWatch* groundedDirectoryWatchCreate(MemoryArena* arena, String8 directory, bool watchSubdirectories) {
+    struct GroundedDirectoryWatch* result = 0;
 
-GROUNDED_FUNCTION void groundedWatchDirectory(GroundedDirectoryWatch* directoryWatch, MemoryArena* arena, String8 directory, bool watchSubdirectories) {
-    MemoryArena* scratch = threadContextGetScratch(arena);
-    ArenaTempMemory temp = arenaBeginTemp(scratch);
-    // Supported events are create, modify, delete
-    // IN_CLOSE_WRITE, IN_CREATE, IN_DELETE, IN_DELETE_SELF?, IN_MOVE_SELF?, IN_MOVED_FROM, IN_MOVED_TO
-    struct GroundedLinuxDirectoryWatch* linuxWatch = ARENA_PUSH_STRUCT(arena, struct GroundedLinuxDirectoryWatch);
-    directoryWatch->implementationPointer = linuxWatch;
-
-    linuxWatch->inotifyHandle = inotify_init1(IN_NONBLOCK);
     if(watchSubdirectories) {
-        _handleWatchDirectory(linuxWatch, arena, directory);
+        result = ARENA_BOOTSTRAP_PUSH_STRUCT(createGrowingArena(osGetMemorySubsystem(), KB(16)), GroundedDirectoryWatch, arena);
     } else {
-        //TODO: More masks
-        int handle = inotify_add_watch(linuxWatch->inotifyHandle, str8GetCstr(scratch, directory), IN_CLOSE_WRITE | IN_CREATE | IN_DELETE);
-        struct WatchEntry* watchEntry = ARENA_PUSH_STRUCT(arena, struct WatchEntry);
-        watchEntry->watchHandle = handle;
-        watchEntry->directory = directory;
-        watchEntry->nextWatch = linuxWatch->sentinel.nextWatch;
-        linuxWatch->sentinel.nextWatch = watchEntry;
+        result = ARENA_PUSH_STRUCT(arena, struct GroundedDirectoryWatch);
     }
-    arenaEndTemp(temp);
+
+    result->inotifyHandle = inotify_init1(IN_NONBLOCK);
+    result->recurseSubdirectories = watchSubdirectories;
+
+    if(watchSubdirectories) {
+        // We need our own arena as we want to handle recurse subdirectories
+        _handleRecursiveWatchDirectory(result, directory);
+    } else {
+        addWatch(result, directory, &result->sentinel);
+    }
+
+    return result;
 }
 
 GROUNDED_FUNCTION void groundedDestroyDirectoryWatch(GroundedDirectoryWatch* directoryWatch) {
-    struct GroundedLinuxDirectoryWatch* linuxWatch = (struct GroundedLinuxDirectoryWatch*)directoryWatch->implementationPointer;
-    close(linuxWatch->inotifyHandle);
+    ASSUME(directoryWatch) {
+        close(directoryWatch->inotifyHandle);
+        if(directoryWatch->recurseSubdirectories) {
+            arenaRelease(&directoryWatch->arena);  
+        }
+    }
 }
 
 // Move events are encoded as create and delete events.
-GROUNDED_FUNCTION void groundedHandleWatchDirectoryEvents(GroundedDirectoryWatch* directoryWatch) {
-    struct GroundedLinuxDirectoryWatch* linuxWatch = (struct GroundedLinuxDirectoryWatch*)directoryWatch->implementationPointer;
-    ASSERT(directoryWatch);
-    ASSERT(linuxWatch);
-
-    char buffer[KB(16)];
-    struct inotify_event* inotifyEvent;
+GROUNDED_FUNCTION GroundedDirectoryWatchEvent* groundedDirectoryWatchPollEvents(GroundedDirectoryWatch* watch, MemoryArena* arena, u64* eventCount) {
+    MemoryArena* scratch = threadContextGetScratch(arena);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
     
-    int len = read(linuxWatch->inotifyHandle, buffer, KB(16));
-    int i = 0;
-    if(len > 0) {
-        while(i < len) {
-            inotifyEvent = (struct inotify_event*) &buffer[i];
-            i += inotifyEvent->len + sizeof(struct inotify_event);
-            
-            String8 filename = str8FromCstr(inotifyEvent->name); // Name is always 0-terminated
-            String8 directory = EMPTY_STRING8;
-            
-            struct WatchEntry* entry = linuxWatch->sentinel.nextWatch;
-            while(entry) {
-                if(entry->watchHandle == inotifyEvent->wd) {
-                    directory = entry->directory;
-                    break;
-                }
-                entry = entry->nextWatch;
-            }
-            
-            // Create
-            if(inotifyEvent->mask & IN_CREATE) {
-                if(inotifyEvent->mask & IN_ISDIR) {
-                    bool shouldWatch = true;
-                    //TODO:
-                } else {
-                    if(directoryWatch->onFileCreate) {
-                        directoryWatch->onFileCreate(filename, directory);
+    GroundedDirectoryWatchEvent* result = 0;
+    ASSUME(watch && eventCount) {
+        *eventCount = 0;
+        // Buffer size should be at least sizeof(struct inotify_event) + NAME_MAX + 1.
+        u8 buffer[KB(8)];
+        int len = read(watch->inotifyHandle, buffer, ARRAY_COUNT(buffer));
+        if(len > 0) {
+            int i = 0;
+            int maxCount = len / sizeof(struct inotify_event);
+            GroundedDirectoryWatchEvent* events = ARENA_PUSH_ARRAY(scratch, maxCount, GroundedDirectoryWatchEvent);
+            while(i < len) {
+                struct inotify_event* inotifyEvent;
+                inotifyEvent = (struct inotify_event*) &buffer[i];
+                i += inotifyEvent->len + sizeof(struct inotify_event);
+                
+                String8 filename = str8FromCstr(inotifyEvent->name); // Name is always 0-terminated
+                String8 directory = watch->sentinel.directory;
+                bool isDirectory = inotifyEvent->mask & IN_ISDIR;
+                
+                // Lookup directory watch
+                if(watch->recurseSubdirectories) {
+                    struct WatchEntry* entry = watch->sentinel.nextWatch;
+                    while(entry) {
+                        if(entry->watchHandle == inotifyEvent->wd) {
+                            directory = entry->directory;
+                            break;
+                        }
+                        entry = entry->nextWatch;
                     }
                 }
-            }
-            //TODO: MOVE_TO
-            
-            // Modify
-            if(inotifyEvent->mask & IN_CLOSE_WRITE) {
-                if(directoryWatch->onFileModify) {
-                    directoryWatch->onFileModify(filename, directory);
-                }
-            }
-            
-            // Delete
-            if(inotifyEvent->mask & IN_DELETE) {
-                if(inotifyEvent->mask & IN_ISDIR) {
-                    //TODO: Delete directory watch?
-                } else {
-                    if(directoryWatch->onFileModify) {
-                        directoryWatch->onFileModify(filename, directory);
+                
+                // Create
+                if(inotifyEvent->mask & IN_CREATE) {
+                    if(isDirectory && watch->recurseSubdirectories) {
+                        //TODO: Watch subdirectory
+                        ASSERT(false);
                     }
+                    events[*eventCount++] = (GroundedDirectoryWatchEvent) {
+                        .filename = filename,
+                        .directory = directory,
+                        .type = GROUNDED_DIRECTORY_WATCH_EVENT_TYPE_CREATE,
+                    };
+                }
+                //TODO: MOVE_TO
+                //TODO: MOVE_FROM
+                //TODO: With cookie is rename
+                
+                // Modify
+                if(inotifyEvent->mask & IN_CLOSE_WRITE) {
+                    events[*eventCount++] = (GroundedDirectoryWatchEvent) {
+                        .filename = filename,
+                        .directory = directory,
+                        .type = GROUNDED_DIRECTORY_WATCH_EVENT_TYPE_MODIFY,
+                    };
+                }
+                
+                // Delete
+                if(inotifyEvent->mask & IN_DELETE) {
+                    if(isDirectory && watch->recurseSubdirectories) {
+                        //TODO: Delete directory watch?
+                    } 
+                    events[*eventCount++] = (GroundedDirectoryWatchEvent) {
+                        .filename = filename,
+                        .directory = directory,
+                        .type = GROUNDED_DIRECTORY_WATCH_EVENT_TYPE_DELETE,
+                    };
                 }
             }
-            //TODO: MOVE_FROM
-        }
+            result = ARENA_PUSH_ARRAY(arena, *eventCount, GroundedDirectoryWatchEvent);
+            for(u64 i = 0; i < *eventCount; ++i) {
+                result[i] = events[i];
+            }
+        }   
     }
+    
+    arenaEndTemp(temp);
+    return result;
 }
 
 
