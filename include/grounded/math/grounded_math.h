@@ -1265,8 +1265,8 @@ GROUNDED_FUNCTION_INLINE bool v2InRect(GROUNDED_MATH_PREFIX(vec2) min, GROUNDED_
 GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec2) v2QuadraticBezierPoint(GROUNDED_MATH_PREFIX(vec2) p0, GROUNDED_MATH_PREFIX(vec2) p1, GROUNDED_MATH_PREFIX(vec2) p2, float t) {
     float u = 1.0 - t;
     GROUNDED_MATH_PREFIX(vec2) result = {
-        .x = u * u * p0.x + 2.0 * u * t * p1.x + t * t * p2.x,
-        .y = u * u * p0.y + 2.0 * u * t * p1.y + t * t * p2.y,
+        .x = u * u * p0.x + 2.0f * u * t * p1.x + t * t * p2.x,
+        .y = u * u * p0.y + 2.0f * u * t * p1.y + t * t * p2.y,
     };
     return result;
 }

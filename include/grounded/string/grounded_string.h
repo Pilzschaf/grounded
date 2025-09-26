@@ -73,7 +73,7 @@ GROUNDED_FUNCTION char* str8GetCstrOrNull(struct MemoryArena* arena, String8 str
 GROUNDED_FUNCTION String8 str8ToLower(struct MemoryArena* arena, String8 str);
 GROUNDED_FUNCTION String8 str8ToUpper(struct MemoryArena* arena, String8 str);
 
-GROUNDED_FUNCTION String8 str8ReplaceCharacter(struct MemoryArena* arena, String8 str, u8 old, u8 new);
+GROUNDED_FUNCTION String8 str8ReplaceCharacter(struct MemoryArena* arena, String8 str, u8 oldCharacter, u8 newCharacter);
 // Removes all occurences of character from str and copies it into new 0-terminated output string
 GROUNDED_FUNCTION String8 str8RemoveCharacter(struct MemoryArena* arena, String8 str, u8 character);
 

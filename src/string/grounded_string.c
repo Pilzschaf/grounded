@@ -392,13 +392,13 @@ GROUNDED_FUNCTION String8 str8ToUpper(struct MemoryArena* arena, String8 str) {
     return result;
 }
 
-GROUNDED_FUNCTION String8 str8ReplaceCharacter(struct MemoryArena* arena, String8 str, u8 old, u8 new) {
+GROUNDED_FUNCTION String8 str8ReplaceCharacter(struct MemoryArena* arena, String8 str, u8 oldCharacter, u8 newCharacter) {
     String8 result = {0};
     result.base = ARENA_PUSH_ARRAY_NO_CLEAR(arena, str.size + 1, u8);
     result.size = str.size;
     for(u64 i = 0; i < str.size; ++i) {
-        if(str.base[i] == old) {
-            result.base[i] = new;
+        if(str.base[i] == oldCharacter) {
+            result.base[i] = newCharacter;
         } else {
             result.base[i] = str.base[i];
         }
