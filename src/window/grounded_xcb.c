@@ -1926,6 +1926,7 @@ static GroundedEvent* xcbPollEvents(u32* eventCount) {
 }
 
 static void xcbFetchKeyboardState(GroundedKeyboardState* keyboard) {
+    // Explicit copy as we do not want to override lastKeys!
     memcpy(keyboard->keys, &xcbKeyboardState.keys, sizeof(keyboard->keys));
     keyboard->modifiers = xcbKeyboardState.modifiers;
     memcpy(keyboard->keyDownTransitions, xcbKeyboardState.keyDownTransitions, sizeof(xcbKeyboardState.keyDownTransitions));

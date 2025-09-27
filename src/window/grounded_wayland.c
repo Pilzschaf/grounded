@@ -2148,8 +2148,14 @@ static GroundedEvent* waylandGetEvents(u32* eventCount, u32 maxWaitingTimeInMs) 
     return eventQueue;
 }
 
-static void waylandFetchKeyboardState(GroundedKeyboardState* keyboardState) {
-    *keyboardState = waylandKeyState;
+static void waylandFetchKeyboardState(GroundedKeyboardState* keyboard) {
+    // Explicit copy as we do not want to override lastKeys!
+    memcpy(keyboard->keys, &waylandKeyState.keys, sizeof(keyboard->keys));
+    keyboard->modifiers = waylandKeyState.modifiers;
+    memcpy(keyboard->keyDownTransitions, waylandKeyState.keyDownTransitions, sizeof(waylandKeyState.keyDownTransitions));
+	memset(waylandKeyState.keyDownTransitions, 0, sizeof(waylandKeyState.keyDownTransitions));
+	memcpy(keyboard->keyUpTransitions, waylandKeyState.keyUpTransitions, sizeof(waylandKeyState.keyUpTransitions));
+	memset(waylandKeyState.keyUpTransitions, 0, sizeof(waylandKeyState.keyUpTransitions));
 }
 
 static void waylandFetchMouseState(GroundedWaylandWindow* window, MouseState* mouseState) {
