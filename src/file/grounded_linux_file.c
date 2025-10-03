@@ -622,7 +622,7 @@ GROUNDED_FUNCTION GroundedDirectoryEntry* groundedListFilesOfDirectory(MemoryAre
         GroundedDirectoryEntry entry;
     };
 
-    struct DirectoryNode* head;
+    struct DirectoryNode* head = 0;
     if(dir) {
         struct dirent* d = 0;
         u64 fileCount = 0;
