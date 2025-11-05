@@ -1198,6 +1198,8 @@ static void registry_global(void* data, struct wl_registry* registry, uint32_t i
         // Allows the compositor to hint us at which scale we should render (for example 1.5). 
         // Should be done by incresing wl_buffer dimensions and using wl_viewporter
         //TODO: Might be interesting
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wp_pointer_warp_v1")))) {
+        // Allows to set the cursor position
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("zwp_tablet_manager_v2")))) {
         // Tablet stuff. We ignore this for now. Should not be interesting unless for drawing applications
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wp_tearing_control_manager_v1")))) {
@@ -1283,6 +1285,8 @@ static void registry_global(void* data, struct wl_registry* registry, uint32_t i
         // KDE only. Allows to match to DBUS com.canonical.dbusmenu
     } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("org_kde_kwin_shadow_manager")))) {
         // KDE only. Allows to set shadows to a surface
+    } else if(compareAtoms(interfaceAtom, createAtom(STR8_LITERAL("wl_fixes")))) {
+        // Adds some destroy functions for objects which were missing
     } else {
         // Unknown interface
         GROUNDED_LOG_INFO(interface);

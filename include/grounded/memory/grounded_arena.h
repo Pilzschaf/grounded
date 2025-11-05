@@ -219,7 +219,7 @@ GROUNDED_FUNCTION_INLINE void _arenaPopTo(MemoryArena* arena, u8* newHead) {
 
 GROUNDED_FUNCTION_INLINE void arenaPopTo(MemoryArena* arena, u8* newHead) {
     if(arena->debugData) {
-            arena->debugData->debugDeallocate(arena, newHead);
+        arena->debugData->debugDeallocate(arena, newHead);
     } else {
         _arenaPopTo(arena, newHead);
     }
