@@ -1339,4 +1339,28 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec4) linearColorToSrgb(GROUNDED_M
     return result;
 }
 
+GROUNDED_FUNCTION_INLINE u64 nextPowerOf2(u64 value) {
+    if(value == 0) return 1;
+    value--;
+    value |= value >> 1;
+    value |= value >> 2;
+    value |= value >> 4;
+    value |= value >> 8;
+    value |= value >> 16;
+    value |= value >> 32;
+    value++;
+    return value;
+}
+
+GROUNDED_FUNCTION_INLINE u64 prevPowerOf2(u64 value) {
+    if(value == 0) return 0;
+    value |= value >> 1;
+    value |= value >> 2;
+    value |= value >> 4;
+    value |= value >> 8;
+    value |= value >> 16;
+    value |= value >> 32;
+    return value - (value >> 1);
+}
+
 #endif // GROUNDED_MATH_H
