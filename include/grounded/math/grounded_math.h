@@ -1309,4 +1309,34 @@ GROUNDED_FUNCTION_INLINE u32 colorToU32RGBA(GROUNDED_MATH_PREFIX(vec4) color) {
     return result;
 }
 
+GROUNDED_FUNCTION_INLINE float srgbScalarToLinear(float srgb) {
+    float result = (srgb <= 0.04045f) ? srgb / 12.92f : powf((srgb + 0.055f) / 1.055f, 2.4f);
+    return result; 
+}
+
+GROUNDED_FUNCTION_INLINE float linearScalarToSrgb(float linear) {
+    float result = (linear <= 0.0031308f) ? linear * 12.92f : 1.055f * powf(linear, 1.0f / 2.4f) - 0.055f;
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec4) srgbColorToLinear(GROUNDED_MATH_PREFIX(vec4) srgb) {
+    GROUNDED_MATH_PREFIX(vec4) result = {
+        .r = srgbScalarToLinear(srgb.r),
+        .g = srgbScalarToLinear(srgb.g),
+        .b = srgbScalarToLinear(srgb.b),
+        .a = srgb.a,
+    };
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec4) linearColorToSrgb(GROUNDED_MATH_PREFIX(vec4) linear) {
+    GROUNDED_MATH_PREFIX(vec4) result = {
+        .r = linearScalarToSrgb(linear.r),
+        .g = linearScalarToSrgb(linear.g),
+        .b = linearScalarToSrgb(linear.b),
+        .a = linear.a
+    };
+    return result;
+}
+
 #endif // GROUNDED_MATH_H
