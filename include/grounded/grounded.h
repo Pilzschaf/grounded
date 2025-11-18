@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <stdalign.h>
 #include <stddef.h> // For offsetof
+#include <stdalign.h> // For alignof
 
 typedef int8_t s8;
 typedef int16_t s16;
