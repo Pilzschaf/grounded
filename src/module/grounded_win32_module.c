@@ -26,6 +26,6 @@ void* groundedModuleGetSymbol(struct GroundedModule* module, const char* symbolN
 
 void groundedFreeModule(struct GroundedModule* module) {
     ASSUME(module) {
-        FreeLibrary((HMODULE)module)
+        FreeLibrary((HMODULE)module);
     }
 }
