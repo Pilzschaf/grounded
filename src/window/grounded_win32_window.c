@@ -766,8 +766,8 @@ GROUNDED_FUNCTION void groundedWindowFetchMouseState(GroundedWindow* opaqueWindo
     }
     mouseState->x = p.x;
     mouseState->y = p.y;
-    mouseState->windowWidth = groundedWindowGetWidth((GroundedWindow*)window);
-    mouseState->windowHeight = groundedWindowGetHeight((GroundedWindow*)window);
+    mouseState->windowWidth = (float)groundedWindowGetWidth((GroundedWindow*)window);
+    mouseState->windowHeight = (float)groundedWindowGetHeight((GroundedWindow*)window);
     //GROUNDED_LOG_INFOF("Mouse location: %i,%i\n", p.x, p.y);
 
     // Set mouse button state
@@ -997,7 +997,7 @@ GROUNDED_FUNCTION String8 groundedGetNameOfKeycode(MemoryArena* arena, u32 keyco
     String8 result = EMPTY_STRING8;
     u16 buffer[256];
 
-    LONG lParam = MapVirtualKey (inverseTranslateWin32Keycode(keycode), MAPVK_VK_TO_VSC);
+    LONG lParam = MapVirtualKey ((UINT)inverseTranslateWin32Keycode(keycode), MAPVK_VK_TO_VSC);
     int length = GetKeyNameTextW(lParam, buffer, ARRAY_COUNT(buffer));
     if(length > 0) {
         result = str8FromStr16(arena, str16FromBlock(buffer, length));
