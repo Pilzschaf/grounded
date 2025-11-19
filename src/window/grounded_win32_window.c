@@ -799,6 +799,10 @@ GROUNDED_FUNCTION void groundedWindowFetchKeyboardState(GroundedKeyboardState* k
     memset(win32KeyboardState.keyUpTransitions, 0, sizeof(win32KeyboardState.keyUpTransitions));
 }
 
+GROUNDED_FUNCTION void groundedWindowSetIcon(u8* data, u32 width, u32 height) {
+    //TODO: Implement
+    ASSERT(false);
+}
 
 // Get time in nanoseconds
 GROUNDED_FUNCTION u64 groundedGetCounter() {
