@@ -10,7 +10,7 @@ struct GroundedModule* groundedLoadModule(String8 moduleFilename) {
     
     // str16FromStr8 guarantees 0-termination
     String16 utf16ModuleFilename = str16FromStr8(scratch, moduleFilename);
-    struct GroundedModule* result result = LoadLibraryW(utf16ModuleFilename.base);
+    struct GroundedModule* result = LoadLibraryW(utf16ModuleFilename.base);
 
     arenaEndTemp(temp);
     return result;
