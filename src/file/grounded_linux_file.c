@@ -307,11 +307,14 @@ GROUNDED_FUNCTION BufferedStreamReader groundedFileGetStreamReaderFromFilename(M
 }
 
 static enum GroundedStreamErrorCode fileSubmit(BufferedStreamWriter* w, u8* opl) {
+    enum GroundedStreamErrorCode result = GROUNDED_STREAM_SUCCESS;
     struct GroundedFile* f = (struct GroundedFile*)w->implementationPointer;
     u64 size = opl - w->start;
-    //TODO: Error handling
-    write(f->fd, w->start, size);
-    return GROUNDED_STREAM_SUCCESS;
+    s64 written = write(f->fd, w->start, size);
+    if(written < size) {
+        result = GROUNDED_STREAM_IO_ERROR;
+    }
+    return result;
 }
 
 static void groundedFileStreamWriterClose(BufferedStreamWriter* writer) {
