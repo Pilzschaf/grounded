@@ -131,14 +131,18 @@ GROUNDED_FUNCTION GroundedCircularBuffer groundedCreateCircularBuffer(u64 minimu
     if(IS_POW2(pageSize)) {
         result.size = ALIGN_UP_POW2(minimumSize, pageSize);
         result.fd = memfd_create("circular_buffer", 0);
-        ftruncate(result.fd, result.size);
-
-        // Address location we want to submit the copies to
-        result.buffer = mmap(0, result.size*2, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-        // Map buffer at the start
-        mmap(result.buffer, result.size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, result.fd, 0);
-        // Map again after first mapping
-        mmap(result.buffer + result.size, result.size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, result.fd, 0);
+        int err = ftruncate(result.fd, result.size);
+        if(err) {
+            close(result.fd);
+            result = (GroundedCircularBuffer){0};
+        } else {
+            // Address location we want to submit the copies to
+            result.buffer = mmap(0, result.size*2, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+            // Map buffer at the start
+            mmap(result.buffer, result.size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, result.fd, 0);
+            // Map again after first mapping
+            mmap(result.buffer + result.size, result.size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, result.fd, 0);
+        }
     }
     return result;
 }
