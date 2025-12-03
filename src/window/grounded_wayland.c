@@ -2996,36 +2996,37 @@ static void dataDeviceListenerDrop(void* data, struct wl_data_device* dataDevice
     
     if(waylandOffer->lastAcceptedMimeIndex < waylandOffer->mimeTypeCount) {
         int fds[2];
-	    pipe(fds);
+	    int err = pipe(fds);
+        if(!err) {
+            String8 mimeType = waylandOffer->mimeTypes[waylandOffer->lastAcceptedMimeIndex];
+            // We know that mimetype is 0-terminated as we copy it with null termination when creating
+            ASSERT(mimeType.base[mimeType.size] == '\0');
+            wl_data_offer_accept(waylandOffer->offer, waylandOffer->enterSerial, (const char*)mimeType.base);
+            wl_data_offer_receive(waylandOffer->offer, (const char*)mimeType.base, fds[1]);
+            close(fds[1]);
 
-        String8 mimeType = waylandOffer->mimeTypes[waylandOffer->lastAcceptedMimeIndex];
-        // We know that mimetype is 0-terminated as we copy it with null termination when creating
-        ASSERT(mimeType.base[mimeType.size] == '\0');
-        wl_data_offer_accept(waylandOffer->offer, waylandOffer->enterSerial, (const char*)mimeType.base);
-	    wl_data_offer_receive(waylandOffer->offer, (const char*)mimeType.base, fds[1]);
-        close(fds[1]);
+            // Roundtrip to receive data. Especially necessary if we are source and destination
+            wl_display_roundtrip(waylandDisplay);
 
-        // Roundtrip to receive data. Especially necessary if we are source and destination
-        wl_display_roundtrip(waylandDisplay);
+            // Read in data
+            String8 data = readIntoBuffer(&waylandOffer->arena, fds[0]);
+            close(fds[0]);
 
-        // Read in data
-        String8 data = readIntoBuffer(&waylandOffer->arena, fds[0]);
-	    close(fds[0]);
-
-        // Options to send data:
-        // 1. Reuse existing window->dndCallback to send final data maybe with special flag specifying drop
-        // 2. Add additional drop callback
-        // 3. Add as an event to the event queue
-        // First 2 options have way easier memory management as it can immediately be released here.
-        // However to me it seems cleaner to handle it in the usual event queue. However this opens the question how the memory should be handled.
-        // We do not want to require the client to have to release the data when it has finished as it might decide to not handle it at all.
-        // A delete queue once the events are requested a second time? What if a client calls it multiple times in the hope for more events?
-        // Could make this very explicit as the events are always provided as a list which is reused on the next call
-        // Other idea: dndCallback specifies function which should be called upon drop. 
-        // Allows for flexibility of different functions for different windows
-        // Control and data flow is very clear. I decided to implement this
-        if(waylandOffer->dropCallback) {
-            waylandOffer->dropCallback(&waylandOffer->payload, data, (GroundedWindow*)waylandOffer->window, waylandOffer->x, waylandOffer->y, mimeType);
+            // Options to send data:
+            // 1. Reuse existing window->dndCallback to send final data maybe with special flag specifying drop
+            // 2. Add additional drop callback
+            // 3. Add as an event to the event queue
+            // First 2 options have way easier memory management as it can immediately be released here.
+            // However to me it seems cleaner to handle it in the usual event queue. However this opens the question how the memory should be handled.
+            // We do not want to require the client to have to release the data when it has finished as it might decide to not handle it at all.
+            // A delete queue once the events are requested a second time? What if a client calls it multiple times in the hope for more events?
+            // Could make this very explicit as the events are always provided as a list which is reused on the next call
+            // Other idea: dndCallback specifies function which should be called upon drop. 
+            // Allows for flexibility of different functions for different windows
+            // Control and data flow is very clear. I decided to implement this
+            if(waylandOffer->dropCallback) {
+                waylandOffer->dropCallback(&waylandOffer->payload, data, (GroundedWindow*)waylandOffer->window, waylandOffer->x, waylandOffer->y, mimeType);
+            }
         }
     } else {
         // We do not accept
@@ -3128,7 +3129,8 @@ static void dataSourceHandleSend(void *data, struct wl_data_source *wl_data_sour
     if(mimeTypeIndex < waylandDataSource->mimeTypeCount && waylandDataSource->dataCallback) {
         //TODO: Cache data of this mimetype
         String8 data = waylandDataSource->dataCallback(waylandDataSource->arena, mimeType, mimeTypeIndex, waylandDataSource->userData);
-        write(fd, data.base, data.size);
+        s64 written = write(fd, data.base, data.size);
+        (void)written;
     }
 	close(fd);
 }
