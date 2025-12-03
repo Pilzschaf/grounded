@@ -193,11 +193,18 @@ GROUNDED_FUNCTION String8 groundedGetAbsoluteDirectory(MemoryArena* arena, Strin
     ArenaTempMemory temp = arenaBeginTemp(tempArena);
     const char* cPath = str8GetCstr(tempArena, directory);
     buffer[0] = '\0';
-    realpath(cPath, buffer);
+    char* path = realpath(cPath, buffer);
     arenaEndTemp(temp);
 
-    String8 result = str8FromCstr(buffer);
-    arenaPopTo(arena, result.base + result.size);
+    String8 result = EMPTY_STRING8;
+    if(path) {
+        result = str8FromCstr(buffer);
+        arenaPopTo(arena, result.base + result.size);
+    } else {
+        result = str8Copy(arena, directory);
+        arenaPopTo(arena, (u8*)buffer);
+    }
+    
     return result;
 }
 
