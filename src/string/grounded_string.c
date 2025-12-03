@@ -830,7 +830,8 @@ GROUNDED_FUNCTION void groundedPrintString(String8 str) {
 #else
 #include <unistd.h>
 GROUNDED_FUNCTION void groundedPrintString(String8 str) {
-    write(1, str.base, str.size);
+    s64 written = write(1, str.base, str.size);
+    (void)written;
 }
 #endif
 
