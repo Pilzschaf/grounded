@@ -230,7 +230,7 @@ GROUNDED_FUNCTION_INLINE bool isDigit(int c) {
     return (c >= '0' && c <= '9');
 }
 
-GROUNDED_FUNCTION_INLINE float pow10f(int exp) {
+GROUNDED_FUNCTION_INLINE float groundedPow10f(int exp) {
     float base = 10.0f;
     float result = 1.0f;
 
@@ -302,7 +302,7 @@ GROUNDED_FUNCTION_INLINE float str8ToFloat(String8 str) {
 
     // Apply exponent
     if (exponent_value) {
-        result *= pow10f(exponent_sign * exponent_value);
+        result *= groundedPow10f(exponent_sign * exponent_value);
     }
 
     return sign * result;
