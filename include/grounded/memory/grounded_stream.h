@@ -124,7 +124,7 @@ GROUNDED_FUNCTION_INLINE void memoryStreamWriterClose(BufferedStreamWriter* w) {
 // Meant for reading binary data
 typedef struct SimpleReader {
     BufferedStreamReader r;
-    u64 bytesRead;
+    u64 totalBytesRead; // Total bytes read from this reader (might be from multiple blocks)
 } SimpleReader;
 
 #define SIMPLE_READER_READ(reader, target) (simpleReaderRead(reader, target, sizeof(*target)))
@@ -142,7 +142,7 @@ GROUNDED_FUNCTION_INLINE void simpleReaderRead(SimpleReader* reader, const void*
     s64 sizeLeft = reader->r.end - reader->r.cursor;
     while(sizeLeft < (s64)size) {
         memcpy(dst, reader->r.cursor, sizeLeft);
-        reader->bytesRead += sizeLeft;
+        reader->totalBytesRead += sizeLeft;
         reader->r.refill(&reader->r);
         size -= sizeLeft;
         dst = dst + sizeLeft;
@@ -150,7 +150,67 @@ GROUNDED_FUNCTION_INLINE void simpleReaderRead(SimpleReader* reader, const void*
     }
     memcpy(dst, reader->r.cursor, size);
     reader->r.cursor += size;
-    reader->bytesRead += size;
+    reader->totalBytesRead += size;
+}
+
+GROUNDED_FUNCTION_INLINE void simpleReaderSkipBytes(SimpleReader* reader, u64 amountToSkip) {
+    s64 sizeLeft = reader->r.end - reader->r.cursor;
+    while(sizeLeft < (s64)amountToSkip) {
+        reader->totalBytesRead += sizeLeft;
+        reader->r.refill(&reader->r);
+        amountToSkip -= sizeLeft;
+        sizeLeft = reader->r.end - reader->r.cursor;
+    }
+    reader->totalBytesRead += amountToSkip;
+    reader->r.cursor += amountToSkip;
+}
+
+GROUNDED_FUNCTION_INLINE u8 simpleReaderReadU8(SimpleReader* reader) {
+    u8 result = 0;
+    SIMPLE_READER_READ(reader, &result);
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE s8 simpleReaderReadS8(SimpleReader* reader) {
+    s8 result = 0;
+    SIMPLE_READER_READ(reader, &result);
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE u16 simpleReaderReadU16(SimpleReader* reader) {
+    u16 result = 0;
+    SIMPLE_READER_READ(reader, &result);
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE s16 simpleReaderReadS16(SimpleReader* reader) {
+    s16 result = 0;
+    SIMPLE_READER_READ(reader, &result);
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE u32 simpleReaderReadU32(SimpleReader* reader) {
+    u32 result = 0;
+    SIMPLE_READER_READ(reader, &result);
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE s32 simpleReaderReadS32(SimpleReader* reader) {
+    s32 result = 0;
+    SIMPLE_READER_READ(reader, &result);
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE u64 simpleReaderReadU64(SimpleReader* reader) {
+    u64 result = 0;
+    SIMPLE_READER_READ(reader, &result);
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE s64 simpleReaderReadS64(SimpleReader* reader) {
+    s64 result = 0;
+    SIMPLE_READER_READ(reader, &result);
+    return result;
 }
 
 // This is a bit harder as we do not know how large the buffer should be and cannot expect subsequent allocation to be directly after each other.
@@ -201,7 +261,7 @@ GROUNDED_FUNCTION_INLINE u8* simpleReaderReadUntilDelimeter(SimpleReader* reader
             *dst = *cursor;
             reader->r.cursor++;
             ++currentDataSize;
-            ++reader->bytesRead;
+            ++reader->totalBytesRead;
 
             // Data size exceeds buffer size. Double buffer size and flip buffers
             if(currentDataSize >= bufferSize) {

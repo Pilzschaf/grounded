@@ -6,8 +6,6 @@
 #ifndef GROUNDED_MATH_PREFIX
 #define GROUNDED_MATH_PREFIX(name) name
 #endif
-//TODO: Grounded math function prefix
-//TODO: Vector creation with a single value in all dimensions
 
 #ifndef VEC2
 #define VEC2(x, y) ((GROUNDED_MATH_PREFIX(vec2)){{(x), (y)}})

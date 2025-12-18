@@ -871,12 +871,9 @@ GROUNDED_FUNCTION String8 groundedGetCurrentWorkingDirectory(MemoryArena* arena)
 }
 
 GROUNDED_FUNCTION String8 groundedGetBinaryDirectory(MemoryArena* arena) {
-    //TODO: Currently assumes virtual memory arena
-    ASSERT(false);
-
-    u32 sizeIncrease = 4;
-    u32 bufferSize = sizeIncrease;
-    char* buffer = ARENA_PUSH_ARRAY(arena, sizeIncrease, char);
+    u32 bufferSize = 256;
+    ArenaMarker marker = arenaCreateMarker(arena);
+    char* buffer = ARENA_PUSH_ARRAY(arena, bufferSize, char);
     int written = 0;
 
     while(true) {
@@ -885,20 +882,22 @@ GROUNDED_FUNCTION String8 groundedGetBinaryDirectory(MemoryArena* arena) {
 
         // readlink trunkates so if written is equal to buffersize we assume that the output has been truncated
         if(written == (s32)bufferSize || (written == -1 && errno == ENAMETOOLONG)) {
-            ARENA_PUSH_ARRAY_NO_CLEAR(arena, sizeIncrease, char);
-            bufferSize += sizeIncrease;
+            arenaResetToMarker(marker);
+            bufferSize *= 2;
+            buffer = ARENA_PUSH_ARRAY_NO_CLEAR(arena, bufferSize, char);
             continue;
         } else {
             break;
         }
     }
 
-    //TODO: Actually we have the binary at this point. We still have to remove the binary name now.
-    ASSERT(false);
-
     if(written < 0) written = 0;
     ASSERT((s32)bufferSize >= written);
     arenaPopTo(arena, (u8*)buffer + written);
+
+    // Remove the binary name
     String8 result = str8FromRange((u8*)buffer, (u8*)buffer + written);
+    result = str8Chop(result, result.size - str8GetLastOccurence(result, '/'));
+    
     return result;
 }
