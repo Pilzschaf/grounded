@@ -225,6 +225,13 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec2) v2Subtract(GROUNDED_MATH_PRE
     return result;
 }
 
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec2) v2Flip(GROUNDED_MATH_PREFIX(vec2) v) {
+    GROUNDED_MATH_PREFIX(vec2) result;
+    result.x = -v.x;
+    result.y = -v.y;
+    return result;
+}
+
 GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec2) v2MultiplyScalar(GROUNDED_MATH_PREFIX(vec2) v, float c) {
     GROUNDED_MATH_PREFIX(vec2) result;
     result.x = v.x * c;
@@ -350,6 +357,14 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec3) v3Subtract(GROUNDED_MATH_PRE
     result.x = a.x - b.x;
     result.y = a.y - b.y;
     result.z = a.z - b.z;
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec3) v3Flip(GROUNDED_MATH_PREFIX(vec3) v) {
+    GROUNDED_MATH_PREFIX(vec3) result;
+    result.x = -v.x;
+    result.y = -v.y;
+    result.z = -v.z;
     return result;
 }
 
@@ -491,6 +506,15 @@ GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec4) v4Subtract(GROUNDED_MATH_PRE
     result.y = a.y - b.y;
     result.z = a.z - b.z;
     result.w = a.w - b.w;
+    return result;
+}
+
+GROUNDED_FUNCTION_INLINE GROUNDED_MATH_PREFIX(vec4) v4Flip(GROUNDED_MATH_PREFIX(vec4) v) {
+    GROUNDED_MATH_PREFIX(vec4) result;
+    result.x = -v.x;
+    result.y = -v.y;
+    result.z = -v.z;
+    result.w = -v.w;
     return result;
 }
 
