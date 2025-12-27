@@ -488,7 +488,7 @@ GROUNDED_FUNCTION GroundedDirectoryWatchEvent* groundedDirectoryWatchPollEvents(
                         //TODO: Watch subdirectory
                         ASSERT(false);
                     }
-                    events[*eventCount++] = (GroundedDirectoryWatchEvent) {
+                    events[(*eventCount)++] = (GroundedDirectoryWatchEvent) {
                         .filename = filename,
                         .directory = directory,
                         .type = GROUNDED_DIRECTORY_WATCH_EVENT_TYPE_CREATE,
@@ -500,7 +500,7 @@ GROUNDED_FUNCTION GroundedDirectoryWatchEvent* groundedDirectoryWatchPollEvents(
                 
                 // Modify
                 if(inotifyEvent->mask & IN_CLOSE_WRITE) {
-                    events[*eventCount++] = (GroundedDirectoryWatchEvent) {
+                    events[(*eventCount)++] = (GroundedDirectoryWatchEvent) {
                         .filename = filename,
                         .directory = directory,
                         .type = GROUNDED_DIRECTORY_WATCH_EVENT_TYPE_MODIFY,
@@ -512,7 +512,7 @@ GROUNDED_FUNCTION GroundedDirectoryWatchEvent* groundedDirectoryWatchPollEvents(
                     if(isDirectory && watch->recurseSubdirectories) {
                         //TODO: Delete directory watch?
                     } 
-                    events[*eventCount++] = (GroundedDirectoryWatchEvent) {
+                    events[(*eventCount)++] = (GroundedDirectoryWatchEvent) {
                         .filename = filename,
                         .directory = directory,
                         .type = GROUNDED_DIRECTORY_WATCH_EVENT_TYPE_DELETE,
