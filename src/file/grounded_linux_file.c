@@ -142,6 +142,22 @@ GROUNDED_FUNCTION  bool groundedWriteFile(String8 filename, const void* data, u6
     return fileHandle >= 0;
 }
 
+GROUNDED_FUNCTION bool groundedDoesFileExist(String8 filename) {
+    MemoryArena* scratch = threadContextGetScratch(0);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
+
+    bool result = false;
+    struct stat st;
+    if(stat(str8GetCstr(scratch, filename), &st) == 0) {
+        if(!S_ISDIR(st.st_mode)) {
+            result = true;
+        }
+    }
+
+    arenaEndTemp(temp);
+    return result;
+}
+
 GROUNDED_FUNCTION bool groundedDoesDirectoryExist(String8 directory) {
     MemoryArena* scratch = threadContextGetScratch(0);
     ArenaTempMemory temp = arenaBeginTemp(scratch);

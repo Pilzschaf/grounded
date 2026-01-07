@@ -1979,7 +1979,7 @@ static u32 waylandGetWindowHeight(GroundedWaylandWindow* window) {
 }
 
 static void sendWaylandKeyRepeat() {
-    GROUNDED_LOG_INFO("Sending key repeat\n");
+    //GROUNDED_LOG_INFO("Sending key repeat\n");
     if(keyRepeatKey) {
         u8 keycode = translateWaylandKeycode(keyRepeatKey);
         u32 modifiers = 0;

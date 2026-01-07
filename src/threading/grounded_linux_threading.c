@@ -155,7 +155,9 @@ static void* linuxThreadProc(void* arg) {
     threadContextClear();
     threadContext.errorArena = createFixedSizeArena(osGetMemorySubsystem(), KB(8));
     threadContext.errorMarker = arenaCreateMarker(&threadContext.errorArena);
+    threadContext.logFunction = &groundedDefaultConsoleLogger;
     threadContext.scratchArenas[0] = *thread->arena;
+    threadContext.scratchArenas[1] = createGrowingArena(osGetMemorySubsystem(), KB(16));
     threadContext.unhandledErrorHandler = groundedDefaultUnhandledErrorHandler;
 
     thread->proc(thread->userData);
