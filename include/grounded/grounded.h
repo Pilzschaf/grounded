@@ -291,6 +291,8 @@ GROUNDED_FUNCTION_INLINE u32 groundedNextPow2u32(u32 value) {
 // The returned arena should be used for temporary allocations that are reset in the same scope (temporary stack based allocations)
 GROUNDED_FUNCTION struct MemoryArena* threadContextGetScratch(struct MemoryArena* conflictArena);
 
+// Get time in nanoseconds
+GROUNDED_FUNCTION u64 groundedGetCounter();
 
 /////////
 // Errors

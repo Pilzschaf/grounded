@@ -314,9 +314,6 @@ GROUNDED_FUNCTION_INLINE GroundedEvent* groundedFilterEventsForWindow(MemoryAren
 	return result;
 }
 
-// Get time in nanoseconds
-GROUNDED_FUNCTION u64 groundedGetCounter();
-
 GROUNDED_FUNCTION void groundedWindowFetchKeyboardState(GroundedKeyboardState* keyboardState);
 
 // Mouse state relative to given window
