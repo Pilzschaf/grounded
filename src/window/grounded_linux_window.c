@@ -4,6 +4,9 @@
 GroundedEvent eventQueue[256];
 u32 eventQueueIndex;
 
+MemoryArena clipboardArena;
+ArenaMarker clipboardArenaMarker;
+
 static const char** getCursorNameCandidates(enum GroundedMouseCursor cursorType, u64* candidateCount);
 
 struct GroundedDragPayload {
@@ -1213,8 +1216,7 @@ GROUNDED_FUNCTION void groundedWindowSetClipboardText(String8 text) {
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
         case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
-            ASSERT(false);
-            //groundedWaylandSetClipboardText(text);
+            groundedWaylandSetClipboardText(text);
         } break;
         case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
             groundedXcbSetClipboardText(text);
@@ -1227,8 +1229,7 @@ GROUNDED_FUNCTION String8 groundedWindowGetClipboardText(MemoryArena* arena) {
     ASSERT(linuxWindowBackend != GROUNDED_LINUX_WINDOW_BACKEND_NONE);
     switch(linuxWindowBackend) {
         case GROUNDED_LINUX_WINDOW_BACKEND_WAYLAND:{
-            ASSERT(false);
-            //return groundedWaylandSetClipboardText(text);
+            return groundedWaylandGetClipboardText(arena);
         } break;
         case GROUNDED_LINUX_WINDOW_BACKEND_XCB:{
             return groundedXcbGetClipboardText(arena);

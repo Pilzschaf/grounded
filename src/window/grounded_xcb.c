@@ -179,8 +179,6 @@ xcb_keycode_t maxKeycode;
     u32 keycode;
 } SymCode;*/
 
-MemoryArena clipboardArena;
-ArenaMarker clipboardArenaMarker;
 xcb_window_t clipboardWindow;
 String8 clipboardString;
 

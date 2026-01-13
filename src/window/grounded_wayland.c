@@ -32,6 +32,7 @@
 
 // Because of wayland API design we need to store the current active drag offer. This should be done per datadevice which is per seat eg. per user
 struct WaylandDataOffer* dragOffer;
+struct WaylandDataOffer* selectionOffer;
 
 struct wl_compositor;
 struct wl_registry_listener;
@@ -147,6 +148,7 @@ struct wl_seat* pointerSeat;
 struct wl_data_device* dataDevice; // Data device tied to pointerSeat
 u32 pointerEnterSerial;
 struct WaylandDataSource* dragDataSource; // Data source of the current drag
+struct WaylandDataSource* clipboardDataSource; // Data source for the current clipboard selection
 
 struct zxdg_decoration_manager_v1* decorationManager;
 struct zxdg_output_manager_v1* xdgOutputManager;
@@ -1689,6 +1691,13 @@ static void shutdownWayland() {
         dragOffer = 0;
     }
 
+    if(selectionOffer) {
+        GROUNDED_LOG_INFOF("Leftover selection offer: %p, %p\n", selectionOffer, selectionOffer->offer);
+        wl_data_offer_destroy(selectionOffer->offer);
+        arenaRelease(&selectionOffer->arena);
+        selectionOffer = 0;
+    }
+
     if(dataDevice) {
         wl_data_device_destroy(dataDevice);
     }
@@ -2799,8 +2808,6 @@ static void dataOfferHandleOffer(void* userData, struct wl_data_offer* offer, co
     // Basically mark the data offer with the type it has. Is called once for every available mime type of the offer
     // Typical stuff: text/plain;charset=utf-8, text/uri-list, etc.
 
-    // The first mime types are not actual mime types. They are all caps-lock and maybe we want to filter them out
-
     // I do not know if a copy is really necessary but it defenitely feels safer
     str8ListPushCopyAndNullTerminate(&waylandOffer->arena, &waylandOffer->availableMimeTypeList, str8FromCstr(mimeType));
     //GROUNDED_LOG_INFOF("Mimme: %s offer %p\n", waylandOffer->availableMimeTypeList.last->string.base, waylandOffer);
@@ -2993,11 +3000,11 @@ static void dataDeviceListenerDrop(void* data, struct wl_data_device* dataDevice
     ASSERT(waylandOffer);
     
     // We should honor last action received from dataOffer.action. If it is copy or move we can do receive requests. End transfer with wl_data_offer_finish()
-    
+    bool received = false;
     if(waylandOffer->lastAcceptedMimeIndex < waylandOffer->mimeTypeCount) {
         int fds[2];
 	    int err = pipe(fds);
-        if(!err) {
+        if(err) {
             String8 mimeType = waylandOffer->mimeTypes[waylandOffer->lastAcceptedMimeIndex];
             // We know that mimetype is 0-terminated as we copy it with null termination when creating
             ASSERT(mimeType.base[mimeType.size] == '\0');
@@ -3010,6 +3017,7 @@ static void dataDeviceListenerDrop(void* data, struct wl_data_device* dataDevice
 
             // Read in data
             String8 data = readIntoBuffer(&waylandOffer->arena, fds[0]);
+            received = true;
             close(fds[0]);
 
             // Options to send data:
@@ -3033,7 +3041,7 @@ static void dataDeviceListenerDrop(void* data, struct wl_data_device* dataDevice
         wl_data_offer_accept(waylandOffer->offer, waylandOffer->enterSerial, 0);
     }
 
-    if(dataDeviceManagerVersion >= 3) {
+    if(dataDeviceManagerVersion >= 3 && received) {
         wl_data_offer_finish(waylandOffer->offer);
     }
     wl_data_offer_destroy(waylandOffer->offer);
@@ -3052,18 +3060,33 @@ static void dataDeviceListenerDrop(void* data, struct wl_data_device* dataDevice
 static void dataDeviceListenerSelection(void* data, struct wl_data_device* dataDevice, struct wl_data_offer* dataOffer) {
     GROUNDED_WAYLAND_LOG_HANDLER("dataDevice.selection");
 
+    if(selectionOffer) {
+        // We had a selection before which we can now
+        wl_data_offer_destroy(selectionOffer->offer);
+        arenaRelease(&selectionOffer->arena);
+    }
+
     // Can happen if the clipboard is empty
     if(dataOffer != 0) {
         // This is for copy and paste
         struct WaylandDataOffer* waylandOffer = (struct WaylandDataOffer*)wl_data_offer_get_user_data(dataOffer);
         ASSERT(waylandOffer);
         waylandOffer->dnd = false;
-        
-        //TODO: Read in the data
-        
-        //GROUNDED_LOG_INFOF("Data offer %p is selection and gets destroyed\n", waylandOffer);
-        wl_data_offer_destroy(waylandOffer->offer);
-        arenaRelease(&waylandOffer->arena);
+        selectionOffer = waylandOffer;
+
+        u32 mimeCount = 0;
+        for(String8Node* node = waylandOffer->availableMimeTypeList.first; node != 0; node = node->next) {
+            mimeCount++;
+        }
+        waylandOffer->lastAcceptedMimeIndex = UINT32_MAX;
+        if(mimeCount > 0) {
+            waylandOffer->mimeTypeCount = mimeCount;
+            waylandOffer->mimeTypes = ARENA_PUSH_ARRAY(&waylandOffer->arena, mimeCount, String8);
+            u32 mimeIndex = 0;
+            for(String8Node* node = waylandOffer->availableMimeTypeList.first; node != 0; node = node->next) {
+                waylandOffer->mimeTypes[mimeIndex++] = node->string;
+            }
+        }
     }
 }
 
@@ -3252,6 +3275,7 @@ GROUNDED_FUNCTION void groundedWaylandDragPayloadSetImage(GroundedWindowDragPayl
 
             struct wl_buffer* wlBuffer = wl_shm_pool_create_buffer(pool, 0, width, height, width * sizeof(u32), WL_SHM_FORMAT_XRGB8888);
             MEMORY_COPY(poolData, data, imageSize);
+            //TODO: Seems like I have to release the wlBuffer when the drag is finished!
 
             wl_surface_attach(desc->waylandIcon, wlBuffer, 0, 0);
             //TODO: Do we always want to set this or only when the user requests this via a flag or similar?
@@ -3321,4 +3345,125 @@ GROUNDED_FUNCTION void groundedWaylandBeginDragAndDrop(GroundedWindowDragPayload
     wl_data_device_start_drag(dataDevice, dataSource, activeCursorWindow->surface, desc->waylandIcon, lastPointerSerial);
 
     arenaEndTemp(temp);
+}
+
+static void clipboardDataSourceHandleTarget(void* data, struct wl_data_source* source, const char* mimeType) {
+    GROUNDED_WAYLAND_LOG_HANDLER("clipboardDataSource.target");
+}
+
+static void clipboardDataSourceHandleSend(void *data, struct wl_data_source *wl_data_source, const char* mimeType, int32_t fd) {
+    GROUNDED_WAYLAND_LOG_HANDLER("clipboardDataSource.send");
+
+    struct WaylandDataSource* waylandDataSource = (struct WaylandDataSource*) data;
+    ASSERT(waylandDataSource == clipboardDataSource);
+
+    ASSUME(waylandDataSource) {
+        String8* data = (String8*)waylandDataSource->userData;
+        ASSUME(data) {
+            s64 total = 0;
+            while(total < data->size) {
+                s64 written = write(fd, data->base, data->size);
+                if(written > 0) {
+                    total += written;
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+	close(fd);
+}
+
+static void clipboardDataSourceHandleCancelled(void *data, struct wl_data_source * dataSource) {
+    GROUNDED_WAYLAND_LOG_HANDLER("clipboardDataSource.cancelled");
+
+    wl_data_source_destroy(dataSource);
+
+    // Only reset if we did not already create a new clipboard data source
+    struct WaylandDataSource* waylandDataSource = (struct WaylandDataSource*) data;
+    if(clipboardDataSource->dataSource == dataSource) {
+        clipboardDataSource = 0;
+        arenaResetToMarker(clipboardArenaMarker);
+    }
+}
+
+// We currently only support text clipboard!
+static struct wl_data_source_listener clipboardDataSourceListener = {
+    clipboardDataSourceHandleTarget,
+    clipboardDataSourceHandleSend,
+    clipboardDataSourceHandleCancelled,
+};
+
+GROUNDED_FUNCTION void groundedWaylandSetClipboardText(String8 text) {
+    //TODO: Using the WaylandDataSource type is overkill as we do not need all dnd related data! Rename WaylandDataSource to WaylandDNDDataSource
+    if(!clipboardArena.memory) {
+        clipboardArena = createGrowingArena(osGetMemorySubsystem(), KB(4));
+        clipboardArenaMarker = arenaCreateMarker(&clipboardArena);
+    }
+    // We always reset the arena here. clipboardDataSourceHandleCancelled checks this and does not reset if we already have a new one
+    clipboardDataSource = 0;
+    arenaResetToMarker(clipboardArenaMarker);
+
+    clipboardDataSource = ARENA_PUSH_STRUCT(&clipboardArena, struct WaylandDataSource);
+    clipboardDataSource->arena = &clipboardArena;
+    String8* data = ARENA_PUSH_STRUCT(&clipboardArena, String8);
+    *data = str8Copy(&clipboardArena, text);
+    clipboardDataSource->userData = data;
+
+    const char* mimes[] = {
+        "text/plain;charset=utf-8",
+        "text/plain",
+        "UTF8_STRING",
+        "TEXT",
+        "STRING",
+    };
+
+    struct wl_data_source* dataSource = wl_data_device_manager_create_data_source(dataDeviceManager);
+    wl_data_source_add_listener(dataSource, &clipboardDataSourceListener, clipboardDataSource);
+    for(u64 i = 0; i < ARRAY_COUNT(mimes); ++i) {
+        wl_data_source_offer(dataSource, mimes[i]);
+    }
+
+    clipboardDataSource->dataSource = dataSource;
+    wl_data_device_set_selection(dataDevice, dataSource, lastPointerSerial);
+}
+
+GROUNDED_FUNCTION String8 groundedWaylandGetClipboardText(MemoryArena* arena) {
+    String8 result = EMPTY_STRING8;
+    if(selectionOffer) {
+        int fds[2];
+        pipe(fds);
+
+        const char* mimes[] = {
+            "text/plain;charset=utf-8",
+            "text/plain",
+            "UTF8_STRING",
+            "TEXT",
+            "STRING",
+        };
+
+        String8 mime = STR8_LITERAL("text/plain;charset=utf-8");
+        for(u32 i = 0; i < selectionOffer->mimeTypeCount; ++i) {
+            for(u32 j = 0; j < ARRAY_COUNT(mimes); ++j) {
+                if(str8CompareCaseInsensitive(selectionOffer->mimeTypes[i], str8FromCstr(mimes[j])) == 0) {
+                    mime = selectionOffer->mimeTypes[i];
+                    i = selectionOffer->mimeTypeCount;
+                    break;
+                }
+            }
+        }
+
+        wl_data_offer_accept(selectionOffer->offer, lastPointerSerial, str8GetCstr(&selectionOffer->arena, mime));
+        wl_data_offer_receive(selectionOffer->offer, str8GetCstr(&selectionOffer->arena, mime), fds[1]);
+        close(fds[1]);
+
+        // Roundtrip to receive data. Especially necessary if we are source and destination
+        wl_display_roundtrip(waylandDisplay);
+
+        // Read in data
+        result = readIntoBuffer(arena, fds[0]);
+        close(fds[0]);
+    }
+
+    return result;
 }

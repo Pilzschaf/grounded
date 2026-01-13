@@ -39,6 +39,7 @@
 #define WL_DATA_DEVICE_MANAGER_GET_DATA_DEVICE 1
 
 #define WL_DATA_DEVICE_START_DRAG 0
+#define WL_DATA_DEVICE_SET_SELECTION 1
 
 #define WL_DATA_OFFER_ACCEPT 0
 #define WL_DATA_OFFER_RECEIVE 1
@@ -426,6 +427,10 @@ static inline void wl_data_device_start_drag(struct wl_data_device *wl_data_devi
 	GROUNDED_WAYLAND_LOG_CALL("dataDevice.startDrag");
 	wl_proxy_marshal_flags((struct wl_proxy *) wl_data_device,
 			 WL_DATA_DEVICE_START_DRAG, NULL, wl_proxy_get_version((struct wl_proxy *) wl_data_device), 0, source, origin, icon, serial);
+}
+
+static inline void wl_data_device_set_selection(struct wl_data_device *wl_data_device, struct wl_data_source *source, uint32_t serial) {
+	wl_proxy_marshal_flags((struct wl_proxy *) wl_data_device, WL_DATA_DEVICE_SET_SELECTION, NULL, wl_proxy_get_version((struct wl_proxy *) wl_data_device), 0, source, serial);
 }
 
 static inline int wl_data_device_add_listener(struct wl_data_device *wl_data_device, const struct wl_data_device_listener *listener, void *data) {
