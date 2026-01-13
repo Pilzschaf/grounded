@@ -3432,37 +3432,38 @@ GROUNDED_FUNCTION String8 groundedWaylandGetClipboardText(MemoryArena* arena) {
     String8 result = EMPTY_STRING8;
     if(selectionOffer) {
         int fds[2];
-        pipe(fds);
+        int err = pipe(fds);
+        ASSUME(!err) {
+            const char* mimes[] = {
+                "text/plain;charset=utf-8",
+                "text/plain",
+                "UTF8_STRING",
+                "TEXT",
+                "STRING",
+            };
 
-        const char* mimes[] = {
-            "text/plain;charset=utf-8",
-            "text/plain",
-            "UTF8_STRING",
-            "TEXT",
-            "STRING",
-        };
-
-        String8 mime = STR8_LITERAL("text/plain;charset=utf-8");
-        for(u32 i = 0; i < selectionOffer->mimeTypeCount; ++i) {
-            for(u32 j = 0; j < ARRAY_COUNT(mimes); ++j) {
-                if(str8CompareCaseInsensitive(selectionOffer->mimeTypes[i], str8FromCstr(mimes[j])) == 0) {
-                    mime = selectionOffer->mimeTypes[i];
-                    i = selectionOffer->mimeTypeCount;
-                    break;
+            String8 mime = STR8_LITERAL("text/plain;charset=utf-8");
+            for(u32 i = 0; i < selectionOffer->mimeTypeCount; ++i) {
+                for(u32 j = 0; j < ARRAY_COUNT(mimes); ++j) {
+                    if(str8CompareCaseInsensitive(selectionOffer->mimeTypes[i], str8FromCstr(mimes[j])) == 0) {
+                        mime = selectionOffer->mimeTypes[i];
+                        i = selectionOffer->mimeTypeCount;
+                        break;
+                    }
                 }
             }
+
+            wl_data_offer_accept(selectionOffer->offer, lastPointerSerial, str8GetCstr(&selectionOffer->arena, mime));
+            wl_data_offer_receive(selectionOffer->offer, str8GetCstr(&selectionOffer->arena, mime), fds[1]);
+            close(fds[1]);
+
+            // Roundtrip to receive data. Especially necessary if we are source and destination
+            wl_display_roundtrip(waylandDisplay);
+
+            // Read in data
+            result = readIntoBuffer(arena, fds[0]);
+            close(fds[0]);
         }
-
-        wl_data_offer_accept(selectionOffer->offer, lastPointerSerial, str8GetCstr(&selectionOffer->arena, mime));
-        wl_data_offer_receive(selectionOffer->offer, str8GetCstr(&selectionOffer->arena, mime), fds[1]);
-        close(fds[1]);
-
-        // Roundtrip to receive data. Especially necessary if we are source and destination
-        wl_display_roundtrip(waylandDisplay);
-
-        // Read in data
-        result = readIntoBuffer(arena, fds[0]);
-        close(fds[0]);
     }
 
     return result;
