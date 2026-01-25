@@ -976,13 +976,37 @@ GROUNDED_FUNCTION void groundedWindowBeginDragAndDrop(GroundedWindowDragPayloadD
     arenaEndTemp(temp);
 }
 
+GROUNDED_FUNCTION void groundedWindowSetClipboardText(String8 text) {
+    if(OpenClipboard(0)) {
+        ASSUME(EmptyClipboard()) {
+            //TODO: Unicode UTF-16 support
+            HGLOBAL hMem = GlobalAlloc(GMEM_MOVABLE, text.size + 1)
+            ASSUME(hMem) {
+                void* mem = GlobalLock(hMem);
+                ASSUME(mem) {
+                    MEMORY_COPY(mem, text.base, text.size);
+                    mem[text.size] = '\0'; // Must be 0-terminated
+                    GlobalUnlock(hMem);
+                    if(!SetClipboardData(CF_TEXT, hMem)) {
+                        ASSERT(false);
+                        GlobalFree(hMem);  
+                    }
+                } else {
+                    GlobalFree(hMem);
+                }
+            }
+        }
+        CloseClipboard();
+    }
+}
+
 GROUNDED_FUNCTION String8 groundedWindowGetClipboardText(MemoryArena* arena) {
     String8 result = EMPTY_STRING8;
 
     // Open the clipboard
     if (OpenClipboard(0)) {
          // Get handle to clipboard object for text in CF_TEXT or CF_UNICODETEXT format
-        HANDLE hClipboardData = GetClipboardData(CF_UNICODETEXT); // Use CF_UNICODETEXT for Unicode
+        HANDLE hClipboardData = GetClipboardData(CF_TEXT); // Use CF_UNICODETEXT for Unicode
         if (hClipboardData == 0) {
             // Lock the clipboard data to get a pointer to the text
             char* pchData = (char*)GlobalLock(hClipboardData);

@@ -420,6 +420,17 @@ GROUNDED_FUNCTION void groundedCloseFile(GroundedFile* file) {
     CloseHandle(f->handle);
 }
 
+GROUNDED_FUNCTION bool groundedDoesFileExist(String8 filename) {
+    MemoryArena* scratch = threadContextGetScratch(0);
+	ArenaTempMemory temp = arenaBeginTemp(scratch);
+
+    String16 directory16 = str16FromStr8(scratch, directory);
+    DWORD attributes = GetFileAttributesW(directory16.base);
+    
+    arenaEndTemp(temp);
+    return attributes != INVALID_FILE_ATTRIBUTES && !(attributes & FILE_ATTRIBUTE_DIRECTORY);
+}
+
 GROUNDED_FUNCTION bool groundedDoesDirectoryExist(String8 directory) {
     MemoryArena* scratch = threadContextGetScratch(0);
 	ArenaTempMemory temp = arenaBeginTemp(scratch);
@@ -556,4 +567,37 @@ GROUNDED_FUNCTION String8 groundedGetBinaryDirectory(MemoryArena* arena) {
 
     arenaEndTemp(temp);
     return result;
+}
+
+GROUNDED_FUNCTION GroundedDirectoryWatch* groundedDirectoryWatchCreate(MemoryArena* arena, String8 directory, bool watchSubdirectories) {
+    //TODO: Stub
+    ASSERT(false);
+    return 0;
+}
+
+GROUNDED_FUNCTION GroundedDirectoryWatchEvent* groundedDirectoryWatchPollEvents(GroundedDirectoryWatch* watch, MemoryArena* arena, u64* eventCount) {
+    //TODO: Stub
+    ASSERT(false);
+    return 0;
+}
+
+GROUNDED_FUNCTION GroundedDirectoryWatchEvent* groundedDirectoryWatchWaitForEvents(GroundedDirectoryWatch* watch, MemoryArena* arena, u64* eventCount, u32 timeoutInMs) {
+    //TODO: Stub
+    ASSERT(false);
+    return 0;
+}
+
+GROUNDED_FUNCTION void groundedDirectoryWatchPollEventsCallback(GroundedDirectoryWatch* watch, WatchFileCallback callback) {
+    //TODO: Stub
+    ASSERT(false);
+}
+
+GROUNDED_FUNCTION void groundedDirectoryWatchWaitForEventsCallback(GroundedDirectoryWatch* watch, WatchFileCallback callback, u32 timeoutInMs) {
+    //TODO: Stub
+    ASSERT(false);
+}
+
+GROUNDED_FUNCTION void groundedDirectoryWatchDestroy(GroundedDirectoryWatch* directoryWatch) {
+    //TODO: Stub
+    ASSERT(false);
 }
