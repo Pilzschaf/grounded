@@ -424,8 +424,8 @@ GROUNDED_FUNCTION bool groundedDoesFileExist(String8 filename) {
     MemoryArena* scratch = threadContextGetScratch(0);
 	ArenaTempMemory temp = arenaBeginTemp(scratch);
 
-    String16 directory16 = str16FromStr8(scratch, directory);
-    DWORD attributes = GetFileAttributesW(directory16.base);
+    String16 filename16 = str16FromStr8(scratch, filename);
+    DWORD attributes = GetFileAttributesW(filename16.base);
     
     arenaEndTemp(temp);
     return attributes != INVALID_FILE_ATTRIBUTES && !(attributes & FILE_ATTRIBUTE_DIRECTORY);
