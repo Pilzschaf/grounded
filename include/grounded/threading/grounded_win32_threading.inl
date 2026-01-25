@@ -80,3 +80,7 @@ GROUNDED_FUNCTION_INLINE void groundedYield() {
     YieldProcessor();
     //Yield();
 }
+
+GROUNDED_FUNCTION_INLINE void groundedSleep(u32 millis) {
+    Sleep(millis);
+}
