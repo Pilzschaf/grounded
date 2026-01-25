@@ -980,9 +980,9 @@ GROUNDED_FUNCTION void groundedWindowSetClipboardText(String8 text) {
     if(OpenClipboard(0)) {
         ASSUME(EmptyClipboard()) {
             //TODO: Unicode UTF-16 support
-            HGLOBAL hMem = GlobalAlloc(GMEM_MOVABLE, text.size + 1)
+            HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, text.size + 1)
             ASSUME(hMem) {
-                void* mem = GlobalLock(hMem);
+                u8* mem = (u8*)GlobalLock(hMem);
                 ASSUME(mem) {
                     MEMORY_COPY(mem, text.base, text.size);
                     mem[text.size] = '\0'; // Must be 0-terminated
