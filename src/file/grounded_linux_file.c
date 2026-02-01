@@ -453,7 +453,7 @@ GROUNDED_FUNCTION GroundedDirectoryWatch* groundedDirectoryWatchCreate(MemoryAre
     return result;
 }
 
-GROUNDED_FUNCTION void groundedDestroyDirectoryWatch(GroundedDirectoryWatch* directoryWatch) {
+GROUNDED_FUNCTION void groundedDirectoryWatchDestroy(GroundedDirectoryWatch* directoryWatch) {
     ASSUME(directoryWatch) {
         close(directoryWatch->inotifyHandle);
         if(directoryWatch->recurseSubdirectories) {
@@ -544,6 +544,16 @@ GROUNDED_FUNCTION GroundedDirectoryWatchEvent* groundedDirectoryWatchPollEvents(
     
     arenaEndTemp(temp);
     return result;
+}
+
+GROUNDED_FUNCTION void groundedDirectoryWatchPollEventsCallback(GroundedDirectoryWatch* watch, WatchFileCallback callback) {
+    //TODO: Stub
+    ASSERT(false);
+}
+
+GROUNDED_FUNCTION void groundedDirectoryWatchWaitForEventsCallback(GroundedDirectoryWatch* watch, WatchFileCallback callback, u32 timeoutInMs) {
+    //TODO: Stub
+    ASSERT(false);
 }
 
 

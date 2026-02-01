@@ -1692,7 +1692,6 @@ static void shutdownWayland() {
     }
 
     if(selectionOffer) {
-        GROUNDED_LOG_INFOF("Leftover selection offer: %p, %p\n", selectionOffer, selectionOffer->offer);
         wl_data_offer_destroy(selectionOffer->offer);
         arenaRelease(&selectionOffer->arena);
         selectionOffer = 0;

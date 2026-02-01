@@ -3,27 +3,6 @@
 
 #include <windows.h>
 
-//TODO: Remove the UTF conversions from here
-inline static const char* UTF16ToUTF8(MemoryArena* arena, const wchar_t* s) {
-	int requiredLength = WideCharToMultiByte(CP_UTF8, 0, s, -1, 0, 0, 0, 0);
-	ASSERT(requiredLength >= 0);
-    char* result = ARENA_PUSH_ARRAY(arena, (u64)requiredLength, char);
-	ASSERT(result);
-	WideCharToMultiByte(CP_UTF8, 0, s, -1, result, requiredLength, 0, 0);
-	return result;
-}
-
-inline static wchar_t* UTF8ToUTF16(MemoryArena* arena, const char* s) {
-	int requiredBufferSize = MultiByteToWideChar(CP_UTF8, 0, s, -1, 0, 0);
-	ASSERT(requiredBufferSize >= 0);
-    wchar_t* result = ARENA_PUSH_ARRAY(arena, (u64)requiredBufferSize, wchar_t);
-	ASSERT(result);
-	int usedBufferSize = MultiByteToWideChar(CP_UTF8, 0, s, -1, result, requiredBufferSize);
-    ASSERT(usedBufferSize == requiredBufferSize);
-	return result;
-}
-
-
 //TODO: Error cases do not work at all!
 GROUNDED_FUNCTION u8* groundedReadFile(MemoryArena* arena, String8 filename, u64* size) {
 	MemoryArena* scratch = threadContextGetScratch(arena);
@@ -164,7 +143,6 @@ GROUNDED_FUNCTION GroundedDirectoryEntry getNextDirectoryEntry(GroundedDirectory
 	}
     String16 entryFilename16 = str16FromBlock(entry.cFileName, lstrlenW(entry.cFileName));
     result.name = str8FromStr16(iterator->arena, entryFilename16);
-    //result.name = UTF16ToUTF8(iterator->arena, entry.cFileName);
     if(entry.dwFileAttributes == FILE_ATTRIBUTE_DIRECTORY) {
         result.type = GROUNDED_DIRECTORY_ENTRY_TYPE_DIRECTORY;
     } else {
@@ -266,8 +244,8 @@ GROUNDED_FUNCTION bool groundedCreateDirectory(String8 directory) {
     MemoryArena* scratch = threadContextGetScratch(0);
     ArenaTempMemory temp = arenaBeginTemp(scratch);
 
-    wchar_t* utf16Directory = UTF8ToUTF16(scratch, str8GetCstr(scratch, directory));
-	int result = CreateDirectoryW(utf16Directory, 0);
+    String16 utf16Directory = str16FromStr8(scratch, directory);
+	int result = CreateDirectoryW(utf16Directory.base, 0);
 
     arenaEndTemp(temp);
 
@@ -277,10 +255,9 @@ GROUNDED_FUNCTION bool groundedCreateDirectory(String8 directory) {
 GROUNDED_FUNCTION bool groundedWriteFile(String8 filename, const void* data, u64 size) {
     MemoryArena* scratch = threadContextGetScratch(0);
     ArenaTempMemory temp = arenaBeginTemp(scratch);
-    
-	//TODO: Handle sizes larger than DWORD
-    wchar_t* utf16Filename = (UTF8ToUTF16(scratch, str8GetCstr(scratch, filename)));
-    HANDLE handle = CreateFileW(utf16Filename, GENERIC_WRITE, FILE_SHARE_READ, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+
+    String16 utf16Filename = str16FromStr8(scratch, filename);
+    HANDLE handle = CreateFileW(utf16Filename.base, GENERIC_WRITE, FILE_SHARE_READ, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
     WriteFile(handle, data, (DWORD)size, 0, 0);
     CloseHandle(handle);
 
@@ -303,8 +280,8 @@ GROUNDED_FUNCTION GroundedFile groundedOpenFile(String8 filename, enum FileMode 
         access |= GENERIC_READ;
     }
 
-    wchar_t* utf16Filename = (UTF8ToUTF16(scratch, str8GetCstr(scratch, filename)));
-    result.handle = CreateFileW(utf16Filename, access, FILE_SHARE_READ, 0, creation, FILE_ATTRIBUTE_NORMAL, 0);
+    String16 utf16Filename = str16FromStr8(scratch, filename);
+    result.handle = CreateFileW(utf16Filename.base, access, FILE_SHARE_READ, 0, creation, FILE_ATTRIBUTE_NORMAL, 0);
 
     arenaEndTemp(temp);
     return result;
@@ -569,22 +546,100 @@ GROUNDED_FUNCTION String8 groundedGetBinaryDirectory(MemoryArena* arena) {
     return result;
 }
 
+//TODO: Implement and test fully
+struct GroundedDirectoryWatch {
+    HANDLE directory;
+    HANDLE event;
+    OVERLAPPED overlapped;
+
+    u8* buffer;
+    u32 bufferSize;
+};
+
 GROUNDED_FUNCTION GroundedDirectoryWatch* groundedDirectoryWatchCreate(MemoryArena* arena, String8 directory, bool watchSubdirectories) {
-    //TODO: Stub
-    ASSERT(false);
-    return 0;
+    MemoryArena* scratch = threadContextGetScratch(arena);
+    ArenaTempMemory temp = arenaBeginTemp(scratch);
+
+    struct GroundedDirectoryWatch* result = ARENA_PUSH_STRUCT(arena, struct GroundedDirectoryWatch);
+    ASSUME(result) {
+        #if 0
+        String16 utf16Directory = str16FromStr8(scratch, directory);
+        result->directory = CreateFileW(utf16Directory.base, FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, 0);
+        ASSERT(result->directory != INVALID_HANDLE_VALUE);
+        result->event = CreateEventW(0, FALSE, FALSE, 0);
+        ASSERT(result->event);
+        result->overlapped = {};
+        result->overlapped.hEvent = result->event;
+        result->bufferSize = 64 * 1024;
+        result->buffer = ARENA_PUSH_ARRAY(arena, u8, result->bufferSize);
+        #endif
+    }
+
+    arenaEndTemp(temp);
+    return result;
 }
 
+/*static void groundedDirectoryWatchIssueRead(GroundedDirectoryWatch* watch) {
+    DWORD notifyFilter = FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME | FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_CREATION;
+    BOOL ok = ReadDirectoryChangesW(watch->directory, watch->buffer, watch->bufferSize, watch->watchSubdirectories, notifyFilter, 0, &watch->overlapped, 0);
+
+    ASSERT(ok);
+}*/
+
 GROUNDED_FUNCTION GroundedDirectoryWatchEvent* groundedDirectoryWatchPollEvents(GroundedDirectoryWatch* watch, MemoryArena* arena, u64* eventCount) {
-    //TODO: Stub
-    ASSERT(false);
-    return 0;
+    GroundedDirectoryWatchEvent* events = 0;
+    #if 0
+    ASSUME(watch) {
+        DWORD bytes;
+        BOOL completed = GetOverlappedResult(watch->directory, &watch->overlapped, &bytes, FALSE);
+        if (!completed) {
+            *eventCount = 0;
+            return 0;
+        }
+
+        FILE_NOTIFY_INFORMATION* info = (FILE_NOTIFY_INFORMATION*)watch->buffer;
+
+        events = ARENA_PUSH_ARRAY(arena, GroundedDirectoryWatchEvent, 64);
+        u64 count = 0;
+        for (count = 0; count < 64; count++) {
+            GroundedDirectoryWatchEvent* e = &events[count++];
+
+            e->action = info->Action;
+            e->name = str8FromStr16(arena, str16FromBlock((u16*)info->FileName, info->FileNameLength / 2));
+
+            if (!info->NextEntryOffset) break;
+            info = (FILE_NOTIFY_INFORMATION*)((u8*)info + info->NextEntryOffset);
+        }
+        ASSERT(count < 64);
+        *eventCount = count;
+
+        groundedDirectoryWatchIssueRead(watch);
+    }
+    #else
+    ASSUME(eventCount) {
+        *eventCount = 0;
+    }
+    #endif
+    return events;
 }
 
 GROUNDED_FUNCTION GroundedDirectoryWatchEvent* groundedDirectoryWatchWaitForEvents(GroundedDirectoryWatch* watch, MemoryArena* arena, u64* eventCount, u32 timeoutInMs) {
-    //TODO: Stub
-    ASSERT(false);
+    #if 0
+    ASSUME(watch) {
+        DWORD wait = WaitForSingleObject(watch, timeoutInMs);
+        if(wait != WAIT_OBJECT_0) {
+            *eventCount = 0;
+            return 0;
+        }
+    }
+
+    return groundedDirectoryWatchPollEvents(watch, arena, eventCount);
+    #else
+    ASSUME(eventCount) {
+        *eventCount = 0;
+    }
     return 0;
+    #endif
 }
 
 GROUNDED_FUNCTION void groundedDirectoryWatchPollEventsCallback(GroundedDirectoryWatch* watch, WatchFileCallback callback) {
@@ -598,6 +653,13 @@ GROUNDED_FUNCTION void groundedDirectoryWatchWaitForEventsCallback(GroundedDirec
 }
 
 GROUNDED_FUNCTION void groundedDirectoryWatchDestroy(GroundedDirectoryWatch* directoryWatch) {
-    //TODO: Stub
-    ASSERT(false);
+    ASSUME(directoryWatch) {
+        #if 0
+        CancelIo(directoryWatch->directory);
+        CloseHandle(directoryWatch->event);
+        CloseHandle(directoryWatch->directory);
+        directoryWatch->event = 0;
+        directoryWatch->directory = 0;
+        #endif
+    }
 }
