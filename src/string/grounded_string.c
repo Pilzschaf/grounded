@@ -65,6 +65,27 @@ GROUNDED_FUNCTION bool str8IsEqual(String8 a, String8 b) {
     return false;
 }
 
+GROUNDED_FUNCTION bool str8IsEqualCaseInsensitive(String8 a, String8 b) {
+    if(a.size == b.size) {
+        u64 offsetA = 0;
+        u64 offsetB = 0;
+
+        while(offsetA < a.size && offsetB < b.size) {
+            StringDecode decodeA = strDecodeUtf8(a.base + offsetA, a.size - offsetA);
+            offsetA += decodeA.size;
+            StringDecode decodeB = strDecodeUtf8(b.base + offsetB, b.size - offsetB);
+            offsetB += decodeB.size;
+            u32 codepointA = strCodepointToLower(decodeA.codepoint);
+            u32 codepointB = strCodepointToLower(decodeB.codepoint);
+            if(codepointA != codepointB) {
+                return false;
+            }
+        }
+        return true;
+    }
+    return false;
+}
+
 GROUNDED_FUNCTION int str8Compare(String8 a, String8 b) {
     u64 size = MIN(a.size, b.size);
     for(u64 i = 0; i < size; ++i) {
@@ -121,6 +142,14 @@ GROUNDED_FUNCTION bool str8IsPrefixOf(String8 prefix, String8 str) {
                 break;
             }
         }
+    }
+    return result;
+}
+
+GROUNDED_FUNCTION bool str8IsPrefixOfCaseInsensitive(String8 prefix, String8 str) {
+    bool result = false;
+    if(prefix.size <= str.size) {
+        result = str8IsEqualCaseInsensitive(prefix, str8FromBlock(str.base, prefix.size));
     }
     return result;
 }

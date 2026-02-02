@@ -72,6 +72,9 @@ typedef union GROUNDED_MATH_PREFIX(vec3) {
         float x, y, z;
     };
     struct {
+        float r, g, b;
+    };
+    struct {
         float u, v, w;
     };
     GROUNDED_MATH_PREFIX(vec2) xy;
@@ -84,6 +87,9 @@ typedef union GROUNDED_MATH_PREFIX(uvev3) {
         u32 x, y, z;
     };
     struct {
+        u32 r, g, b;
+    };
+    struct {
         u32 width, height, depth;
     };
     u32 elements[3];
@@ -92,6 +98,9 @@ typedef union GROUNDED_MATH_PREFIX(uvev3) {
 typedef union GROUNDED_MATH_PREFIX(ivec3) {
     struct {
         s32 x, y, z;
+    };
+    struct {
+        s32 r, g, b;
     };
     struct {
         s32 width, height, depth;

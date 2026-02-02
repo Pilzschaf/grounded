@@ -51,11 +51,13 @@ GROUNDED_FUNCTION String8 str8Skip(String8 str, u64 amount);
 GROUNDED_FUNCTION String8 str8Substring(String8 str, u64 first, u64 last);
 GROUNDED_FUNCTION String8 str8Join(struct MemoryArena* arena, String8 first, String8 second);
 GROUNDED_FUNCTION bool str8IsEqual(String8 a, String8 b);
+GROUNDED_FUNCTION bool str8IsEqualCaseInsensitive(String8 a, String8 b);
 GROUNDED_FUNCTION int str8Compare(String8 a, String8 b);
 GROUNDED_FUNCTION int str8CompareCaseInsensitive(String8 a, String8 b);
 GROUNDED_FUNCTION u64 str8GetFirstOccurence(String8 str, char c); // Returns UINT64_MAX if not found
 GROUNDED_FUNCTION u64 str8GetLastOccurence(String8 str, char c); // Returns UINT64_MAX if not found
 GROUNDED_FUNCTION bool str8IsPrefixOf(String8 prefix, String8 str);
+GROUNDED_FUNCTION bool str8IsPrefixOfCaseInsensitive(String8 prefix, String8 str);
 GROUNDED_FUNCTION bool str8IsPostfixOf(String8 postfix, String8 str);
 GROUNDED_FUNCTION bool str8IsSubstringOf(String8 substring, String8 str);
 GROUNDED_FUNCTION bool str8IsLowercase(String8 str);
