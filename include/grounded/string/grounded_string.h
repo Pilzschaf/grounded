@@ -63,6 +63,8 @@ GROUNDED_FUNCTION bool str8IsSubstringOf(String8 substring, String8 str);
 GROUNDED_FUNCTION bool str8IsLowercase(String8 str);
 GROUNDED_FUNCTION bool str8IsUppercase(String8 str);
 GROUNDED_FUNCTION s64 str8DeltaToNextWordBoundary(String8 str, u64 cursor, s64 inc); // Returns a modified delta extended to the next word boundary of str
+GROUNDED_FUNCTION_INLINE bool str8StartsWith(String8 str, String8 prefix) { return str8IsPrefixOf(prefix, str); }
+GROUNDED_FUNCTION_INLINE bool str8EndsWidth(String8 str, String8 postfix) { return str8IsPostfixOf(postfix, str); }
 
 struct MemoryArena;
 GROUNDED_FUNCTION String8 str8FromFormat(struct MemoryArena* arena, const char* format, ...);
