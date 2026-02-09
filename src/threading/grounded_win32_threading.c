@@ -178,7 +178,7 @@ struct Win32Thread {
     ArenaMarker marker;
 };
 
-static DWORD win32ThreadProc(void* arg) {
+static DWORD WINAPI win32ThreadProc(void* arg) {
 	struct Win32Thread* thread = (struct Win32Thread*)arg;
 
     GroundedThreadContext* threadContext = ARENA_PUSH_STRUCT(thread->arena, GroundedThreadContext);
