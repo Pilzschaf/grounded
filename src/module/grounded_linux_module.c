@@ -26,3 +26,8 @@ void groundedFreeModule(struct GroundedModule* module) {
         dlclose(module);
     }
 }
+
+String8 groundedGetPlatformModuleName(MemoryArena* arena, String8 basename) {
+    String8 result = str8FromFormat(arena, "lib%S.so", basename);
+    return result;
+}

@@ -10,4 +10,7 @@ struct GroundedModule* groundedLoadModule(String8 moduleFilename);
 void* groundedModuleGetSymbol(struct GroundedModule* module, const char* symbolName);
 void groundedFreeModule(struct GroundedModule* module);
 
+// Returns basename.dll on windows and libbasename.so on linux
+String8 groundedGetPlatformModuleName(struct MemoryArena* arena, String8 basename);
+
 #endif // GROUNDED_MODULE_H

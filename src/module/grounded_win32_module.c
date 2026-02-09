@@ -29,3 +29,8 @@ void groundedFreeModule(struct GroundedModule* module) {
         FreeLibrary((HMODULE)module);
     }
 }
+
+String8 groundedGetPlatformModuleName(MemoryArena* arena, String8 basename) {
+    String8 result = str8FromFormat(arena, "%S.dll", basename);
+    return result;
+}
